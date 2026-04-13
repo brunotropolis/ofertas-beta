@@ -1,24 +1,32 @@
-import { Tag } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import OfferForm from "@/components/ofertas/offer-form";
+import type { Database } from "@/lib/types/database";
 
-export default function OfertasPage() {
+type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
+
+export default async function OfertasPage() {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const { data } = await db
+    .from("campaigns")
+    .select("*")
+    .eq("is_active", true)
+    .order("name");
+
+  const campaigns = (data ?? []) as Campaign[];
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Ofertas</h1>
-          <p className="text-gray-400 text-sm mt-1">Curadoria e publicação de ofertas</p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Tag className="w-4 h-4" />
-          Nova Oferta
-        </button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white">Nova Oferta</h1>
+        <p className="text-gray-400 text-sm mt-1">
+          Cole a URL do produto, edite os dados e publique nas campanhas
+        </p>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-        <Tag className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-        <p className="text-gray-400">Nenhuma oferta disponível.</p>
-        <p className="text-gray-500 text-sm mt-1">Adicione uma URL de produto para começar.</p>
-      </div>
+      <OfferForm campaigns={campaigns} />
     </div>
   );
 }
