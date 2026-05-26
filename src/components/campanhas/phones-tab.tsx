@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2, Phone, Wifi, WifiOff, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
 
 type CampaignPhone = Database["public"]["Tables"]["campaign_phones"]["Row"];
@@ -85,106 +86,94 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-gray-400 text-sm">{phones.length} telefone(s) cadastrado(s)</p>
+        <p className="text-zinc-500 text-sm">
+          <span className="text-white font-medium">{phones.length}</span> telefone{phones.length !== 1 ? "s" : ""} cadastrado{phones.length !== 1 ? "s" : ""}
+        </p>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white text-xs font-medium rounded-full transition-all glow-orange-sm"
         >
-          <Plus className="w-4 h-4" />
-          Adicionar Telefone
+          <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+          Adicionar telefone
         </button>
       </div>
 
-      {/* Add form */}
       {showAdd && (
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Novo Telefone</h3>
+        <div className="glass rounded-2xl p-5">
+          <h3 className="text-white font-medium tracking-tight mb-4">Novo telefone</h3>
           <div className="space-y-3">
             <div>
-              <label className="text-sm text-gray-300 block mb-1.5">Número (com DDI)</label>
+              <label className="text-[11px] uppercase tracking-wider font-medium text-zinc-500 block mb-1.5">Número (com DDI)</label>
               <input
                 type="text"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="5511999999999"
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                className="w-full bg-zinc-900/70 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/15 transition"
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1">
               <div>
-                <p className="text-sm text-gray-300">Telefone admin</p>
-                <p className="text-xs text-gray-500">Admin não dispara mensagens</p>
+                <p className="text-sm text-zinc-200 tracking-tight">Telefone admin</p>
+                <p className="text-xs text-zinc-500">Admin não dispara mensagens</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsAdmin((p) => !p)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isAdmin ? "bg-blue-600" : "bg-gray-700"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isAdmin ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
+              <SwitchToggle active={isAdmin} onChange={() => setIsAdmin((p) => !p)} />
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-1">
               <button
                 onClick={() => { setShowAdd(false); setPhoneNumber(""); }}
-                className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+                className="flex-1 px-4 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-sm rounded-xl transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleAddPhone}
                 disabled={adding}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors font-medium"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 disabled:opacity-50 text-white text-sm rounded-xl transition-all font-medium glow-orange-sm"
               >
-                {adding ? "Criando..." : "Criar e Conectar"}
+                {adding ? "Criando..." : "Criar e conectar"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* QR Code box */}
       {qrData && (
-        <div className="bg-gray-900 border border-blue-600 rounded-xl p-5">
+        <div className="glass rounded-2xl p-6 border-orange-500/30">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-white font-medium">Conectar WhatsApp</h3>
-            <button onClick={() => setQrData(null)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+            <h3 className="text-white font-medium tracking-tight">Conectar WhatsApp</h3>
+            <button onClick={() => setQrData(null)} className="text-zinc-500 hover:text-white text-xl leading-none">×</button>
           </div>
-          <p className="text-gray-400 text-sm mb-4">
-            Abra o WhatsApp → Menu → Aparelhos Conectados → Conectar Aparelho → escaneie o QR:
+          <p className="text-zinc-500 text-sm mb-4">
+            Abra o WhatsApp → Menu → Aparelhos conectados → Conectar aparelho → escaneie o QR:
           </p>
           <div className="flex justify-center mb-4">
             {qrData.qr ? (
               qrData.qr.startsWith("data:") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={qrData.qr} alt="QR Code" className="w-52 h-52 rounded-lg bg-white p-1" />
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={qrData.qr} alt="QR Code" className="w-52 h-52 rounded-xl bg-white p-2" />
               ) : (
-                <div className="bg-white p-3 rounded-lg text-center">
+                <div className="bg-white p-3 rounded-xl text-center">
                   <p className="text-black text-xs font-mono break-all max-w-xs">{qrData.qr.slice(0, 150)}…</p>
                 </div>
               )
             ) : (
-              <p className="text-gray-500 text-sm">Aguardando QR Code...</p>
+              <p className="text-zinc-500 text-sm">Aguardando QR Code...</p>
             )}
           </div>
           <div className="flex gap-3">
             <button
               onClick={() => handleGetQR(qrData.phoneId)}
               disabled={polling === qrData.phoneId}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-sm rounded-xl transition-colors"
             >
-              <RefreshCw className={`w-4 h-4 ${polling === qrData.phoneId ? "animate-spin" : ""}`} />
+              <RefreshCw className={cn("w-4 h-4", polling === qrData.phoneId && "animate-spin")} />
               Atualizar QR
             </button>
             <button
               onClick={() => handleGetQR(qrData.phoneId)}
               disabled={polling === qrData.phoneId}
-              className="flex-1 px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-xl transition-colors font-medium"
             >
               Já escaneei ✓
             </button>
@@ -192,44 +181,46 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
         </div>
       )}
 
-      {/* Phones list */}
       {phones.length === 0 && !showAdd ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-          <Phone className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-400">Nenhum telefone cadastrado.</p>
-          <p className="text-gray-500 text-sm mt-1">
-            Adicione um telefone para conectar ao WhatsApp e sincronizar grupos.
+        <div className="glass rounded-2xl p-12 text-center">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-zinc-900/70 border border-zinc-800/60 mb-4">
+            <Phone className="w-7 h-7 text-zinc-600" strokeWidth={1.5} />
+          </div>
+          <p className="text-zinc-200 font-medium tracking-tight">Nenhum telefone cadastrado</p>
+          <p className="text-zinc-500 text-sm mt-1.5">
+            Adicione um telefone para conectar ao WhatsApp e sincronizar grupos
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {phones.map((phone) => (
             <div
               key={phone.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4"
+              className="glass rounded-2xl p-4 flex items-center gap-4 hover:border-zinc-700/80 transition-colors"
             >
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                  phone.is_active ? "bg-green-900/50" : "bg-gray-800"
-                }`}
+                className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                  phone.is_active ? "bg-emerald-500/10 text-emerald-400" : "bg-zinc-900/80 text-zinc-500"
+                )}
               >
                 {phone.is_active ? (
-                  <Wifi className="w-5 h-5 text-green-400" />
+                  <Wifi className="w-5 h-5" strokeWidth={1.75} />
                 ) : (
-                  <WifiOff className="w-5 h-5 text-gray-500" />
+                  <WifiOff className="w-5 h-5" strokeWidth={1.75} />
                 )}
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium">{phone.phone_number}</p>
-                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                  <span className={`text-xs ${phone.is_active ? "text-green-400" : "text-gray-500"}`}>
+                <p className="text-white font-medium tracking-tight">{phone.phone_number}</p>
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  <span className={cn("text-xs", phone.is_active ? "text-emerald-400" : "text-zinc-500")}>
                     {phone.is_active ? "● Conectado" : "○ Desconectado"}
                   </span>
                   {phone.is_admin && (
-                    <span className="text-xs bg-yellow-900/40 text-yellow-400 px-1.5 py-0.5 rounded">Admin</span>
+                    <span className="text-[10px] uppercase tracking-wider font-medium bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded">Admin</span>
                   )}
-                  <span className="text-xs text-gray-600 font-mono truncate">
+                  <span className="text-[11px] text-zinc-600 font-mono truncate">
                     {phone.evolution_instance_id}
                   </span>
                 </div>
@@ -240,7 +231,7 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
                   <button
                     onClick={() => handleGetQR(phone.id)}
                     disabled={polling === phone.id}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
+                    className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 disabled:opacity-50 text-white text-xs rounded-full transition-all"
                   >
                     {polling === phone.id ? "..." : "Conectar"}
                   </button>
@@ -249,18 +240,18 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
                   <button
                     onClick={() => handleSyncGroups(phone.id)}
                     disabled={syncingId === phone.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors"
                   >
-                    <RefreshCw className={`w-3 h-3 ${syncingId === phone.id ? "animate-spin" : ""}`} />
-                    Sync Grupos
+                    <RefreshCw className={cn("w-3 h-3", syncingId === phone.id && "animate-spin")} />
+                    Sync grupos
                   </button>
                 )}
                 <button
                   onClick={() => handleDelete(phone.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-2 text-zinc-500 hover:text-red-400 hover:bg-zinc-800/60 rounded-lg transition-colors"
                   title="Remover"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4" strokeWidth={1.75} />
                 </button>
               </div>
             </div>
@@ -268,5 +259,27 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function SwitchToggle({ active, onChange }: { active: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={cn(
+        "relative h-6 w-11 rounded-full transition-colors",
+        active
+          ? "bg-gradient-to-r from-orange-500 to-orange-600 shadow-[0_0_12px_rgba(255,107,53,0.35)]"
+          : "bg-zinc-800"
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform",
+          active && "translate-x-5"
+        )}
+      />
+    </button>
   );
 }

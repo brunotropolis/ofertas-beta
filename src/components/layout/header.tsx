@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { LogOut, User } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export function Header() {
@@ -23,19 +23,28 @@ export function Header() {
     router.refresh();
   }
 
+  const initial = email?.[0]?.toUpperCase() ?? "•";
+
   return (
-    <header className="h-14 border-b border-gray-800 bg-gray-950 flex items-center justify-end px-6 gap-4">
+    <header className="h-16 flex items-center justify-end px-6 gap-3 border-b border-zinc-900/80 bg-zinc-950/40 backdrop-blur-xl sticky top-0 z-30">
       {email && (
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <User className="w-4 h-4" />
-          <span>{email}</span>
+        <div className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-full bg-zinc-900/70 border border-zinc-800/80">
+          <div
+            className="h-7 w-7 rounded-full grid place-items-center text-white text-xs font-semibold"
+            style={{ background: "linear-gradient(135deg, #ff7a30 0%, #ff4e62 100%)" }}
+          >
+            {initial}
+          </div>
+          <span className="text-xs text-zinc-300 font-medium tracking-tight">
+            {email}
+          </span>
         </div>
       )}
       <button
         onClick={handleLogout}
-        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-800"
+        className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors px-3 py-2 rounded-full hover:bg-zinc-900/80 border border-transparent hover:border-zinc-800"
       >
-        <LogOut className="w-4 h-4" />
+        <LogOut className="w-3.5 h-3.5" strokeWidth={1.75} />
         Sair
       </button>
     </header>

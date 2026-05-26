@@ -19,9 +19,9 @@ export default async function OfertasPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Nova Oferta</h1>
-        <p className="text-gray-400 text-sm mt-1">
+      <div className="mb-8">
+        <h1 className="text-3xl font-display font-semibold text-white tracking-tightest">Nova oferta</h1>
+        <p className="text-zinc-500 text-sm mt-1">
           Cole a URL do produto, edite os dados e publique nas campanhas
         </p>
       </div>

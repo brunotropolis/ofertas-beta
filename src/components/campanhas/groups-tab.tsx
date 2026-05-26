@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Users, Search, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
 
 type CampaignGroup = Database["public"]["Tables"]["campaign_groups"]["Row"];
@@ -56,7 +57,6 @@ export default function GroupsTab({ campaignId, initialGroups, initialPhones }: 
         total += synced;
       }
     }
-    // Reload groups list
     const res = await fetch(`/api/campanhas/${campaignId}/groups`);
     if (res.ok) {
       const updated = await res.json();
@@ -83,92 +83,101 @@ export default function GroupsTab({ campaignId, initialGroups, initialPhones }: 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-gray-400 text-sm">
+        <p className="text-zinc-500 text-sm">
           <span className="text-white font-medium">{enabledCount}</span> de{" "}
           <span className="text-white font-medium">{groups.length}</span> grupos habilitados
         </p>
         <button
           onClick={handleSyncAll}
           disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Sincronizando..." : "Sincronizar Grupos"}
+          <RefreshCw className={cn("w-3.5 h-3.5", syncing && "animate-spin")} />
+          {syncing ? "Sincronizando..." : "Sincronizar grupos"}
         </button>
       </div>
 
       {groups.length === 0 ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-          <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-400">Nenhum grupo sincronizado ainda.</p>
-          <p className="text-gray-500 text-sm mt-1">
+        <div className="glass rounded-2xl p-12 text-center">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-zinc-900/70 border border-zinc-800/60 mb-4">
+            <Users className="w-7 h-7 text-zinc-600" strokeWidth={1.5} />
+          </div>
+          <p className="text-zinc-200 font-medium tracking-tight">Nenhum grupo sincronizado ainda</p>
+          <p className="text-zinc-500 text-sm mt-1.5">
             {connectedPhones.length === 0
               ? "Conecte um telefone na aba Telefones primeiro."
-              : "Clique em 'Sincronizar Grupos' para importar os grupos do WhatsApp."}
+              : "Clique em ‘Sincronizar grupos’ para importar os grupos do WhatsApp."}
           </p>
         </div>
       ) : (
         <>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <div className="flex-1 relative">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-500" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" strokeWidth={1.75} />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nome do grupo..."
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                className="w-full bg-zinc-900/70 border border-zinc-800 rounded-full pl-10 pr-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/15 transition"
               />
             </div>
             <button
               onClick={() => handleBulk(true)}
-              className="px-3 py-2 bg-green-900/40 hover:bg-green-900/60 text-green-400 text-sm rounded-lg transition-colors whitespace-nowrap"
+              className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs rounded-full transition-colors whitespace-nowrap"
             >
               Habilitar todos
             </button>
             <button
               onClick={() => handleBulk(false)}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm rounded-lg transition-colors whitespace-nowrap"
+              className="px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 text-xs rounded-full transition-colors whitespace-nowrap"
             >
               Desabilitar todos
             </button>
           </div>
 
-          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-800">
+          <div className="glass rounded-2xl overflow-hidden">
+            <div className="max-h-[60vh] overflow-y-auto scroll-thin divide-y divide-zinc-800/60">
               {filtered.map((group) => (
                 <div
                   key={group.id}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-800/40 transition-colors"
+                  className="flex items-center justify-between px-5 py-3.5 hover:bg-zinc-900/40 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        group.is_enabled ? "bg-green-400" : "bg-gray-600"
-                      }`}
+                      className={cn(
+                        "w-2 h-2 rounded-full shrink-0",
+                        group.is_enabled
+                          ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"
+                          : "bg-zinc-700"
+                      )}
                     />
-                    <span className="text-white text-sm truncate">{group.group_name}</span>
-                    <span className="text-gray-600 text-xs font-mono shrink-0 hidden sm:block">
+                    <span className="text-white text-sm tracking-tight truncate">{group.group_name}</span>
+                    <span className="text-zinc-600 text-[11px] font-mono shrink-0 hidden sm:block">
                       {group.group_jid.split("@")[0]}
                     </span>
                   </div>
                   <button
                     onClick={() => handleToggle(group)}
                     disabled={toggling === group.id}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 shrink-0 ml-4 ${
-                      group.is_enabled ? "bg-blue-600" : "bg-gray-700"
-                    }`}
+                    className={cn(
+                      "relative h-5 w-9 rounded-full transition-colors disabled:opacity-50 shrink-0 ml-4",
+                      group.is_enabled
+                        ? "bg-gradient-to-r from-orange-500 to-orange-600"
+                        : "bg-zinc-800"
+                    )}
                   >
                     <span
-                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                        group.is_enabled ? "translate-x-5" : "translate-x-1"
-                      }`}
+                      className={cn(
+                        "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                        group.is_enabled && "translate-x-4"
+                      )}
                     />
                   </button>
                 </div>
               ))}
               {filtered.length === 0 && (
-                <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                <div className="px-4 py-8 text-center text-zinc-500 text-sm">
                   Nenhum grupo encontrado para &ldquo;{search}&rdquo;
                 </div>
               )}

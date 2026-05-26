@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Search, Sparkles, RefreshCw, Send, Edit3, CheckCircle2,
-  ShoppingCart, Clock, Link2
+  ShoppingCart, Clock, Link2, Smartphone
 } from "lucide-react";
 import WhatsAppPreview from "./whatsapp-preview";
 import type { Database } from "@/lib/types/database";
@@ -21,12 +21,6 @@ interface ParsedProduct {
   product_url: string;
 }
 
-const PLATFORM_ICONS: Record<string, string> = {
-  amazon: "🛒",
-  shopee: "🧡",
-  ml: "💛",
-};
-
 const PLATFORM_NAMES: Record<string, string> = {
   amazon: "Amazon",
   shopee: "Shopee",
@@ -43,7 +37,6 @@ export default function OfferForm({ campaigns }: Props) {
   const [parseError, setParseError] = useState("");
   const [product, setProduct] = useState<ParsedProduct | null>(null);
 
-  // Editable fields
   const [title, setTitle] = useState("");
   const [priceCurrent, setPriceCurrent] = useState("");
   const [priceOriginal, setPriceOriginal] = useState("");
@@ -58,7 +51,6 @@ export default function OfferForm({ campaigns }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
 
-  // Select all active campaigns by default
   const activeCampaigns = campaigns.filter((c) => c.is_active);
 
   async function handleParseUrl() {
@@ -82,7 +74,6 @@ export default function OfferForm({ campaigns }: Props) {
       setPriceOriginal(data.price_original?.toString() ?? "");
       setDiscountPct(data.discount_pct?.toString() ?? "");
       setAffiliateUrl(data.product_url || url.trim());
-      // Auto-select all active campaigns
       setSelectedCampaigns(activeCampaigns.map((c) => c.id));
     } else {
       const err = await res.json();
@@ -93,7 +84,6 @@ export default function OfferForm({ campaigns }: Props) {
 
   async function handleGenerateCaption() {
     setGeneratingCaption(true);
-    // Find the AI prompt from the first selected campaign
     const selectedCampaign = campaigns.find((c) => selectedCampaigns.includes(c.id));
     const res = await fetch("/api/ofertas/caption", {
       method: "POST",
@@ -166,160 +156,140 @@ export default function OfferForm({ campaigns }: Props) {
   const previewCaption = caption + (extraText ? "\n\n" + extraText : "");
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
       {/* Left column — Form */}
       <div className="space-y-4">
         {/* URL Input */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
-            <Link2 className="w-4 h-4 text-blue-400" />
-            URL do Produto
-          </h2>
+        <Section title="URL do produto" icon={Link2}>
           <div className="flex gap-2">
             <input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleParseUrl()}
-              placeholder="https://amazon.com.br/... ou shopee.com.br/... ou mercadolivre.com.br/..."
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="https://amazon.com.br/... ou shopee.com.br/..."
+              className="flex-1 bg-zinc-900/70 border border-zinc-800 rounded-xl px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/15 transition"
             />
             <button
               onClick={handleParseUrl}
               disabled={parsing || !url.trim()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-all glow-orange-sm shrink-0"
             >
-              {parsing ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Search className="w-4 h-4" />
-              )}
+              {parsing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" strokeWidth={2} />}
               {parsing ? "Analisando..." : "Analisar"}
             </button>
           </div>
           {parseError && (
-            <p className="text-red-400 text-sm mt-2">{parseError}</p>
+            <p className="text-red-400 text-xs mt-2">{parseError}</p>
           )}
           {product && (
-            <div className="mt-2 flex items-center gap-2 text-sm">
-              <span>{PLATFORM_ICONS[product.platform]}</span>
-              <span className="text-green-400 font-medium">{PLATFORM_NAMES[product.platform]}</span>
-              <span className="text-gray-500">detectado</span>
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+              <span className="text-emerald-400 font-medium tracking-tight">{PLATFORM_NAMES[product.platform]}</span>
+              <span className="text-zinc-500">detectado</span>
             </div>
           )}
-        </div>
+        </Section>
 
-        {/* Product data — shown after parsing */}
         {product && (
           <>
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-              <h2 className="text-white font-semibold flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4 text-yellow-400" />
-                Dados do Produto
-              </h2>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Título</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Preço atual (R$)</label>
+            <Section title="Dados do produto" icon={ShoppingCart}>
+              <div className="space-y-4">
+                <FormField label="Título">
                   <input
-                    type="number"
-                    step="0.01"
-                    value={priceCurrent}
-                    onChange={(e) => setPriceCurrent(e.target.value)}
-                    onBlur={recalcDiscount}
-                    placeholder="0,00"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="form-input"
                   />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Preço original (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={priceOriginal}
-                    onChange={(e) => setPriceOriginal(e.target.value)}
-                    onBlur={recalcDiscount}
-                    placeholder="0,00"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Desconto (%)</label>
-                  <input
-                    type="number"
-                    value={discountPct}
-                    onChange={(e) => setDiscountPct(e.target.value)}
-                    placeholder="0"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
+                </FormField>
 
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Link de afiliado</label>
-                <input
-                  type="url"
-                  value={affiliateUrl}
-                  onChange={(e) => setAffiliateUrl(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
+                <div className="grid grid-cols-3 gap-3">
+                  <FormField label="Preço atual">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={priceCurrent}
+                      onChange={(e) => setPriceCurrent(e.target.value)}
+                      onBlur={recalcDiscount}
+                      placeholder="0,00"
+                      className="form-input"
+                    />
+                  </FormField>
+                  <FormField label="Preço original">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={priceOriginal}
+                      onChange={(e) => setPriceOriginal(e.target.value)}
+                      onBlur={recalcDiscount}
+                      placeholder="0,00"
+                      className="form-input"
+                    />
+                  </FormField>
+                  <FormField label="Desconto %">
+                    <input
+                      type="number"
+                      value={discountPct}
+                      onChange={(e) => setDiscountPct(e.target.value)}
+                      placeholder="0"
+                      className="form-input"
+                    />
+                  </FormField>
+                </div>
+
+                <FormField label="Link de afiliado">
+                  <input
+                    type="url"
+                    value={affiliateUrl}
+                    onChange={(e) => setAffiliateUrl(e.target.value)}
+                    className="form-input"
+                  />
+                </FormField>
               </div>
-            </div>
+            </Section>
 
             {/* Caption */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-white font-semibold flex items-center gap-2">
-                  <Edit3 className="w-4 h-4 text-purple-400" />
-                  Legenda
-                </h2>
+            <Section
+              title="Legenda"
+              icon={Edit3}
+              action={
                 <button
                   onClick={handleGenerateCaption}
                   disabled={generatingCaption}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors font-medium"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-orange-500/15 to-orange-500/5 border border-orange-500/30 hover:border-orange-500/60 disabled:opacity-50 text-orange-300 text-xs rounded-full transition-colors font-medium"
                 >
                   {generatingCaption ? (
                     <RefreshCw className="w-3 h-3 animate-spin" />
                   ) : (
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3" strokeWidth={2} />
                   )}
                   {generatingCaption ? "Gerando..." : "Gerar com IA"}
                 </button>
-              </div>
+              }
+            >
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 rows={5}
                 placeholder="Legenda da oferta — gerada pela IA ou escrita manualmente"
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                className="form-input resize-none"
               />
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Texto extra (opcional)</label>
+              <FormField label="Texto extra (opcional)" className="mt-3">
                 <textarea
                   value={extraText}
                   onChange={(e) => setExtraText(e.target.value)}
                   rows={2}
                   placeholder="Ex: ⚠️ Frete grátis para Prime!"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                  className="form-input resize-none"
                 />
-              </div>
-            </div>
+              </FormField>
+            </Section>
 
             {/* Campaign selection */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
-              <h2 className="text-white font-semibold">Campanhas</h2>
+            <Section title="Campanhas">
               {activeCampaigns.length === 0 ? (
-                <p className="text-gray-500 text-sm">Nenhuma campanha ativa. Crie uma campanha primeiro.</p>
+                <p className="text-zinc-500 text-sm">Nenhuma campanha ativa. Crie uma campanha primeiro.</p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   {activeCampaigns.map((c) => {
@@ -333,46 +303,53 @@ export default function OfferForm({ campaigns }: Props) {
                           )
                         }
                         className={cn(
-                          "flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm border transition-colors text-left",
+                          "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm border transition-all text-left",
                           selected
-                            ? "bg-blue-600/20 border-blue-500 text-white"
-                            : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                            ? "bg-gradient-to-r from-orange-500/15 to-transparent border-orange-500/40 text-white"
+                            : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
                         )}
                       >
-                        <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center shrink-0", selected ? "bg-blue-600 border-blue-600" : "border-gray-600")}>
-                          {selected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors",
+                            selected ? "bg-gradient-to-br from-orange-500 to-orange-600 border-transparent" : "border-zinc-600"
+                          )}
+                        >
+                          {selected && <CheckCircle2 className="w-3 h-3 text-white" strokeWidth={2.5} />}
                         </div>
-                        <span className="truncate">{c.name}</span>
+                        <span className="truncate tracking-tight">{c.name}</span>
                       </button>
                     );
                   })}
                 </div>
               )}
 
-              {/* Optional: schedule */}
-              <div>
-                <label className="text-xs text-gray-400 block mb-1 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Agendar para (opcional)
-                </label>
+              <FormField
+                label={
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" strokeWidth={1.75} />
+                    Agendar para (opcional)
+                  </span>
+                }
+                className="mt-4"
+              >
                 <input
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
-                  className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="form-input max-w-sm"
                 />
-              </div>
-            </div>
+              </FormField>
+            </Section>
 
-            {/* Publish button */}
             <button
               onClick={handlePublish}
               disabled={publishing || published || !title || selectedCampaigns.length === 0}
               className={cn(
-                "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm transition-colors",
+                "w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-medium text-sm transition-all",
                 published
-                  ? "bg-green-600"
-                  : "bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                  ? "bg-emerald-600"
+                  : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 disabled:opacity-50 glow-orange-sm hover:glow-orange"
               )}
             >
               {published ? (
@@ -380,7 +357,7 @@ export default function OfferForm({ campaigns }: Props) {
               ) : publishing ? (
                 <><RefreshCw className="w-4 h-4 animate-spin" /> Publicando...</>
               ) : (
-                <><Send className="w-4 h-4" /> Adicionar à Fila ({selectedCampaigns.length} campanha{selectedCampaigns.length !== 1 ? "s" : ""})</>
+                <><Send className="w-4 h-4" strokeWidth={2} /> Adicionar à fila ({selectedCampaigns.length} campanha{selectedCampaigns.length !== 1 ? "s" : ""})</>
               )}
             </button>
           </>
@@ -390,7 +367,7 @@ export default function OfferForm({ campaigns }: Props) {
       {/* Right column — Preview */}
       <div>
         {product ? (
-          <div className="sticky top-6">
+          <div className="sticky top-24">
             <WhatsAppPreview
               title={title}
               price_current={priceCurrent ? Number(priceCurrent) : null}
@@ -403,13 +380,82 @@ export default function OfferForm({ campaigns }: Props) {
             />
           </div>
         ) : (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-            <div className="text-5xl mb-3">📱</div>
-            <p className="text-gray-400">Digite uma URL para ver o preview</p>
-            <p className="text-gray-600 text-sm mt-1">O preview do WhatsApp aparece aqui</p>
+          <div className="glass rounded-2xl p-12 text-center sticky top-24">
+            <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-zinc-900/70 border border-zinc-800/60 mb-4">
+              <Smartphone className="w-7 h-7 text-zinc-600" strokeWidth={1.5} />
+            </div>
+            <p className="text-zinc-200 font-medium tracking-tight">Preview WhatsApp</p>
+            <p className="text-zinc-500 text-sm mt-1.5">Cole uma URL para ver o preview aqui</p>
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        .form-input {
+          width: 100%;
+          background: rgba(24, 24, 27, 0.7);
+          border: 1px solid rgb(39 39 42);
+          border-radius: 0.75rem;
+          padding: 0.625rem 0.875rem;
+          color: rgb(244 244 245);
+          font-size: 0.875rem;
+          transition: all 0.15s;
+        }
+        .form-input::placeholder { color: rgb(82 82 91); }
+        .form-input:focus {
+          outline: none;
+          border-color: rgb(255 107 53 / 0.6);
+          box-shadow: 0 0 0 3px rgb(255 107 53 / 0.12);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  icon: Icon,
+  action,
+  children,
+}: {
+  title: string;
+  icon?: React.ElementType;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="glass rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-white font-display font-semibold tracking-tight flex items-center gap-2 text-sm">
+          {Icon && (
+            <span className="h-7 w-7 rounded-lg bg-zinc-900/80 border border-zinc-800/70 flex items-center justify-center">
+              <Icon className="w-3.5 h-3.5 text-orange-400" strokeWidth={1.75} />
+            </span>
+          )}
+          {title}
+        </h2>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FormField({
+  label,
+  className,
+  children,
+}: {
+  label: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={className}>
+      <label className="block text-[11px] uppercase tracking-wider font-medium text-zinc-500 mb-1.5">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

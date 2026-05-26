@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Phone, Users, Bot, ToggleRight, ToggleLeft, Pencil } from "lucide-react";
+import { cn } from "@/lib/utils";
 import PhonesTab from "./phones-tab";
 import GroupsTab from "./groups-tab";
 import CampaignModal, { type CampaignFormData } from "./campaign-modal";
@@ -56,63 +57,68 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4">
+      <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-white">{campaign.name}</h1>
+            <h1 className="text-3xl font-display font-semibold text-white tracking-tightest">{campaign.name}</h1>
             <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              className={cn(
+                "text-[11px] px-2 py-0.5 rounded-md font-medium tracking-wide uppercase",
                 campaign.is_active
-                  ? "bg-green-900/50 text-green-400"
-                  : "bg-gray-800 text-gray-500"
-              }`}
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : "bg-zinc-800/80 text-zinc-500"
+              )}
             >
               {campaign.is_active ? "● Ativa" : "○ Inativa"}
             </span>
           </div>
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
             {campaign.niche && (
-              <span className="px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded-full">
+              <span className="px-2 py-0.5 bg-zinc-800/80 text-zinc-300 text-[11px] rounded-md">
                 {campaign.niche}
               </span>
             )}
-            <span className="text-gray-500 text-xs">Disparo a cada {campaign.timer_minutes}min</span>
+            <span className="text-zinc-500 text-xs">Disparo a cada {campaign.timer_minutes}min</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleToggleActive}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors"
           >
             {campaign.is_active ? (
-              <><ToggleRight className="w-4 h-4 text-green-500" /> Desativar</>
+              <><ToggleRight className="w-4 h-4 text-emerald-400" strokeWidth={1.75} /> Desativar</>
             ) : (
-              <><ToggleLeft className="w-4 h-4 text-gray-500" /> Ativar</>
+              <><ToggleLeft className="w-4 h-4 text-zinc-500" strokeWidth={1.75} /> Ativar</>
             )}
           </button>
           <button
             onClick={() => setShowEdit(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white text-xs rounded-full transition-all glow-orange-sm"
           >
-            <Pencil className="w-4 h-4" /> Editar
+            <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} /> Editar
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-900 border border-gray-800 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1 w-fit">
         {TABS.map((tab) => {
           const Icon = tab.icon;
+          const active = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab.id ? "bg-gray-700 text-white" : "text-gray-400 hover:text-white"
-              }`}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all",
+                active
+                  ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]"
+                  : "text-zinc-400 hover:text-white"
+              )}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
               {tab.label}
             </button>
           );
@@ -163,9 +169,9 @@ function PromptTab({
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-      <h3 className="text-white font-medium mb-1">Prompt da IA</h3>
-      <p className="text-gray-400 text-sm mb-4">
+    <div className="glass rounded-2xl p-7">
+      <h3 className="text-white font-display font-semibold tracking-tight">Prompt da IA</h3>
+      <p className="text-zinc-500 text-sm mt-1 mb-5">
         Instruções que a IA usará para gerar as legendas das ofertas desta campanha.
       </p>
       <textarea
@@ -173,17 +179,20 @@ function PromptTab({
         onChange={(e) => setPrompt(e.target.value)}
         rows={12}
         placeholder="Ex: Você é um especialista em copy para ofertas geek. Crie uma legenda impactante em português, com emojis relevantes, destacando o desconto e o produto. Máximo de 3 linhas. Tom animado e urgente."
-        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+        className="w-full bg-zinc-900/70 border border-zinc-800 rounded-xl px-4 py-3 text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/15 resize-none transition"
       />
-      <div className="flex justify-end mt-4">
+      <div className="flex justify-end mt-5">
         <button
           onClick={handleSave}
           disabled={saving}
-          className={`px-5 py-2 text-white text-sm rounded-lg transition-colors font-medium disabled:opacity-50 ${
-            saved ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700"
-          }`}
+          className={cn(
+            "px-5 py-2.5 text-white text-sm rounded-xl transition-all font-medium disabled:opacity-50",
+            saved
+              ? "bg-emerald-600"
+              : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 glow-orange-sm"
+          )}
         >
-          {saving ? "Salvando..." : saved ? "✓ Salvo!" : "Salvar Prompt"}
+          {saving ? "Salvando..." : saved ? "✓ Salvo!" : "Salvar prompt"}
         </button>
       </div>
     </div>

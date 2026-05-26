@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -41,90 +42,91 @@ export default function CampaignModal({ campaign, onSave, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4"
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-lg mx-4 shadow-2xl"
+        className="glass rounded-2xl w-full max-w-lg shadow-soft"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h2 className="text-white font-semibold">
-            {campaign ? "Editar Campanha" : "Nova Campanha"}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800/70">
+          <h2 className="text-white font-display font-semibold tracking-tight">
+            {campaign ? "Editar campanha" : "Nova campanha"}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+            <X className="w-5 h-5" strokeWidth={1.75} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm text-gray-300 mb-1.5">Nome da campanha *</label>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <Field label="Nome da campanha" required>
             <input
               type="text"
               required
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               placeholder="Ex: Ofertas Geek Maternas"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              className="modal-input"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm text-gray-300 mb-1.5">Nicho</label>
+          <Field label="Nicho">
             <input
               type="text"
               value={form.niche}
               onChange={(e) => setForm((p) => ({ ...p, niche: e.target.value }))}
               placeholder="geek, bebê, casa, eletrônicos..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              className="modal-input"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm text-gray-300 mb-1.5">Intervalo entre disparos</label>
-            <div className="flex gap-2 flex-wrap">
+          <Field label="Intervalo entre disparos">
+            <div className="flex gap-1.5 flex-wrap">
               {TIMER_OPTIONS.map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setForm((p) => ({ ...p, timer_minutes: t }))}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-full text-xs font-medium transition-all",
                     form.timer_minutes === t
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                  }`}
+                      ? "bg-orange-500 text-white shadow-[0_0_12px_rgba(255,107,53,0.4)]"
+                      : "bg-zinc-900/70 text-zinc-400 border border-zinc-800 hover:border-zinc-700 hover:text-zinc-200"
+                  )}
                 >
                   {t}min
                 </button>
               ))}
             </div>
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm text-gray-300 mb-1.5">Prompt IA</label>
+          <Field label="Prompt da IA">
             <textarea
               value={form.ai_prompt}
               onChange={(e) => setForm((p) => ({ ...p, ai_prompt: e.target.value }))}
               rows={4}
               placeholder="Instruções para a IA gerar a legenda das ofertas desta campanha..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+              className="modal-input resize-none"
             />
-          </div>
+          </Field>
 
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-300">Campanha ativa</label>
+          <div className="flex items-center justify-between pt-1">
+            <label className="text-sm text-zinc-300 tracking-tight">Campanha ativa</label>
             <button
               type="button"
               onClick={() => setForm((p) => ({ ...p, is_active: !p.is_active }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                form.is_active ? "bg-blue-600" : "bg-gray-700"
-              }`}
+              className={cn(
+                "relative h-6 w-11 rounded-full transition-colors",
+                form.is_active
+                  ? "bg-gradient-to-r from-orange-500 to-orange-600 shadow-[0_0_12px_rgba(255,107,53,0.35)]"
+                  : "bg-zinc-800"
+              )}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  form.is_active ? "translate-x-6" : "translate-x-1"
-                }`}
+                className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform",
+                  form.is_active && "translate-x-5"
+                )}
               />
             </button>
           </div>
@@ -133,20 +135,61 @@ export default function CampaignModal({ campaign, onSave, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+              className="flex-1 px-4 py-2.5 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-sm rounded-xl transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 disabled:opacity-60 text-white text-sm rounded-xl transition-all font-medium glow-orange-sm"
             >
               {loading ? "Salvando..." : "Salvar"}
             </button>
           </div>
         </form>
       </div>
+
+      <style jsx>{`
+        :global(.modal-input) {
+          width: 100%;
+          background: rgba(24, 24, 27, 0.7);
+          border: 1px solid rgb(39 39 42);
+          border-radius: 0.75rem;
+          padding: 0.625rem 0.875rem;
+          color: rgb(244 244 245);
+          font-size: 0.875rem;
+          transition: all 0.15s;
+        }
+        :global(.modal-input::placeholder) {
+          color: rgb(82 82 91);
+        }
+        :global(.modal-input:focus) {
+          outline: none;
+          border-color: rgb(255 107 53 / 0.6);
+          box-shadow: 0 0 0 3px rgb(255 107 53 / 0.12);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] uppercase tracking-wider font-medium text-zinc-500 mb-1.5">
+        {label}
+        {required && <span className="text-orange-500"> *</span>}
+      </label>
+      {children}
     </div>
   );
 }
