@@ -32,10 +32,21 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith("/login");
-  const isPublicPath = pathname.startsWith("/api/") || isAuthPage;
 
-  if (!user && !isPublicPath) {
+  // Whitelist explícita de rotas públicas. Adicionar /api/webhooks/* aqui quando
+  // chegarem endpoints chamados por sistemas externos (Telegram, Greenn, etc).
+  const PUBLIC_PATHS = ["/login"];
+  const isPublic = PUBLIC_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+  const isApi = pathname.startsWith("/api/");
+  const isAuthPage = pathname.startsWith("/login");
+
+  if (!user && !isPublic) {
+    // Pra rotas API, devolver 401 JSON em vez de redirect HTML (mais util pra clients fetch).
+    if (isApi) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
