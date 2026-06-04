@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { CampaignUpdateSchema, parseOrError } from "@/lib/schemas";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -22,10 +23,12 @@ export async function PATCH(request: Request, { params }: Params) {
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
-  const body = await request.json();
+  const raw = await request.json().catch(() => ({}));
+  const parsed = parseOrError(CampaignUpdateSchema, raw);
+  if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
   const { data, error } = await db
     .from("campaigns")
-    .update(body)
+    .update(parsed.data)
     .eq("id", id)
     .select()
     .single();

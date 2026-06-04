@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { PhoneCreateSchema, parseOrError } from "@/lib/schemas";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
@@ -25,7 +26,10 @@ export async function POST(request: Request, { params }: Params) {
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
-  const { phone_number, is_admin } = await request.json();
+  const raw = await request.json().catch(() => ({}));
+  const parsed = parseOrError(PhoneCreateSchema, raw);
+  if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
+  const { phone_number, is_admin } = parsed.data;
 
   const instanceName = `bg-${id.slice(0, 8)}-${Date.now()}`;
 

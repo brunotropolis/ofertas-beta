@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { CampaignCreateSchema, parseOrError } from "@/lib/schemas";
 
 export async function GET() {
   const supabase = await createClient();
@@ -19,10 +20,12 @@ export async function POST(request: Request) {
   const db = supabase as any;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await request.json();
+  const raw = await request.json().catch(() => ({}));
+  const parsed = parseOrError(CampaignCreateSchema, raw);
+  if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
   const { data, error } = await db
     .from("campaigns")
-    .insert({ ...body, created_by: user.id })
+    .insert({ ...parsed.data, created_by: user.id })
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

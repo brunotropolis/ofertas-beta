@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { OfferCreateSchema, parseOrError } from "@/lib/schemas";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -28,7 +29,9 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
+  const raw = await request.json().catch(() => ({}));
+  const parsed = parseOrError(OfferCreateSchema, raw);
+  if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
   const {
     url,
     affiliate_url,
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
     extra_text,
     campaign_ids,
     scheduled_at,
-  } = body;
+  } = parsed.data;
 
   // 1. Save offer
   const { data: offer, error: offerError } = await db

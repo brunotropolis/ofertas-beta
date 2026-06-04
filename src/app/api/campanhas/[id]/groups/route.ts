@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { GroupTogglePatchSchema, parseOrError } from "@/lib/schemas";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -22,9 +23,10 @@ export async function PATCH(request: Request, { params }: Params) {
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
-  const body = await request.json();
-  const group_id = body.group_id as string;
-  const is_enabled = body.is_enabled as boolean;
+  const raw = await request.json().catch(() => ({}));
+  const parsed = parseOrError(GroupTogglePatchSchema, raw);
+  if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
+  const { group_id, is_enabled } = parsed.data;
   const { data, error } = await db
     .from("campaign_groups")
     .update({ is_enabled })

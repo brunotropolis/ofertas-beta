@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ParseUrlSchema, parseOrError } from "@/lib/schemas";
 
 type Platform = "amazon" | "shopee" | "ml";
 
@@ -86,10 +87,12 @@ async function fetchMlProduct(itemId: string) {
 }
 
 export async function POST(request: Request) {
-  const { url } = await request.json();
-  if (!url || typeof url !== "string") {
-    return NextResponse.json({ error: "URL obrigatória" }, { status: 400 });
+  const body = await request.json().catch(() => ({}));
+  const parsed = parseOrError(ParseUrlSchema, body);
+  if (!parsed.ok) {
+    return NextResponse.json(parsed.error, { status: 400 });
   }
+  const { url } = parsed.data;
 
   const platform = detectPlatform(url);
   if (!platform) {
