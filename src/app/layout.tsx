@@ -15,7 +15,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "buscador geek — painel",
+  title: "BUSCADOR GEEK | by brunotropolis",
   description: "Painel de gestão de ofertas e campanhas",
 };
 
