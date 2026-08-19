@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
 
   // Whitelist explícita de rotas públicas. Adicionar /api/webhooks/* aqui quando
   // chegarem endpoints chamados por sistemas externos (Telegram, Greenn, etc).
-  const PUBLIC_PATHS = ["/login"];
+  const PUBLIC_PATHS = ["/login", "/api/cron"];
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
