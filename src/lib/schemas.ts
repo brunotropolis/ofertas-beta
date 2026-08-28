@@ -56,7 +56,16 @@ export const CampaignUpdateSchema = CampaignCreateSchema.partial();
 export const PhoneCreateSchema = z.object({
   phone_number: z.string()
     .regex(/^\+?\d{12,15}$/, "telefone formato inválido (E.164, 12-15 dígitos)"),
+  label: z.string().max(60).nullable().optional(),
   is_admin: z.boolean().optional(),
+});
+
+// PATCH — editar apelido / admin de um telefone já cadastrado
+export const PhoneUpdateSchema = z.object({
+  label: z.string().max(60).nullable().optional(),
+  is_admin: z.boolean().optional(),
+}).refine((d) => d.label !== undefined || d.is_admin !== undefined, {
+  message: "nada pra atualizar",
 });
 
 // =====================================================

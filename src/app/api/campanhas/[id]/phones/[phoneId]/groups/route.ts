@@ -21,18 +21,46 @@ export async function POST(_: Request, { params }: Params) {
 
   if (!phone) return NextResponse.json({ error: "Phone not found" }, { status: 404 });
 
+  const instance = phone.evolution_instance_id;
+
+  // Confere se a instância está conectada antes de puxar grupos
+  const stateRes = await fetch(`${EVO_URL}/instance/connectionState/${instance}`, {
+    headers: { apikey: EVO_KEY },
+  }).catch(() => null);
+  const stateJson = await stateRes?.json().catch(() => null);
+  const state = stateJson?.instance?.state;
+  if (state !== "open") {
+    return NextResponse.json(
+      { error: `WhatsApp desconectado (estado: ${state ?? "desconhecido"}). Reconecte o telefone e tente de novo.` },
+      { status: 409 }
+    );
+  }
+
+  // Esta versão do Evolution usa GET (não POST) pra fetchAllGroups
   const groupsRes = await fetch(
-    `${EVO_URL}/group/fetchAllGroups/${phone.evolution_instance_id}?getParticipants=false`,
-    { method: "POST", headers: { apikey: EVO_KEY } }
+    `${EVO_URL}/group/fetchAllGroups/${instance}?getParticipants=false`,
+    { method: "GET", headers: { apikey: EVO_KEY } }
   );
 
   if (!groupsRes.ok) {
-    return NextResponse.json({ error: "Failed to fetch groups from Evolution API" }, { status: 500 });
+    const body = await groupsRes.text().catch(() => "");
+    return NextResponse.json(
+      { error: `Evolution ${groupsRes.status}: ${body.slice(0, 200)}` },
+      { status: 500 }
+    );
   }
 
   const groups = await groupsRes.json().catch(() => []);
   if (!Array.isArray(groups)) {
     return NextResponse.json({ error: "Unexpected response", raw: groups }, { status: 500 });
+  }
+
+  // Baileys ainda não sincronizou os grupos (conexão recente)
+  if (groups.length === 0) {
+    return NextResponse.json({
+      synced: 0,
+      warning: "Nenhum grupo retornado ainda. Em conexão recente o WhatsApp leva alguns minutos pra sincronizar a lista de grupos — aguarde e tente de novo.",
+    });
   }
 
   const toInsert = groups.map((g: { id: string; subject: string }) => ({

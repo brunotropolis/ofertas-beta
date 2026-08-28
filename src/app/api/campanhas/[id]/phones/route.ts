@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: Params) {
   const raw = await request.json().catch(() => ({}));
   const parsed = parseOrError(PhoneCreateSchema, raw);
   if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
-  const { phone_number, is_admin } = parsed.data;
+  const { phone_number, label, is_admin } = parsed.data;
 
   const instanceName = `bg-${id.slice(0, 8)}-${Date.now()}`;
 
@@ -49,6 +49,7 @@ export async function POST(request: Request, { params }: Params) {
     .insert({
       campaign_id: id,
       phone_number,
+      label: label?.trim() || null,
       evolution_instance_id: instanceName,
       is_admin: is_admin ?? false,
       is_active: false,

@@ -61,6 +61,7 @@ export type Database = {
           id: string;
           campaign_id: string;
           phone_number: string;
+          label: string | null;
           evolution_instance_id: string;
           is_admin: boolean;
           is_active: boolean;
@@ -71,6 +72,7 @@ export type Database = {
           id?: string;
           campaign_id: string;
           phone_number: string;
+          label?: string | null;
           evolution_instance_id: string;
           is_admin?: boolean;
           is_active?: boolean;
@@ -78,6 +80,7 @@ export type Database = {
         };
         Update: {
           phone_number?: string;
+          label?: string | null;
           evolution_instance_id?: string;
           is_admin?: boolean;
           is_active?: boolean;

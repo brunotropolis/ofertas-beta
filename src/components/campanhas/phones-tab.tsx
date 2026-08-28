@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Phone, Wifi, WifiOff, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Phone, Wifi, WifiOff, RefreshCw, Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
 
@@ -16,11 +16,14 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
   const [phones, setPhones] = useState(initialPhones);
   const [showAdd, setShowAdd] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [label, setLabel] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [adding, setAdding] = useState(false);
   const [qrData, setQrData] = useState<{ phoneId: string; qr: string | null } | null>(null);
   const [polling, setPolling] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
 
   async function handleAddPhone() {
     if (!phoneNumber.trim()) return;
@@ -28,13 +31,14 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
     const res = await fetch(`/api/campanhas/${campaignId}/phones`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone_number: phoneNumber, is_admin: isAdmin }),
+      body: JSON.stringify({ phone_number: phoneNumber, label: label.trim() || null, is_admin: isAdmin }),
     });
     if (res.ok) {
       const newPhone = await res.json();
       setPhones((prev) => [...prev, newPhone]);
       setShowAdd(false);
       setPhoneNumber("");
+      setLabel("");
       setIsAdmin(false);
       await handleGetQR(newPhone.id);
     } else {
@@ -42,6 +46,19 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
       alert(`Erro: ${err.error}`);
     }
     setAdding(false);
+  }
+
+  async function handleSaveLabel(phoneId: string) {
+    const res = await fetch(`/api/campanhas/${campaignId}/phones/${phoneId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: editLabel.trim() || null }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setPhones((prev) => prev.map((p) => (p.id === phoneId ? { ...p, label: updated.label } : p)));
+    }
+    setEditingId(null);
   }
 
   async function handleGetQR(phoneId: string) {
@@ -74,8 +91,12 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
       method: "POST",
     });
     if (res.ok) {
-      const { synced } = await res.json();
-      alert(`${synced} grupos sincronizados! Vá para a aba Grupos para habilitá-los.`);
+      const data = await res.json();
+      if (data.warning) {
+        alert(data.warning);
+      } else {
+        alert(`${data.synced} grupos sincronizados! Vá para a aba Grupos para habilitá-los.`);
+      }
     } else {
       const err = await res.json();
       alert(`Erro: ${err.error}`);
@@ -102,6 +123,18 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
         <div className="glass rounded-2xl p-5">
           <h3 className="text-white font-medium tracking-tight mb-4">Novo telefone</h3>
           <div className="space-y-3">
+            <div>
+              <label className="text-[11px] uppercase tracking-wider font-medium text-zinc-500 block mb-1.5">Nome do aparelho</label>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Ex: iPhone Bruno, Chip Loja, Disparador 1"
+                maxLength={60}
+                className="w-full bg-zinc-900/70 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/15 transition"
+              />
+              <p className="text-[11px] text-zinc-600 mt-1">Só pra você identificar. Opcional.</p>
+            </div>
             <div>
               <label className="text-[11px] uppercase tracking-wider font-medium text-zinc-500 block mb-1.5">Número (com DDI)</label>
               <input
@@ -212,18 +245,62 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium tracking-tight">{phone.phone_number}</p>
-                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  <span className={cn("text-xs", phone.is_active ? "text-emerald-400" : "text-zinc-500")}>
-                    {phone.is_active ? "● Conectado" : "○ Desconectado"}
-                  </span>
-                  {phone.is_admin && (
-                    <span className="text-[10px] uppercase tracking-wider font-medium bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded">Admin</span>
-                  )}
-                  <span className="text-[11px] text-zinc-600 font-mono truncate">
-                    {phone.evolution_instance_id}
-                  </span>
-                </div>
+                {editingId === phone.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveLabel(phone.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      maxLength={60}
+                      placeholder="Nome do aparelho"
+                      className="flex-1 min-w-0 bg-zinc-900/70 border border-orange-500/60 rounded-lg px-2.5 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/15"
+                    />
+                    <button
+                      onClick={() => handleSaveLabel(phone.id)}
+                      className="p-1.5 text-emerald-400 hover:bg-zinc-800/60 rounded-lg icon-only"
+                      title="Salvar"
+                    >
+                      <Check className="w-4 h-4" strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="p-1.5 text-zinc-500 hover:bg-zinc-800/60 rounded-lg icon-only"
+                      title="Cancelar"
+                    >
+                      <X className="w-4 h-4" strokeWidth={2} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium tracking-tight truncate">
+                        {phone.label || phone.phone_number}
+                      </p>
+                      <button
+                        onClick={() => { setEditingId(phone.id); setEditLabel(phone.label ?? ""); }}
+                        className="p-1 text-zinc-500 hover:text-orange-400 hover:bg-zinc-800/60 rounded icon-only shrink-0"
+                        title="Renomear aparelho"
+                      >
+                        <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className={cn("text-xs", phone.is_active ? "text-emerald-400" : "text-zinc-500")}>
+                        {phone.is_active ? "● Conectado" : "○ Desconectado"}
+                      </span>
+                      {phone.label && (
+                        <span className="text-[11px] text-zinc-500 font-mono">{phone.phone_number}</span>
+                      )}
+                      {phone.is_admin && (
+                        <span className="text-[10px] uppercase tracking-wider font-medium bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded">Admin</span>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
