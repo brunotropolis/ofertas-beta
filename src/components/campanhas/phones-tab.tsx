@@ -95,7 +95,11 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
       if (data.warning) {
         alert(data.warning);
       } else {
-        alert(`${data.synced} grupos sincronizados! Vá para a aba Grupos para habilitá-los.`);
+        const partes = [];
+        if (data.synced) partes.push(`${data.synced} novo${data.synced !== 1 ? "s" : ""}`);
+        if (data.updated) partes.push(`${data.updated} atualizado${data.updated !== 1 ? "s" : ""}`);
+        const resumo = partes.length ? partes.join(" + ") : "nada novo";
+        alert(`Sincronizado! ${resumo} (${data.total} grupos no total). Vá na aba Grupos pra habilitar.`);
       }
     } else {
       const err = await res.json();
