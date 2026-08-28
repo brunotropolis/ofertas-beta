@@ -29,10 +29,35 @@
 
 @layer base {
   * { @apply border-border; }
-  html { color-scheme: dark; }
+  html {
+    color-scheme: dark;
+    /* Safe-area vars fallback pra 0 quando não é iOS */
+    --sat: env(safe-area-inset-top);
+    --sar: env(safe-area-inset-right);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    /* -webkit-tap-highlight zerado pra sumir o flash cinza no tap */
+    -webkit-tap-highlight-color: transparent;
+    /* Impede scroll bounce e reveal branco quando puxa a página */
+    overscroll-behavior-y: none;
+  }
+  /* Inputs sempre 16px no mobile pra iOS Safari não dar zoom automático */
+  @media (max-width: 767px) {
+    input[type="text"], input[type="email"], input[type="password"],
+    input[type="url"], input[type="number"], input[type="tel"],
+    input[type="search"], input[type="datetime-local"],
+    textarea, select {
+      font-size: 16px !important;
+    }
+  }
+  /* Touch targets mín 44x44 no mobile — clique mais generoso */
+  @media (max-width: 767px) {
+    button, a { min-height: 40px; }
+    button.icon-only, a.icon-only { min-height: unset; }
   }
 }
 
@@ -70,4 +95,18 @@
   .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
   .scroll-thin::-webkit-scrollbar-thumb { @apply bg-zinc-700 rounded-full; }
   .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+  /* Safe-area helpers pro iPhone (notch + home indicator) */
+  .safe-top    { padding-top:    max(1rem, env(safe-area-inset-top)); }
+  .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .safe-left   { padding-left:   max(1rem, env(safe-area-inset-left)); }
+  .safe-right  { padding-right:  max(1rem, env(safe-area-inset-right)); }
+  .safe-x      { padding-left:   max(1rem, env(safe-area-inset-left));  padding-right: max(1rem, env(safe-area-inset-right)); }
+  .safe-y      { padding-top:    max(1rem, env(safe-area-inset-top));   padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .mb-safe     { margin-bottom:  env(safe-area-inset-bottom); }
+  .mt-safe     { margin-top:     env(safe-area-inset-top); }
+
+  /* Full viewport height que respeita a URL bar do Safari */
+  .h-dvh { height: 100dvh; }
+  .min-h-dvh { min-height: 100dvh; }
 }

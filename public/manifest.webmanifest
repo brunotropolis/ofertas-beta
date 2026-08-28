@@ -1,0 +1,14 @@
+{
+  "name": "Buscador Geek",
+  "short_name": "BG",
+  "description": "Painel de gestão de ofertas e campanhas",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0906",
+  "theme_color": "#0f0906",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/apple-icon.svg", "sizes": "180x180", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

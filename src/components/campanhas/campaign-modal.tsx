@@ -52,7 +52,7 @@ export default function CampaignModal({ campaign, onSave, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="glass rounded-2xl w-full max-w-lg shadow-soft"
+        className="glass rounded-2xl w-full max-w-lg shadow-soft max-h-[92dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800/70">
@@ -64,7 +64,7 @@ export default function CampaignModal({ campaign, onSave, onClose }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto scroll-thin flex-1">
           <Field label="Nome da campanha" required>
             <input
               type="text"

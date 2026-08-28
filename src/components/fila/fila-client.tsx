@@ -155,8 +155,9 @@ export default function FilaClient() {
             return (
               <div
                 key={item.id}
-                className="glass rounded-2xl p-4 flex items-center gap-4 hover:border-zinc-700/80 transition-colors"
+                className="glass rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 hover:border-zinc-700/80 transition-colors"
               >
+                <div className="flex items-start md:items-center gap-3 md:gap-4 min-w-0 flex-1">
                 {/* Thumb */}
                 {item.offer?.image_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -228,8 +229,9 @@ export default function FilaClient() {
                   )}
                 </div>
 
+                </div>
                 {/* Actions */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 justify-end md:justify-start border-t md:border-t-0 border-zinc-800/60 pt-3 md:pt-0">
                   <button
                     onClick={() => handlePublish(item)}
                     disabled={isPublishing || item.status === "published"}
