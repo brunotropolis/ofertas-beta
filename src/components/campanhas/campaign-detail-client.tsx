@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Phone, Users, Bot, ToggleRight, ToggleLeft, Pencil } from "lucide-react";
+import { Phone, Users, Bot, ToggleRight, ToggleLeft, Pencil, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PhonesTab from "./phones-tab";
 import GroupsTab from "./groups-tab";
+import PlatformsTab from "./platforms-tab";
 import CampaignModal, { type CampaignFormData } from "./campaign-modal";
 import type { Database } from "@/lib/types/database";
 
@@ -21,6 +22,7 @@ interface Props {
 const TABS = [
   { id: "phones", label: "Telefones", icon: Phone },
   { id: "groups", label: "Grupos", icon: Users },
+  { id: "platforms", label: "Plataformas", icon: Store },
   { id: "prompt", label: "Prompt IA", icon: Bot },
 ] as const;
 
@@ -131,6 +133,9 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
       )}
       {activeTab === "groups" && (
         <GroupsTab campaignId={campaign.id} initialGroups={initialGroups} initialPhones={phones} />
+      )}
+      {activeTab === "platforms" && (
+        <PlatformsTab campaignId={campaign.id} />
       )}
       {activeTab === "prompt" && (
         <PromptTab campaign={campaign} onSave={handleSave} />

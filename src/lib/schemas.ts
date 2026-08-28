@@ -69,6 +69,21 @@ export const PhoneUpdateSchema = z.object({
 });
 
 // =====================================================
+// Campaign Platform (credenciais de afiliado por plataforma)
+// =====================================================
+// Segredos: null/ausente = mantém o atual; "" = limpa; valor = grava.
+export const PlatformSaveSchema = z.object({
+  platform: z.enum(["amazon", "shopee", "ml"]),
+  api_key: z.string().max(4000).nullable().optional(),
+  api_secret: z.string().max(4000).nullable().optional(),
+  cookie: z.string().max(16000).nullable().optional(),
+  tag: z.string().max(200).nullable().optional(),
+  keywords: z.array(z.string().max(120)).max(500).optional(),
+  categories: z.array(z.string().max(120)).max(500).optional(),
+  is_active: z.boolean().optional(),
+});
+
+// =====================================================
 // Campaign Group (toggle is_enabled)
 // =====================================================
 export const GroupTogglePatchSchema = z.object({
