@@ -32,12 +32,18 @@ export default function CampaignModal({ campaign, onSave, onClose }: Props) {
     is_active: campaign?.is_active ?? true,
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await onSave(form);
-    setLoading(false);
+    setError(null);
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar");
+      setLoading(false);
+    }
   }
 
   return (
@@ -130,6 +136,12 @@ export default function CampaignModal({ campaign, onSave, onClose }: Props) {
               />
             </button>
           </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2 text-red-400 text-xs">
+              {error}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button

@@ -45,25 +45,29 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setCampaigns((prev) =>
-          prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
-        );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erro ${res.status} ao salvar campanha`);
       }
+      const updated = await res.json();
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+      );
     } else {
       const res = await fetch("/api/campanhas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) {
-        const created = await res.json();
-        setCampaigns((prev) => [
-          { ...created, campaign_phones: [{ count: 0 }], campaign_groups: [{ count: 0 }] },
-          ...prev,
-        ]);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erro ${res.status} ao criar campanha`);
       }
+      const created = await res.json();
+      setCampaigns((prev) => [
+        { ...created, campaign_phones: [{ count: 0 }], campaign_groups: [{ count: 0 }] },
+        ...prev,
+      ]);
     }
     closeModal();
   }
