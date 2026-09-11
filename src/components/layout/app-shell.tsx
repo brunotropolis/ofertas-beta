@@ -14,6 +14,7 @@ import {
   CalendarDays,
   CalendarClock,
   LayoutDashboard,
+  Wallet,
   Menu,
   X,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
 const NAV = [
   { href: "/campanhas",   label: "Campanhas",    icon: Megaphone },
   { href: "/ofertas",     label: "Ofertas",      icon: Tag },
+  { href: "/vendas",      label: "Vendas",       icon: Wallet },
   { href: "/publicacoes", label: "Publicações",  icon: List },
   { href: "/fila",        label: "Fila",         icon: Clock },
   { href: "/calendario",  label: "Calendário",   icon: CalendarDays },
@@ -29,7 +31,7 @@ const NAV = [
 
 const NAV_BOTTOM_MOBILE = [
   { href: "/campanhas", label: "Camp.",    icon: Megaphone },
-  { href: "/ofertas",   label: "Ofertas",  icon: Tag },
+  { href: "/vendas",    label: "Vendas",   icon: Wallet },
   { href: "/fila",      label: "Fila",     icon: Clock },
   { href: "/dashboard", label: "Painel",   icon: LayoutDashboard },
 ];
