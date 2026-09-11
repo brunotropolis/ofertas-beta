@@ -285,13 +285,11 @@ export default function VendasClient() {
                   <div className="flex items-end gap-1 h-36 overflow-x-auto scroll-thin pb-1">
                     {agg.byDay.map((d) => (
                       <div key={d.day} className="flex flex-col items-center gap-1 min-w-[26px] group">
-                        <div className="flex-1 flex items-end w-full">
-                          <div
-                            className="w-full rounded-t-md bg-gradient-to-t from-orange-600 to-orange-400 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
-                            style={{ height: `${Math.max(4, (d.commission / maxDay) * 100)}%` }}
-                            title={`${d.day}: ${brl(d.commission)} · ${d.conversions} vendas`}
-                          />
-                        </div>
+                        <div
+                          className="w-full rounded-t-md bg-gradient-to-t from-orange-600 to-orange-400 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
+                          style={{ height: `${Math.max(3, (d.commission / maxDay) * 116)}px` }}
+                          title={`${d.day}: ${brl(d.commission)} · ${d.conversions} vendas`}
+                        />
                         <span className="text-[9px] text-zinc-600 whitespace-nowrap">{d.day.slice(8, 10)}/{d.day.slice(5, 7)}</span>
                       </div>
                     ))}
