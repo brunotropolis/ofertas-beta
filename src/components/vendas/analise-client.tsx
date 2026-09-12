@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Loader2, RefreshCw, Wallet, Package, TrendingUp, Layers, Filter } from "lucide-react";
+import { Loader2, RefreshCw, Wallet, Package, TrendingUp, Layers, Filter, Megaphone, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Cell { units: number; commission: number; gmv: number; }
+interface Cell { units: number; commission: number; gmv: number; ads: number; }
 interface Prod { product: string; category: string; plat: { shopee: Cell; ml: Cell; amazon: Cell }; tot: Cell; }
 interface Resp {
   period: { days: number; hoje: boolean };
-  kpis: { units: number; commission: number; gmv: number; classificadoPct: number };
+  kpis: { units: number; commission: number; gmv: number; ads: number; classificadoPct: number };
   produtos: Prod[];
   categorias: { category: string; units: number; commission: number; gmv: number }[];
+  eficiencia: { source: string; ads: number; units: number; commission: number; vdPorAd: number | null }[];
+  oportunidades: { product: string; category: string; units: number; commission: number; ads: number }[];
   errors: Record<string, string>;
 }
+const SRCLABEL: Record<string, string> = { ml: "Mercado Livre", amazon: "Amazon", shopee: "Shopee" };
 
 const PERIODS = [
   { v: "0", label: "Hoje" },
@@ -79,12 +82,55 @@ export default function AnaliseClient() {
       ) : !data ? <div className="glass rounded-2xl p-8 text-center text-zinc-400 text-sm">Não deu pra carregar.</div> : (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <Kpi icon={Wallet} label="Comissão" value={brl(data.kpis.commission)} highlight />
             <Kpi icon={Package} label="Itens vendidos" value={num(data.kpis.units)} />
             <Kpi icon={TrendingUp} label="GMV" value={brl(data.kpis.gmv)} />
+            <Kpi icon={Megaphone} label="Anúncios (grupo 1)" value={num(data.kpis.ads)} />
             <Kpi icon={Layers} label="Classificado" value={`${data.kpis.classificadoPct.toFixed(0)}%`} />
           </div>
+
+          {/* Eficiência por plataforma (vendas ÷ anúncios) */}
+          <div className="glass rounded-2xl p-5">
+            <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2"><Zap className="w-4 h-4 text-orange-400" strokeWidth={1.75} /> Eficiência por plataforma</h2>
+            <p className="text-[11px] text-zinc-500 mb-3">Quantas vendas (un) cada anúncio do grupo gera, por plataforma. Maior = anunciar ali rende mais.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {data.eficiencia.map((e) => (
+                <div key={e.source} className="bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-3">
+                  <p className="text-zinc-300 text-sm font-medium mb-1">{SRCLABEL[e.source] ?? e.source}</p>
+                  <p className="text-2xl font-display font-semibold text-white tracking-tight">{e.vdPorAd == null ? "—" : e.vdPorAd.toFixed(1)}<span className="text-xs text-zinc-500 font-normal ml-1">vd/ad</span></p>
+                  <p className="text-[11px] text-zinc-500 mt-1">{num(e.units)} vendas · {num(e.ads)} anúncios · <span className="text-emerald-400">{brl(e.commission)}</span></p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Oportunidades: vende muito, anuncia pouco */}
+          {data.oportunidades.length > 0 && (
+            <div className="glass rounded-2xl p-5">
+              <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-400" strokeWidth={1.75} /> Oportunidades não exploradas</h2>
+              <p className="text-[11px] text-zinc-500 mb-3">Produtos que venderam ≥10 un mas tiveram ≤3 anúncios no período — vendem "sozinhos", vale anunciar mais.</p>
+              <div className="overflow-x-auto scroll-thin">
+                <table className="w-full text-sm min-w-[520px]">
+                  <thead><tr className="text-left text-[10px] uppercase tracking-wider text-zinc-500 border-b border-zinc-800/70">
+                    <th className="py-2 pr-3 font-medium">Produto</th><th className="py-2 px-2 font-medium">Categoria</th>
+                    <th className="py-2 px-2 font-medium text-right">Vendas</th><th className="py-2 px-2 font-medium text-right">Anúncios</th><th className="py-2 pl-2 font-medium text-right">Comissão</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.oportunidades.map((o, i) => (
+                      <tr key={i} className="border-b border-zinc-900/60">
+                        <td className="py-2 pr-3 text-zinc-100">{o.product}</td>
+                        <td className="py-2 px-2 text-zinc-500 text-xs">{o.category}</td>
+                        <td className="py-2 px-2 text-right text-white font-medium">{num(o.units)}</td>
+                        <td className="py-2 px-2 text-right text-amber-400">{o.ads}</td>
+                        <td className="py-2 pl-2 text-right text-emerald-400">{brl(o.commission)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Categorias */}
           <div className="glass rounded-2xl p-5">
@@ -130,6 +176,7 @@ export default function AnaliseClient() {
                     <th className="py-2 pr-3 font-medium">Produto</th>
                     <th className="py-2 px-2 font-medium">Categoria</th>
                     {SRC.map(s => <th key={s.k} className="py-2 px-2 font-medium text-right"><span className="inline-flex items-center gap-1"><span className={cn("w-1.5 h-1.5 rounded-full", s.dot)} />{s.label}</span></th>)}
+                    <th className="py-2 px-2 font-medium text-right">Anúncios</th>
                     <th className="py-2 pl-2 font-medium text-right">Total (un · R$)</th>
                   </tr>
                 </thead>
@@ -144,10 +191,11 @@ export default function AnaliseClient() {
                           {c.units || c.commission ? `${num(c.units)} · ${brl(c.commission)}` : "—"}
                         </td>;
                       })}
+                      <td className="py-2 px-2 text-right text-amber-400/80 whitespace-nowrap">{num(p.tot.ads)}</td>
                       <td className="py-2 pl-2 text-right whitespace-nowrap"><span className="text-zinc-400">{num(p.tot.units)}</span> · <span className="text-white font-semibold">{brl(p.tot.commission)}</span></td>
                     </tr>
                   ))}
-                  {!prods.length && <tr><td colSpan={6} className="py-6 text-center text-zinc-500 text-sm">Nada no período/categoria.</td></tr>}
+                  {!prods.length && <tr><td colSpan={7} className="py-6 text-center text-zinc-500 text-sm">Nada no período/categoria.</td></tr>}
                 </tbody>
               </table>
             </div>
