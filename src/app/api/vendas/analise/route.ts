@@ -83,10 +83,11 @@ export async function GET(request: Request) {
 
   // Anúncios (todos os grupos) — dedup por link+dia (o dispatcher cross-posta a mesma oferta)
   try {
-    const { data } = await supabase.from("anuncios").select("platform,product_raw,url,posted_at").gte("posted_at", iso(start)).lte("posted_at", iso(end)).limit(20000);
+    const { data } = await supabase.from("anuncios").select("platform,product_raw,url,posted_at,group_name").gte("posted_at", iso(start)).lte("posted_at", iso(end)).limit(20000);
     const seen = new Set<string>();
-    for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string }[]) {
+    for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string; group_name: string }[]) {
       if (!(SRCS as string[]).includes(a.platform)) continue;
+      if (/cupo/i.test(a.group_name || "")) continue; // grupo de Cupons divulga cupons, não produto
       const day = (a.posted_at || "").slice(0, 10);
       const k = (a.url || a.product_raw) + "|" + day;
       if (seen.has(k)) continue; seen.add(k);
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
     source: s, ads: platTot[s].ads, units: platTot[s].units, commission: platTot[s].commission,
     vdPorAd: platTot[s].ads ? platTot[s].units / platTot[s].ads : null,
     shareVendas: tot.units ? (platTot[s].units / tot.units) * 100 : 0,
-  }));
+  })).sort((a, b) => (b.vdPorAd ?? -1) - (a.vdPorAd ?? -1)); // maior conversão primeiro
 
   const topAnunciados = produtos.filter(p => p.tot.ads > 0)
     .map(p => ({ product: p.product, category: p.category, ads: p.tot.ads, units: p.tot.units, commission: p.tot.commission, vdPorAd: p.tot.ads ? p.tot.units / p.tot.ads : null }))
