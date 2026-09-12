@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     const seen = new Set<string>();
     for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string; group_name: string }[]) {
       if (!(SRCS as string[]).includes(a.platform)) continue;
-      if (/cupo/i.test(a.group_name || "")) continue; // grupo de Cupons divulga cupons, não produto
+      if (/cupo|cupom|cupons/i.test(a.group_name || "") || /cupo|cupom|cupons|desconto no app/i.test(a.product_raw || "")) continue; // cupom não é produto
       const day = (a.posted_at || "").slice(0, 10);
       const k = (a.url || a.product_raw) + "|" + day;
       if (seen.has(k)) continue; seen.add(k);
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
 
   const oportunidades = produtos.filter(p => p.tot.units >= 10 && p.tot.ads <= 3 && p.category !== "Outros")
     .map(p => ({ product: p.product, category: p.category, units: p.tot.units, commission: p.tot.commission, ads: p.tot.ads, campea: champ(p), exampleName: p.exampleName, exampleUrl: p.exampleUrl }))
-    .sort((a, b) => b.units - a.units).slice(0, 30);
+    .sort((a, b) => b.units - a.units).slice(0, 100);
 
   const variacao = [...new Set([...curUnits.keys(), ...prevUnits.keys()])]
     .map(product => ({ product, atual: curUnits.get(product) ?? 0, anterior: prevUnits.get(product) ?? 0, delta: (curUnits.get(product) ?? 0) - (prevUnits.get(product) ?? 0) }))

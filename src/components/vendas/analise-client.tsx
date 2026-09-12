@@ -44,9 +44,11 @@ function Section({ acc, icon: Icon, title, desc, right, children }: { acc: keyof
 // tabela densa com contorno de coluna visível
 const TH = "py-2 px-2.5 font-semibold text-zinc-400 border border-zinc-700/60 bg-zinc-900/40";
 const TD = "py-1.5 px-2.5 border border-zinc-800/70";
-const VerLink = ({ url, name }: { url: string | null; name: string }) => (
-  <a href={url || srchLink(name)} target="_blank" rel="noopener noreferrer" title={name} className="inline-flex text-sky-400/80 hover:text-sky-300 shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>
-);
+const isAgg = (s: string) => /outros \(amazon/i.test(s || "");
+const VerLink = ({ url, name }: { url: string | null; name: string }) => {
+  if (isAgg(name)) return null; // agregado da Amazon não é um produto — sem link
+  return <a href={url || srchLink(name)} target="_blank" rel="noopener noreferrer" title={name} className="inline-flex text-sky-400/80 hover:text-sky-300 shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>;
+};
 
 export default function AnaliseClient() {
   const [days, setDays] = useState("30");
@@ -54,7 +56,7 @@ export default function AnaliseClient() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cat, setCat] = useState("(todas)");
-  const [full, setFull] = useState<null | "produtos" | "categorias" | "outros">(null);
+  const [full, setFull] = useState<null | "produtos" | "categorias" | "outros" | "oport">(null);
 
   const load = useCallback(async (silent = false) => {
     silent ? setRefreshing(true) : setLoading(true);
@@ -65,8 +67,9 @@ export default function AnaliseClient() {
 
   const catsMain = useMemo(() => (data?.categorias ?? []).filter(c => c.category !== "Outros"), [data]);
   const outrosCat = useMemo(() => (data?.categorias ?? []).find(c => c.category === "Outros"), [data]);
-  const catOptions = useMemo(() => ["(todas)", ...catsMain.map(c => c.category), ...(outrosCat ? ["Outros"] : [])], [catsMain, outrosCat]);
-  const prods = useMemo(() => { const l = data?.produtos ?? []; return cat === "(todas)" ? l : l.filter(p => p.category === cat); }, [data, cat]);
+  const catOptions = useMemo(() => ["(todas)", ...catsMain.map(c => c.category)], [catsMain]);
+  // Plataforma×Produto: só classificados (Outros tem seção própria)
+  const prods = useMemo(() => { const l = (data?.produtos ?? []).filter(p => p.category !== "Outros"); return cat === "(todas)" ? l : l.filter(p => p.category === cat); }, [data, cat]);
   const outrosProds = useMemo(() => (data?.produtos ?? []).filter(p => p.category === "Outros"), [data]);
   const champLabel = (s: string | null) => s ? (SRCLABEL[s] ?? s) : "—";
 
@@ -95,6 +98,25 @@ export default function AnaliseClient() {
     </div>
   );
 
+  const OportTable = ({ rows }: { rows: Resp["oportunidades"] }) => (
+    <div className="overflow-x-auto scroll-thin">
+      <table className="w-full text-[13px] min-w-[620px] border-collapse">
+        <thead><tr>
+          <th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-left")}>Categoria</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Anún.</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-left")}>Campeã</th>
+        </tr></thead>
+        <tbody>{rows.map((o, i) => (
+          <tr key={i} className="hover:bg-zinc-800/30">
+            <td className={cn(TD, "text-zinc-100")}><span className="inline-flex items-center gap-1.5">{o.product} <VerLink url={o.exampleUrl} name={o.exampleName} /></span></td>
+            <td className={cn(TD, "text-zinc-500")}>{o.category}</td>
+            <td className={cn(TD, "text-right text-white font-semibold")}>{num(o.units)}</td>
+            <td className={cn(TD, "text-right text-amber-400")}>{o.ads}</td>
+            <td className={cn(TD, "text-right text-emerald-400")}>{brl(o.commission)}</td>
+            <td className={cn(TD, "text-zinc-300")}><span className="inline-flex items-center gap-1"><span className={cn("w-1.5 h-1.5 rounded-full", dotOf(o.campea))} />{champLabel(o.campea)}</span></td>
+          </tr>))}</tbody>
+      </table>
+    </div>
+  );
+
   const header = (
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <p className="text-zinc-400 text-sm">Vendas × Anúncios normalizados e cruzados por plataforma.</p>
@@ -114,7 +136,7 @@ export default function AnaliseClient() {
 
   // ---- páginas cheias (ver todos) ----
   if (full) {
-    const back = <button onClick={() => setFull(null)} className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><ChevronLeft className="w-4 h-4" /> voltar</button>;
+    const back = <button onClick={() => setFull(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-lg text-xs font-semibold text-white shrink-0"><ChevronLeft className="w-4 h-4" /> Voltar</button>;
     return (
       <div className="space-y-4">
         {header}
@@ -134,8 +156,13 @@ export default function AnaliseClient() {
           </Section>
         )}
         {full === "outros" && (
-          <Section acc="outros" icon={HelpCircle} title={`Não classificados (${outrosProds.length})`} desc="Produtos que não casaram em nenhuma categoria — clique em Ver pra identificar. Me avise padrões e eu adiciono à taxonomia." right={back}>
+          <Section acc="outros" icon={HelpCircle} title={`Não classificados (${outrosProds.length})`} desc="Produtos que venderam mas não casaram numa categoria (o 'Outros (Amazon)' é o agregado sem detalhe da Amazon). Clique em Ver pra identificar — me avise padrões e eu adiciono à taxonomia." right={back}>
             <ProdTable rows={outrosProds} />
+          </Section>
+        )}
+        {full === "oport" && (
+          <Section acc="oport" icon={Target} title={`Oportunidades não exploradas (${data.oportunidades.length})`} desc="Vende ≥10 un mas ≤3 anúncios — vende sozinho, vale anunciar. Campeã = quem mais vendeu." right={back}>
+            <OportTable rows={data.oportunidades} />
           </Section>
         )}
       </div>
@@ -176,23 +203,8 @@ export default function AnaliseClient() {
 
       {/* Oportunidades */}
       {data.oportunidades.length > 0 && (
-        <Section acc="oport" icon={Target} title="Oportunidades não exploradas" desc="Vende ≥10 un mas ≤3 anúncios — vende sozinho, vale anunciar. Campeã = quem mais vendeu.">
-          <div className="overflow-x-auto scroll-thin">
-            <table className="w-full text-[13px] min-w-[620px] border-collapse">
-              <thead><tr>
-                <th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-left")}>Categoria</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Anún.</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-left")}>Campeã</th>
-              </tr></thead>
-              <tbody>{data.oportunidades.map((o, i) => (
-                <tr key={i} className="hover:bg-zinc-800/30">
-                  <td className={cn(TD, "text-zinc-100")}><span className="inline-flex items-center gap-1.5">{o.product} <VerLink url={o.exampleUrl} name={o.exampleName} /></span></td>
-                  <td className={cn(TD, "text-zinc-500")}>{o.category}</td>
-                  <td className={cn(TD, "text-right text-white font-semibold")}>{num(o.units)}</td>
-                  <td className={cn(TD, "text-right text-amber-400")}>{o.ads}</td>
-                  <td className={cn(TD, "text-right text-emerald-400")}>{brl(o.commission)}</td>
-                  <td className={cn(TD, "text-zinc-300")}><span className="inline-flex items-center gap-1"><span className={cn("w-1.5 h-1.5 rounded-full", dotOf(o.campea))} />{champLabel(o.campea)}</span></td>
-                </tr>))}</tbody>
-            </table>
-          </div>
+        <Section acc="oport" icon={Target} title="Oportunidades não exploradas" desc="Vende ≥10 un mas ≤3 anúncios — vende sozinho, vale anunciar. Campeã = quem mais vendeu." right={data.oportunidades.length > 8 ? <button onClick={() => setFull("oport")} className="text-xs text-emerald-400 hover:text-emerald-300 font-medium">ver todas ({data.oportunidades.length}) →</button> : undefined}>
+          <OportTable rows={data.oportunidades.slice(0, 8)} />
         </Section>
       )}
 
@@ -215,16 +227,25 @@ export default function AnaliseClient() {
 
       {/* Variação */}
       {(data.variacao.subiram.length > 0 || data.variacao.cairam.length > 0) && (
-        <Section acc="var" icon={TrendingUp} title="Variação vs período anterior (ML)" desc="Unidades desta janela vs a anterior. Amazon é snapshot; Shopee entra depois.">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-emerald-400 mb-1 flex items-center gap-1"><ArrowUpRight className="w-3.5 h-3.5" /> Subiram</p>
-              {data.variacao.subiram.map((v, i) => (<div key={i} className="flex items-center justify-between text-[13px] py-1 border-b border-zinc-800/60"><span className="text-zinc-200 truncate">{v.product}</span><span className="text-zinc-500 text-xs shrink-0">{v.anterior}→{v.atual} <span className="text-emerald-400 font-semibold">+{v.delta}</span></span></div>))}
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-red-400 mb-1 flex items-center gap-1"><ArrowDownRight className="w-3.5 h-3.5" /> Caíram</p>
-              {data.variacao.cairam.map((v, i) => (<div key={i} className="flex items-center justify-between text-[13px] py-1 border-b border-zinc-800/60"><span className="text-zinc-200 truncate">{v.product}</span><span className="text-zinc-500 text-xs shrink-0">{v.anterior}→{v.atual} <span className="text-red-400 font-semibold">{v.delta}</span></span></div>))}
-            </div>
+        <Section acc="var" icon={TrendingUp} title="Variação vs período anterior (ML)" desc="Unidades vendidas nesta janela vs a janela anterior de mesmo tamanho. Δ = diferença de unidades. Amazon é snapshot; Shopee entra depois.">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+            {([["Subiram", data.variacao.subiram, ArrowUpRight, "text-emerald-400"], ["Caíram", data.variacao.cairam, ArrowDownRight, "text-red-400"]] as const).map(([lbl, rows, Ico, col]) => (
+              <div key={lbl}>
+                <p className={cn("text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1", col)}><Ico className="w-3.5 h-3.5" /> {lbl}</p>
+                <table className="w-full text-[13px] border-collapse">
+                  <thead><tr>
+                    <th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-right")}>Antes</th><th className={cn(TH, "text-right")}>Agora</th><th className={cn(TH, "text-right")}>Δ un.</th>
+                  </tr></thead>
+                  <tbody>{rows.map((v, i) => (
+                    <tr key={i} className="hover:bg-zinc-800/30">
+                      <td className={cn(TD, "text-zinc-200")}>{v.product}</td>
+                      <td className={cn(TD, "text-right text-zinc-400")}>{v.anterior}</td>
+                      <td className={cn(TD, "text-right text-zinc-200")}>{v.atual}</td>
+                      <td className={cn(TD, "text-right font-semibold", col)}>{v.delta > 0 ? "+" : ""}{v.delta}</td>
+                    </tr>))}</tbody>
+                </table>
+              </div>
+            ))}
           </div>
         </Section>
       )}
@@ -238,10 +259,10 @@ export default function AnaliseClient() {
           </button>); })}</div>
       </Section>
 
-      {/* Outros — seção própria */}
+      {/* Outros — seção própria (tabela igual) */}
       {outrosCat && (
-        <Section acc="outros" icon={HelpCircle} title="Não classificados (Outros)" desc={`${num(outrosCat.units)} un · ${brl(outrosCat.commission)} — produtos que não casaram numa categoria.`} right={<button onClick={() => setFull("outros")} className="text-xs text-zinc-300 hover:text-white">ver produtos ({outrosProds.length}) →</button>}>
-          <div className="flex flex-wrap gap-1.5">{outrosProds.slice(0, 8).map((p, i) => (<a key={i} href={p.exampleUrl || srchLink(p.exampleName)} target="_blank" rel="noopener noreferrer" title={p.exampleName} className="inline-flex items-center gap-1 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/60 rounded-lg px-2 py-1 text-xs text-zinc-300">{p.product} <span className="text-zinc-500">{num(p.tot.units)}un</span> <ExternalLink className="w-3 h-3 text-sky-400/70" /></a>))}</div>
+        <Section acc="outros" icon={HelpCircle} title="Não classificados (Outros)" desc={`${num(outrosCat.units)} un · ${brl(outrosCat.commission)} — venderam mas não casaram numa categoria. Clique em Ver pra identificar. ("Outros (Amazon)" = agregado sem detalhe da Amazon, sem link.)`} right={outrosProds.length > 8 ? <button onClick={() => setFull("outros")} className="text-xs text-zinc-300 hover:text-white font-medium">ver todos ({outrosProds.length}) →</button> : undefined}>
+          <ProdTable rows={outrosProds.slice(0, 8)} />
         </Section>
       )}
 
