@@ -66,14 +66,16 @@ function buildCaption(offer: Offer): string {
   return parts.join("\n\n");
 }
 
+// Payloads no formato Evolution API v2 (flat) — o evo-v2 rejeita o formato v1 aninhado.
 async function sendText(instance: string, jid: string, text: string) {
   const res = await fetch(`${EVO_URL}/message/sendText/${encodeURIComponent(instance)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: EVO_KEY },
     body: JSON.stringify({
       number: jid,
-      options: { delay: 0, linkPreview: true },
-      textMessage: { text },
+      text,
+      delay: 0,
+      linkPreview: true,
     }),
   });
   if (!res.ok) throw new Error(`Evolution ${res.status}: ${await res.text().catch(() => "")}`);
@@ -90,14 +92,12 @@ async function sendMedia(
     headers: { "Content-Type": "application/json", apikey: EVO_KEY },
     body: JSON.stringify({
       number: jid,
-      options: { delay: 0 },
-      mediaMessage: {
-        mediatype: "image",
-        mimetype: "image/jpeg",
-        media: imageUrl,
-        caption,
-        fileName: "oferta.jpg",
-      },
+      mediatype: "image",
+      mimetype: "image/jpeg",
+      media: imageUrl,
+      caption,
+      fileName: "oferta.jpg",
+      delay: 0,
     }),
   });
   if (!res.ok) throw new Error(`Evolution ${res.status}: ${await res.text().catch(() => "")}`);
