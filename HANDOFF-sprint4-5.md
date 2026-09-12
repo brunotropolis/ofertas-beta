@@ -37,8 +37,15 @@ Body: {
 }
 ```
 
+## ✅ Teste em sandbox feito (12/Set) — 2 bugs de prod pegos
+Testado ponta a ponta com os 2 grupos de teste do Buscador Geek (instância Evolution `ob-teste` no evo-v2, linkada ao nº 554184434952). A esteira pegou a oferta da fila → postou nos 2 grupos → logou success → marcou `published`. **2 bugs que quebrariam a produção:**
+1. **Payload Evolution v1 → v2**: `sendText`/`sendMedia` usavam formato aninhado (`textMessage`/`mediaMessage`), rejeitado pelo evo-v2 com `400 "requires property text"`. **Corrigido** (commit `4c493ed`) pro formato flat da v2.
+2. **URL do Evolution errada**: o app aponta pro Evolution ANTIGO (`evolution-evolution-api...`, morto). O certo é **evo-v2** (`https://evo-v2-evolution.xktssy.easypanel.host`) — mesma apikey. Corrigido no `.env.local` local; **falta corrigir na EasyPanel** (env de prod).
+
+Setup de teste deixado no banco: campanha "TESTE — Sandbox Buscador Geek" (ativa, fila vazia = inócua), instância `ob-teste` conectada. Pra novos testes é só enfileirar e chamar o tick.
+
 ## Passos de FINALIZAÇÃO (precisam do Bruno — outward-facing / prod)
-1. **Push + deploy** do `master` (auto-deploy EasyPanel). Nada de migration nova — o schema já suportava tudo (`offers.source`, `publication_queue.position`, `publication_log`).
+1. **Push + deploy** do `master` (auto-deploy EasyPanel). Nada de migration nova — o schema já suportava tudo (`offers.source`, `publication_queue.position`, `publication_log`). ⚠️ **Trocar `EVOLUTION_API_URL` na EasyPanel** pro evo-v2 (senão o envio real não funciona — o app está apontando pro Evolution morto).
 2. **Ligar o heartbeat**: workflow n8n cron (1min) → `POST https://app.buscadorgeek.com.br/api/cron/tick` com header `x-cron-secret`. Sem isso a fila não dispara sozinha (só o botão "Publicar agora" funciona). ⚠️ isso liga envio REAL de WhatsApp — validar com telefone/grupo de teste antes.
 3. **(Opcional) `INGEST_SECRET` dedicado** em `.env.local` + EasyPanel (hoje cai no `CRON_SECRET`).
 4. **Wiring das fontes** (Sprint 5 completo): apontar os coletores que **já geram link de afiliado** (o "ML Auto" `hg63h2u3bBibMAuu`, Shopee/Amazon do Buscador Geek) pra `POST /api/ingest`. Um coletor ML ingênuo via API pública NÃO serve — a API pública não gera link de afiliado (só cookie/scraping), viraria tráfego sem comissão.
