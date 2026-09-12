@@ -85,12 +85,13 @@ const now = new Date().toISOString();
 const payload = out.map(r => ({ source: "amazon", ...r, synced_at: now,
   product_image: null, store: null, commission_pct: null, status: null, sale_type: null, utm: null, device: null }));
 
-// Amazon é snapshot: limpa tudo antes (só existe o sync mais recente).
-const del = await fetch(`${URL}/rest/v1/affiliate_sales?source=eq.amazon`, {
+// Acumula por período: apaga SÓ o bucket deste período (re-sync do mesmo período é idempotente;
+// períodos não-sobrepostos coexistem e somam). Sincronize janelas que não se sobrepõem (ex.: por mês).
+const del = await fetch(`${URL}/rest/v1/affiliate_sales?source=eq.amazon&period_start=eq.${pStart}&period_end=eq.${pEnd}`, {
   method: "DELETE",
   headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: "return=minimal" },
 });
-if (!del.ok) { console.error(`delete amazon: HTTP ${del.status} ${await del.text()}`); process.exit(1); }
+if (!del.ok) { console.error(`delete amazon período: HTTP ${del.status} ${await del.text()}`); process.exit(1); }
 
 const endpoint = `${URL}/rest/v1/affiliate_sales?on_conflict=source,external_id`;
 let ok = 0;
