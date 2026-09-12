@@ -23,7 +23,21 @@ const days = parseInt(process.argv[2] || "90", 10);
 const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
 
 const platform = (u) => { u = (u || "").toLowerCase(); if (/shopee/.test(u)) return "shopee"; if (/amzn|amazon/.test(u)) return "amazon"; if (/mercadoliv|mercadolibre|meli\.la|\/sec\/|mlb/.test(u)) return "ml"; if (/magazine|magalu/.test(u)) return "magazine"; return "outro"; };
-const product = (b) => { if (!b) return ""; const m = b.match(/\*([^*]{4,})\*/); if (m) return m[1].trim(); const ls = b.split("\n").map(x => x.trim()).filter(Boolean); return (ls[1] || ls[0] || "").slice(0, 120); };
+const stripDeco = (s) => (s || "").replace(/^[^\p{L}\d]+/u, "").trim(); // tira emoji/símbolo do começo
+const isNoise = (t) => {
+  if (!t || t.length < 4 || !/\p{L}/u.test(t)) return true;
+  if (/^(por|de|a partir de)\s*:?\s*r?\$?\s*\d/i.test(t)) return true;         // "Por: R$ 26"
+  if (/^>?\s*de\s+r\$/i.test(t)) return true;                                   // "> De R$ 42"
+  if (/^(baixou+|precinho+|corre+|aproveit\w*|promo\w*|imperd\w*|olha (isso|esse|só)|chegou|novidade|dica da day)!*\s*$/i.test(t)) return true;
+  return false;
+};
+const product = (b) => {
+  if (!b) return "";
+  const m = b.match(/\*([^*]{4,})\*/);
+  let p = m ? m[1].trim() : (b.split("\n").map(x => x.trim()).filter(Boolean)[1] || b.split("\n").map(x => x.trim()).filter(Boolean)[0] || "").slice(0, 120);
+  p = stripDeco(p);
+  return isNoise(p) ? "" : p; // descarta chamada promocional (o loop pula quando prod vazio)
+};
 
 const rows = [];
 let offset = 0;

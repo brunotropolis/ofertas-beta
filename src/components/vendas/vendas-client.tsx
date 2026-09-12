@@ -26,10 +26,11 @@ interface VarItem { product: string; atual: number; anterior: number; delta: num
 interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
 interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
 interface Produto { product: string; category: string; units: number; commission: number; gmv: number; clicks: number; ads: number }
+interface Funnel { clicks: number; buyers: number; orders: number; gmv: number; commission: number; comm_marketplace: number; comm_seller: number; comm_brand: number; synced_at: string | null }
 interface SourceResult {
   ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean;
   period?: { start: string | null; end: string | null };
-  agg?: Agg; variacao?: Variacao | null; adsByProduct?: AdProduto[]; produtos?: Produto[]; oportunidades?: Produto[];
+  agg?: Agg; variacao?: Variacao | null; adsByProduct?: AdProduto[]; produtos?: Produto[]; oportunidades?: Produto[]; funnel?: Funnel | null;
 }
 interface VendasResp {
   period: { days: number };
@@ -397,7 +398,14 @@ export default function VendasClient() {
                 <Kpi icon={Receipt} label="Ticket méd." value={brl(agg.kpis.ticket)} />
                 {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={MousePointerClick} label="Cliques" value={num(agg.kpis.clicks)} />}
                 {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={Percent} label="Conv. clique→compra" value={pct(agg.kpis.items / agg.kpis.clicks)} accent="sky" />}
+                {source === "ml" && srcExtra?.funnel && srcExtra.funnel.clicks > 0 && <Kpi icon={MousePointerClick} label="Cliques (conta)" value={num(srcExtra.funnel.clicks)} />}
+                {source === "ml" && srcExtra?.funnel && srcExtra.funnel.clicks > 0 && <Kpi icon={Percent} label="Conv. clique→pedido" value={pct(srcExtra.funnel.orders / srcExtra.funnel.clicks)} accent="sky" />}
               </div>
+              {source === "ml" && srcExtra?.funnel && srcExtra.funnel.clicks > 0 && (
+                <p className="text-[11px] text-zinc-400 px-1">
+                  Funil da conta ML na janela: <span className="text-sky-300 font-medium">{num(srcExtra.funnel.clicks)} cliques</span> → {num(srcExtra.funnel.buyers)} compradores → <span className="text-zinc-200">{num(srcExtra.funnel.orders)} pedidos</span>. Comissão por origem: marketplace {brl(srcExtra.funnel.comm_marketplace)} · seller {brl(srcExtra.funnel.comm_seller)} · brand {brl(srcExtra.funnel.comm_brand)}.
+                </p>
+              )}
 
               {/* Status */}
               {Object.keys(agg.kpis.byStatusCount).length > 0 && (

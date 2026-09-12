@@ -14,6 +14,7 @@ interface VarItem { product: string; atual: number; anterior: number; delta: num
 interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
 interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
 interface Produto { product: string; category: string; units: number; commission: number; gmv: number; clicks: number; ads: number }
+interface Funnel { clicks: number; buyers: number; orders: number; gmv: number; commission: number; comm_marketplace: number; comm_seller: number; comm_brand: number; synced_at: string | null }
 
 interface SourceResult {
   ok: boolean;
@@ -27,7 +28,20 @@ interface SourceResult {
   adsByProduct?: AdProduto[];        // anúncios (grupos WhatsApp) × vendas desta plataforma
   produtos?: Produto[];              // lista normalizada completa (produtos mais vendidos + "ver todos")
   oportunidades?: Produto[];         // vende bem, quase sem anúncio
+  funnel?: Funnel | null;            // ML: métricas de conta (cliques→pedidos) da janela — só janelas 7/30/90
 }
+
+// posts promocionais que o coletor pega em vez do produto (não são produtos)
+const stripDeco = (s: string) => (s || "").replace(/^[^\p{L}\d]+/u, "").trim();
+const isNoiseAd = (raw: string) => {
+  const t = stripDeco(raw);
+  if (t.length < 4) return true;
+  if (!/\p{L}/u.test(t)) return true;                                   // sem letras (emoji/número)
+  if (/^(por|de|a partir de)\s*:?\s*r?\$?\s*\d/i.test(t)) return true;  // "Por: R$ 26"
+  if (/^>?\s*de\s+r\$/i.test(t)) return true;                            // "> De R$ 42"
+  if (/^(baixou+|precinho+|corre+|aproveit\w*|promo\w*|imperd\w*|olha (isso|esse|só)|chegou|novidade|dica da day)!*\s*$/i.test(t)) return true;
+  return false;
+};
 
 interface NormEntry { product: string; category: string; units: number; commission: number; gmv: number; clicks: number }
 const isAgg = (p: string) => /^Outros \(Amazon/i.test(p || "");
@@ -87,10 +101,11 @@ export async function GET(request: Request) {
     for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string; group_name: string }[]) {
       if (a.platform !== "shopee" && a.platform !== "ml" && a.platform !== "amazon") continue;
       if (/cupo|cupom|cupons/i.test(a.group_name || "") || /cupo|cupom|cupons|desconto no app/i.test(a.product_raw || "")) continue;
+      if (isNoiseAd(a.product_raw)) continue; // descarta post promocional/preço (não é produto)
       const day = (a.posted_at || "").slice(0, 10);
       const k = (a.url || a.product_raw) + "|" + day;
       if (seen.has(k)) continue; seen.add(k);
-      const p = norm(a.product_raw, null).product;
+      const p = norm(stripDeco(a.product_raw), null).product;
       if (!p || p === "(não classificado)") continue;
       const m = adsNorm[a.platform as Src].get(p) ?? { ads: 0, exampleUrl: null };
       m.ads += 1; if (!m.exampleUrl && a.url) m.exampleUrl = a.url;
@@ -184,10 +199,22 @@ export async function GET(request: Request) {
         const p = norm(r.product_name, r.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
       }
+      // funil de conta (cliques→pedidos) — só existe pras janelas coletadas (7/30/90)
+      let funnel: Funnel | null = null;
+      try {
+        const { data: mRaw } = await supabase.from("affiliate_metrics").select("*").eq("source", "ml").eq("days", days).maybeSingle();
+        const mData = mRaw as Record<string, unknown> | null;
+        if (mData) funnel = {
+          clicks: Number(mData.clicks) || 0, buyers: Number(mData.buyers) || 0, orders: Number(mData.orders) || 0,
+          gmv: Number(mData.gmv) || 0, commission: Number(mData.commission) || 0,
+          comm_marketplace: Number(mData.comm_marketplace) || 0, comm_seller: Number(mData.comm_seller) || 0, comm_brand: Number(mData.comm_brand) || 0,
+          synced_at: (mData.synced_at as string) ?? null,
+        };
+      } catch { /* funil opcional */ }
       sources.ml = {
         ok: true, lastSync: lastSyncOf(rows), agg: aggregateRows(rows, "sale"),
         variacao: diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho"),
-        ...buildOutputs("ml", salesNorm),
+        ...buildOutputs("ml", salesNorm), funnel,
       };
     } catch (err) {
       sources.ml = { ok: false, error: err instanceof Error ? err.message : String(err) };

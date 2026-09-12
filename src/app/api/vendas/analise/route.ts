@@ -15,6 +15,18 @@ const SRCS: Src[] = ["shopee", "ml", "amazon"];
 
 interface Bucket { product: string; category: string; plat: Record<Src, Cell>; tot: Cell; exampleName: string; exampleUrl: string | null; }
 
+// posts promocionais que o coletor pega em vez do produto (não são produtos)
+const stripDeco = (s: string) => (s || "").replace(/^[^\p{L}\d]+/u, "").trim();
+const isNoiseAd = (raw: string) => {
+  const t = stripDeco(raw);
+  if (t.length < 4) return true;
+  if (!/\p{L}/u.test(t)) return true;
+  if (/^(por|de|a partir de)\s*:?\s*r?\$?\s*\d/i.test(t)) return true;
+  if (/^>?\s*de\s+r\$/i.test(t)) return true;
+  if (/^(baixou+|precinho+|corre+|aproveit\w*|promo\w*|imperd\w*|olha (isso|esse|só)|chegou|novidade|dica da day)!*\s*$/i.test(t)) return true;
+  return false;
+};
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -88,10 +100,11 @@ export async function GET(request: Request) {
     for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string; group_name: string }[]) {
       if (!(SRCS as string[]).includes(a.platform)) continue;
       if (/cupo|cupom|cupons/i.test(a.group_name || "") || /cupo|cupom|cupons|desconto no app/i.test(a.product_raw || "")) continue; // cupom não é produto
+      if (isNoiseAd(a.product_raw)) continue; // post promocional/preço não é produto
       const day = (a.posted_at || "").slice(0, 10);
       const k = (a.url || a.product_raw) + "|" + day;
       if (seen.has(k)) continue; seen.add(k);
-      addAd(a.platform as Src, a.product_raw, a.url);
+      addAd(a.platform as Src, stripDeco(a.product_raw), a.url);
     }
   } catch (e) { errors.anuncios = e instanceof Error ? e.message : String(e); }
 
