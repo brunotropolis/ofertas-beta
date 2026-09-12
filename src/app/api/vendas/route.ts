@@ -12,6 +12,8 @@ interface SourceResult {
   error?: string;
   live?: boolean;
   lastSync?: string | null;
+  snapshot?: boolean; // Amazon: dado agregado por período (não fatia pelo seletor 7/30/90)
+  period?: { start: string | null; end: string | null };
   agg?: SalesAggregate;
 }
 
@@ -50,37 +52,49 @@ export async function GET(request: Request) {
     }
   }
 
-  // ── ML e Amazon (tabela affiliate_sales) ──────────────────────────────────
-  await Promise.all(
-    (["ml", "amazon"] as const).map(async (src) => {
+  // ── ML (fatia por sold_at) e Amazon (snapshot do último sync) ─────────────
+  const lastSyncOf = (rows: AffiliateSaleRow[]) =>
+    rows.reduce<string | null>((acc, r) => {
+      const s = (r as unknown as { synced_at?: string }).synced_at ?? null;
+      return s && (!acc || s > acc) ? s : acc;
+    }, null);
+
+  await Promise.all([
+    // ML: vendas por-venda, filtradas pela janela
+    (async () => {
       try {
         const { data, error } = await supabase
-          .from("affiliate_sales")
-          .select("*")
-          .eq("source", src)
-          .gte("sold_at", startIso)
-          .lte("sold_at", endIso)
-          .order("sold_at", { ascending: false })
-          .limit(5000);
+          .from("affiliate_sales").select("*").eq("source", "ml")
+          .gte("sold_at", startIso).lte("sold_at", endIso)
+          .order("sold_at", { ascending: false }).limit(5000);
         if (error) throw new Error(error.message);
         const rows = (data ?? []) as AffiliateSaleRow[];
-        const lastSync = rows.length
-          // synced_at vem no select *; pega o mais recente
-          ? rows.reduce<string | null>((acc, r) => {
-              const s = (r as unknown as { synced_at?: string }).synced_at ?? null;
-              return s && (!acc || s > acc) ? s : acc;
-            }, null)
-          : null;
-        sources[src] = {
-          ok: true,
-          lastSync,
-          agg: aggregateRows(rows, src === "ml" ? "sale" : "daily"),
+        sources.ml = { ok: true, lastSync: lastSyncOf(rows), agg: aggregateRows(rows, "sale") };
+      } catch (err) {
+        sources.ml = { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    })(),
+    // Amazon: agregado por período (snapshot). Carrega tudo, não fatia pela janela.
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("affiliate_sales").select("*").eq("source", "amazon").limit(5000);
+        if (error) throw new Error(error.message);
+        const rows = (data ?? []) as AffiliateSaleRow[];
+        const perDay = rows.some((r) => r.sold_at);
+        const period = {
+          start: rows.reduce<string | null>((a, r) => (r.period_start && (!a || r.period_start < a) ? r.period_start : a), null),
+          end: rows.reduce<string | null>((a, r) => (r.period_end && (!a || r.period_end > a) ? r.period_end : a), null),
+        };
+        sources.amazon = {
+          ok: true, snapshot: true, period, lastSync: lastSyncOf(rows),
+          agg: aggregateRows(rows, perDay ? "sale" : "daily"),
         };
       } catch (err) {
-        sources[src] = { ok: false, error: err instanceof Error ? err.message : String(err) };
+        sources.amazon = { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
-    })
-  );
+    })(),
+  ]);
 
   // ── Combinado (soma o que deu certo) ──────────────────────────────────────
   const combined = { commission: 0, conversions: 0, items: 0, gmv: 0 };

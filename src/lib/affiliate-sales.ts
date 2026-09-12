@@ -72,6 +72,7 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
   const utmMap = new Map<string, { commission: number; conversions: number }>();
   const devMap = new Map<string, { commission: number; conversions: number }>();
   const prodMap = new Map<string, { name: string; image: string | null; qty: number; commission: number; gmv: number }>();
+  const catMap = new Map<string, { category: string; qty: number; commission: number; gmv: number }>();
 
   let commission = 0;
   let items = 0;
@@ -118,9 +119,18 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
       if (!pm.image && r.product_image) pm.image = r.product_image;
       prodMap.set(key, pm);
     }
+
+    if (r.category) {
+      const cm = catMap.get(r.category) ?? { category: r.category, qty: 0, commission: 0, gmv: 0 };
+      cm.qty += units;
+      cm.commission += comm;
+      cm.gmv += gross;
+      catMap.set(r.category, cm);
+    }
   }
 
   const byProduct = [...prodMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
+  const byCategory = [...catMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   const byDay = [...dayMap.entries()].map(([day, v]) => ({ day, ...v })).sort((a, b) => a.day.localeCompare(b.day));
   const byUtm = [...utmMap.entries()].map(([utm, v]) => ({ utm, ...v })).sort((a, b) => b.commission - a.commission);
   const byDevice = [...devMap.entries()].map(([device, v]) => ({ device, ...v })).sort((a, b) => b.commission - a.commission);
@@ -136,6 +146,7 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
       byStatusCommission,
     },
     byProduct,
+    byCategory,
     byDay,
     byUtm,
     byDevice,

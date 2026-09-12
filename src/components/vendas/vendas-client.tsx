@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Wallet, ShoppingBag, Package, Receipt, RefreshCw, Loader2,
-  AlertTriangle, TrendingUp, Tag, Smartphone, MousePointerClick, Clock,
+  AlertTriangle, TrendingUp, Tag, Smartphone, MousePointerClick, Clock, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,11 +14,12 @@ interface Agg {
     byStatusCommission: Record<string, number>;
   };
   byProduct: { name: string; image: string | null; qty: number; commission: number; gmv: number }[];
+  byCategory: { category: string; qty: number; commission: number; gmv: number }[];
   byDay: { day: string; commission: number; conversions: number }[];
   byUtm: { utm: string; commission: number; conversions: number }[];
   byDevice: { device: string; commission: number; conversions: number }[];
 }
-interface SourceResult { ok: boolean; error?: string; live?: boolean; lastSync?: string | null; agg?: Agg; }
+interface SourceResult { ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean; period?: { start: string | null; end: string | null }; agg?: Agg; }
 interface VendasResp {
   period: { days: number };
   sources: { shopee: SourceResult; ml: SourceResult; amazon: SourceResult };
@@ -53,7 +54,7 @@ const num = (n: number) => n.toLocaleString("pt-BR");
 function emptyAgg(): Agg {
   return {
     kpis: { commission: 0, conversions: 0, items: 0, gmv: 0, ticket: 0, byStatusCount: {}, byStatusCommission: {} },
-    byProduct: [], byDay: [], byUtm: [], byDevice: [],
+    byProduct: [], byCategory: [], byDay: [], byUtm: [], byDevice: [],
   };
 }
 
@@ -62,6 +63,7 @@ function mergeAggs(aggs: Agg[]): Agg {
   const out = emptyAgg();
   const dayMap = new Map<string, { commission: number; conversions: number }>();
   const prodMap = new Map<string, Agg["byProduct"][number]>();
+  const catMap = new Map<string, Agg["byCategory"][number]>();
   const utmMap = new Map<string, { utm: string; commission: number; conversions: number }>();
   const devMap = new Map<string, { device: string; commission: number; conversions: number }>();
 
@@ -74,15 +76,23 @@ function mergeAggs(aggs: Agg[]): Agg {
     for (const [st, c] of Object.entries(a.kpis.byStatusCommission)) out.kpis.byStatusCommission[st] = (out.kpis.byStatusCommission[st] ?? 0) + c;
     for (const d of a.byDay) { const m = dayMap.get(d.day) ?? { commission: 0, conversions: 0 }; m.commission += d.commission; m.conversions += d.conversions; dayMap.set(d.day, m); }
     for (const p of a.byProduct) { const m = prodMap.get(p.name) ?? { name: p.name, image: p.image, qty: 0, commission: 0, gmv: 0 }; m.qty += p.qty; m.commission += p.commission; m.gmv += p.gmv; if (!m.image && p.image) m.image = p.image; prodMap.set(p.name, m); }
+    for (const c of a.byCategory) { const m = catMap.get(c.category) ?? { category: c.category, qty: 0, commission: 0, gmv: 0 }; m.qty += c.qty; m.commission += c.commission; m.gmv += c.gmv; catMap.set(c.category, m); }
     for (const u of a.byUtm) { const m = utmMap.get(u.utm) ?? { utm: u.utm, commission: 0, conversions: 0 }; m.commission += u.commission; m.conversions += u.conversions; utmMap.set(u.utm, m); }
     for (const v of a.byDevice) { const m = devMap.get(v.device) ?? { device: v.device, commission: 0, conversions: 0 }; m.commission += v.commission; m.conversions += v.conversions; devMap.set(v.device, m); }
   }
   out.kpis.ticket = out.kpis.conversions ? out.kpis.gmv / out.kpis.conversions : 0;
   out.byProduct = [...prodMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
+  out.byCategory = [...catMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   out.byDay = [...dayMap.entries()].map(([day, v]) => ({ day, ...v })).sort((a, b) => a.day.localeCompare(b.day));
   out.byUtm = [...utmMap.values()].sort((a, b) => b.commission - a.commission);
   out.byDevice = [...devMap.values()].sort((a, b) => b.commission - a.commission);
   return out;
+}
+
+function fmtDay(d: string | null | undefined): string | null {
+  if (!d) return null;
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}` : null;
 }
 
 function fmtSync(iso: string | null | undefined): string | null {
@@ -206,7 +216,9 @@ export default function VendasClient() {
                         <p className="text-lg font-display font-semibold text-white tracking-tight">{brl(s.agg?.kpis.commission ?? 0)}</p>
                         <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
                           {s.live ? `${num(s.agg?.kpis.conversions ?? 0)} conversões`
-                            : <><Clock className="w-2.5 h-2.5" /> {sync ? `sync ${sync}` : "sem sync ainda"}</>}
+                            : s.snapshot
+                              ? <><Clock className="w-2.5 h-2.5" /> {s.period?.start && s.period?.end ? `${fmtDay(s.period.start)}–${fmtDay(s.period.end)}` : "snapshot"}{sync ? ` · ${sync}` : ""}</>
+                              : <><Clock className="w-2.5 h-2.5" /> {sync ? `sync ${sync}` : "sem sync ainda"}</>}
                         </p>
                       </>
                     ) : (
@@ -248,6 +260,11 @@ export default function VendasClient() {
             </div>
           ) : (
             <div className="space-y-5">
+              {source === "amazon" && data.sources.amazon.snapshot && (
+                <p className="text-[11px] text-sky-400/80 bg-sky-500/10 border border-sky-500/20 rounded-xl px-3 py-2">
+                  A Amazon entra como snapshot do último sync{data.sources.amazon.period?.start && data.sources.amazon.period?.end ? ` (${fmtDay(data.sources.amazon.period.start)}–${fmtDay(data.sources.amazon.period.end)})` : ""} — não filtra pelo seletor de 7/30/90 dias.
+                </p>
+              )}
               {/* KPIs da fonte/visão */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <Kpi icon={Wallet} label="Comissão" value={brl(agg.kpis.commission)} highlight />
@@ -332,6 +349,32 @@ export default function VendasClient() {
                 </div>
 
                 <div className="space-y-5">
+                  {/* Melhores categorias */}
+                  {agg.byCategory.length > 0 && (
+                    <div className="glass rounded-2xl p-5">
+                      <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-orange-400" strokeWidth={1.75} />
+                        Melhores categorias
+                      </h2>
+                      <div className="space-y-1.5 max-h-[240px] overflow-y-auto scroll-thin">
+                        {agg.byCategory.map((c, i) => {
+                          const pct = agg.byCategory[0]?.commission ? (c.commission / agg.byCategory[0].commission) * 100 : 0;
+                          return (
+                            <div key={i} className="relative rounded-lg overflow-hidden">
+                              <div className="absolute inset-y-0 left-0 bg-orange-500/10" style={{ width: `${Math.max(3, pct)}%` }} />
+                              <div className="relative flex items-center justify-between gap-3 text-sm px-2.5 py-1.5">
+                                <span className="text-zinc-200 truncate">{c.category}</span>
+                                <span className="text-zinc-500 text-xs shrink-0">
+                                  {num(c.qty)} un · <span className="text-emerald-400 font-medium">{brl(c.commission)}</span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* UTMs */}
                   {agg.byUtm.length > 0 && (
                     <div className="glass rounded-2xl p-5">
@@ -379,7 +422,7 @@ export default function VendasClient() {
 
           <p className="text-[11px] text-zinc-600 text-center flex items-center justify-center gap-1.5">
             <MousePointerClick className="w-3 h-3" />
-            Shopee/ML: comissões pendentes podem mudar de status. Amazon: dados por dia via sync.
+            Shopee/ML: comissões pendentes podem mudar de status. Amazon: snapshot por período (relatório do Associados).
           </p>
         </div>
       )}

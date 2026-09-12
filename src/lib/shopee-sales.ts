@@ -126,6 +126,7 @@ export interface SalesAggregate {
     byStatusCommission: Record<string, number>;
   };
   byProduct: { name: string; image: string | null; qty: number; commission: number; gmv: number }[];
+  byCategory: { category: string; qty: number; commission: number; gmv: number }[];
   byDay: { day: string; commission: number; conversions: number }[];
   byUtm: { utm: string; commission: number; conversions: number }[];
   byDevice: { device: string; commission: number; conversions: number }[];
@@ -144,6 +145,7 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
   const utmMap = new Map<string, { commission: number; conversions: number }>();
   const devMap = new Map<string, { commission: number; conversions: number }>();
   const prodMap = new Map<string, { name: string; image: string | null; qty: number; commission: number; gmv: number }>();
+  const catMap = new Map<string, { category: string; qty: number; commission: number; gmv: number }>();
 
   let commission = 0;
   let items = 0;
@@ -176,10 +178,18 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
       pm.gmv += it.price * it.qty;
       if (!pm.image && it.image) pm.image = it.image;
       prodMap.set(key, pm);
+
+      const cat = it.category ?? "(sem categoria)";
+      const cm = catMap.get(cat) ?? { category: cat, qty: 0, commission: 0, gmv: 0 };
+      cm.qty += it.qty;
+      cm.commission += it.commission;
+      cm.gmv += it.price * it.qty;
+      catMap.set(cat, cm);
     }
   }
 
   const byProduct = [...prodMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
+  const byCategory = [...catMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   const byDay = [...dayMap.entries()].map(([day, v]) => ({ day, ...v })).sort((a, b) => a.day.localeCompare(b.day));
   const byUtm = [...utmMap.entries()].map(([utm, v]) => ({ utm, ...v })).sort((a, b) => b.commission - a.commission);
   const byDevice = [...devMap.entries()].map(([device, v]) => ({ device, ...v })).sort((a, b) => b.commission - a.commission);
@@ -195,6 +205,7 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
       byStatusCommission,
     },
     byProduct,
+    byCategory,
     byDay,
     byUtm,
     byDevice,
