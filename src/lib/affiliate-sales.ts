@@ -71,13 +71,15 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
   const dayMap = new Map<string, { commission: number; conversions: number }>();
   const utmMap = new Map<string, { commission: number; conversions: number }>();
   const devMap = new Map<string, { commission: number; conversions: number }>();
-  const prodMap = new Map<string, { name: string; image: string | null; qty: number; commission: number; gmv: number }>();
+  const prodMap = new Map<string, { name: string; image: string | null; qty: number; commission: number; gmv: number; clicks: number }>();
   const catMap = new Map<string, { category: string; qty: number; commission: number; gmv: number }>();
+  const storeMap = new Map<string, { store: string; qty: number; commission: number; gmv: number }>();
 
   let commission = 0;
   let items = 0;
   let gmv = 0;
   let conversions = 0;
+  let clicks = 0;
 
   for (const r of rows) {
     const comm = toNum(r.commission);
@@ -89,6 +91,7 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
     gmv += gross;
     items += units;
     conversions += rowConv;
+    clicks += Number(r.clicks ?? 0) || 0;
 
     if (r.status) {
       byStatusCount[r.status] = (byStatusCount[r.status] ?? 0) + 1;
@@ -112,10 +115,11 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
 
     if (r.product_name) {
       const key = r.product_name;
-      const pm = prodMap.get(key) ?? { name: r.product_name, image: r.product_image, qty: 0, commission: 0, gmv: 0 };
+      const pm = prodMap.get(key) ?? { name: r.product_name, image: r.product_image, qty: 0, commission: 0, gmv: 0, clicks: 0 };
       pm.qty += units;
       pm.commission += comm;
       pm.gmv += gross;
+      pm.clicks += Number(r.clicks ?? 0) || 0;
       if (!pm.image && r.product_image) pm.image = r.product_image;
       prodMap.set(key, pm);
     }
@@ -127,10 +131,20 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
       cm.gmv += gross;
       catMap.set(r.category, cm);
     }
+
+    // vendedor/loja — só o ML traz (Amazon usa o store como tracking ID, não é vendedor)
+    if (r.store && r.source === "ml") {
+      const sm = storeMap.get(r.store) ?? { store: r.store, qty: 0, commission: 0, gmv: 0 };
+      sm.qty += units;
+      sm.commission += comm;
+      sm.gmv += gross;
+      storeMap.set(r.store, sm);
+    }
   }
 
   const byProduct = [...prodMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   const byCategory = [...catMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
+  const byStore = [...storeMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   const byDay = [...dayMap.entries()].map(([day, v]) => ({ day, ...v })).sort((a, b) => a.day.localeCompare(b.day));
   const byUtm = [...utmMap.entries()].map(([utm, v]) => ({ utm, ...v })).sort((a, b) => b.commission - a.commission);
   const byDevice = [...devMap.entries()].map(([device, v]) => ({ device, ...v })).sort((a, b) => b.commission - a.commission);
@@ -142,11 +156,13 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
       items,
       gmv,
       ticket: conversions ? gmv / conversions : 0,
+      clicks,
       byStatusCount,
       byStatusCommission,
     },
     byProduct,
     byCategory,
+    byStore,
     byDay,
     byUtm,
     byDevice,

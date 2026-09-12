@@ -4,23 +4,28 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Wallet, ShoppingBag, Package, Receipt, RefreshCw, Loader2,
   AlertTriangle, TrendingUp, Tag, Smartphone, MousePointerClick, Clock, Layers,
+  Store, ArrowUp, ArrowDown, Megaphone, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AnaliseClient from "./analise-client";
 
 interface Agg {
   kpis: {
-    commission: number; conversions: number; items: number; gmv: number; ticket: number;
+    commission: number; conversions: number; items: number; gmv: number; ticket: number; clicks: number;
     byStatusCount: Record<string, number>;
     byStatusCommission: Record<string, number>;
   };
-  byProduct: { name: string; image: string | null; qty: number; commission: number; gmv: number }[];
+  byProduct: { name: string; image: string | null; qty: number; commission: number; gmv: number; clicks: number }[];
   byCategory: { category: string; qty: number; commission: number; gmv: number }[];
+  byStore: { store: string; qty: number; commission: number; gmv: number }[];
   byDay: { day: string; commission: number; conversions: number }[];
   byUtm: { utm: string; commission: number; conversions: number }[];
   byDevice: { device: string; commission: number; conversions: number }[];
 }
-interface SourceResult { ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean; period?: { start: string | null; end: string | null }; agg?: Agg; }
+interface VarItem { product: string; atual: number; anterior: number; delta: number }
+interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
+interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
+interface SourceResult { ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean; period?: { start: string | null; end: string | null }; agg?: Agg; variacao?: Variacao | null; adsByProduct?: AdProduto[]; }
 interface VendasResp {
   period: { days: number };
   sources: { shopee: SourceResult; ml: SourceResult; amazon: SourceResult };
@@ -54,8 +59,8 @@ const num = (n: number) => n.toLocaleString("pt-BR");
 
 function emptyAgg(): Agg {
   return {
-    kpis: { commission: 0, conversions: 0, items: 0, gmv: 0, ticket: 0, byStatusCount: {}, byStatusCommission: {} },
-    byProduct: [], byCategory: [], byDay: [], byUtm: [], byDevice: [],
+    kpis: { commission: 0, conversions: 0, items: 0, gmv: 0, ticket: 0, clicks: 0, byStatusCount: {}, byStatusCommission: {} },
+    byProduct: [], byCategory: [], byStore: [], byDay: [], byUtm: [], byDevice: [],
   };
 }
 
@@ -65,6 +70,7 @@ function mergeAggs(aggs: Agg[]): Agg {
   const dayMap = new Map<string, { commission: number; conversions: number }>();
   const prodMap = new Map<string, Agg["byProduct"][number]>();
   const catMap = new Map<string, Agg["byCategory"][number]>();
+  const storeMap = new Map<string, Agg["byStore"][number]>();
   const utmMap = new Map<string, { utm: string; commission: number; conversions: number }>();
   const devMap = new Map<string, { device: string; commission: number; conversions: number }>();
 
@@ -73,17 +79,20 @@ function mergeAggs(aggs: Agg[]): Agg {
     out.kpis.conversions += a.kpis.conversions;
     out.kpis.items += a.kpis.items;
     out.kpis.gmv += a.kpis.gmv;
+    out.kpis.clicks += a.kpis.clicks ?? 0;
     for (const [st, c] of Object.entries(a.kpis.byStatusCount)) out.kpis.byStatusCount[st] = (out.kpis.byStatusCount[st] ?? 0) + c;
     for (const [st, c] of Object.entries(a.kpis.byStatusCommission)) out.kpis.byStatusCommission[st] = (out.kpis.byStatusCommission[st] ?? 0) + c;
     for (const d of a.byDay) { const m = dayMap.get(d.day) ?? { commission: 0, conversions: 0 }; m.commission += d.commission; m.conversions += d.conversions; dayMap.set(d.day, m); }
-    for (const p of a.byProduct) { const m = prodMap.get(p.name) ?? { name: p.name, image: p.image, qty: 0, commission: 0, gmv: 0 }; m.qty += p.qty; m.commission += p.commission; m.gmv += p.gmv; if (!m.image && p.image) m.image = p.image; prodMap.set(p.name, m); }
+    for (const p of a.byProduct) { const m = prodMap.get(p.name) ?? { name: p.name, image: p.image, qty: 0, commission: 0, gmv: 0, clicks: 0 }; m.qty += p.qty; m.commission += p.commission; m.gmv += p.gmv; m.clicks += p.clicks ?? 0; if (!m.image && p.image) m.image = p.image; prodMap.set(p.name, m); }
     for (const c of a.byCategory) { const m = catMap.get(c.category) ?? { category: c.category, qty: 0, commission: 0, gmv: 0 }; m.qty += c.qty; m.commission += c.commission; m.gmv += c.gmv; catMap.set(c.category, m); }
+    for (const s of (a.byStore ?? [])) { const m = storeMap.get(s.store) ?? { store: s.store, qty: 0, commission: 0, gmv: 0 }; m.qty += s.qty; m.commission += s.commission; m.gmv += s.gmv; storeMap.set(s.store, m); }
     for (const u of a.byUtm) { const m = utmMap.get(u.utm) ?? { utm: u.utm, commission: 0, conversions: 0 }; m.commission += u.commission; m.conversions += u.conversions; utmMap.set(u.utm, m); }
     for (const v of a.byDevice) { const m = devMap.get(v.device) ?? { device: v.device, commission: 0, conversions: 0 }; m.commission += v.commission; m.conversions += v.conversions; devMap.set(v.device, m); }
   }
   out.kpis.ticket = out.kpis.conversions ? out.kpis.gmv / out.kpis.conversions : 0;
   out.byProduct = [...prodMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   out.byCategory = [...catMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
+  out.byStore = [...storeMap.values()].sort((a, b) => b.commission - a.commission).slice(0, 25);
   out.byDay = [...dayMap.entries()].map(([day, v]) => ({ day, ...v })).sort((a, b) => a.day.localeCompare(b.day));
   out.byUtm = [...utmMap.values()].sort((a, b) => b.commission - a.commission);
   out.byDevice = [...devMap.values()].sort((a, b) => b.commission - a.commission);
@@ -142,6 +151,10 @@ export default function VendasClient() {
 
   const srcErr = source !== "todas" && data && !data.sources[source].ok ? data.sources[source].error : null;
   const maxDay = agg ? Math.max(1, ...agg.byDay.map((d) => d.commission)) : 1;
+  // extras exclusivos da fonte (só quando uma plataforma está selecionada)
+  const srcExtra = source !== "todas" && data && data.sources[source].ok ? data.sources[source] : null;
+  const variacao = srcExtra?.variacao ?? null;
+  const adsByProduct = srcExtra?.adsByProduct ?? [];
 
   return (
     <div>
@@ -291,6 +304,84 @@ export default function VendasClient() {
                 <Kpi icon={Receipt} label="Ticket méd." value={brl(agg.kpis.ticket)} />
               </div>
 
+              {/* Funil de cliques (exclusivo da Amazon) */}
+              {source === "amazon" && agg.kpis.clicks > 0 && (
+                <div className="glass rounded-2xl p-5 border-sky-500/25">
+                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
+                    <MousePointerClick className="w-4 h-4 text-sky-400" strokeWidth={1.75} />
+                    Funil de cliques <span className="text-[10px] text-sky-400/70 font-normal">— só a Amazon expõe</span>
+                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <FunnelStep label="Cliques" value={num(agg.kpis.clicks)} />
+                    <span className="text-zinc-600">→</span>
+                    <FunnelStep label="Itens pedidos" value={num(agg.kpis.items)} />
+                    <span className="text-zinc-600">=</span>
+                    <div className="rounded-xl px-4 py-3 bg-sky-500/10 border border-sky-500/30">
+                      <p className="text-[10px] uppercase tracking-wider text-sky-400/80">Conversão clique→compra</p>
+                      <p className="text-2xl font-display font-semibold text-sky-300 tracking-tightest">
+                        {agg.kpis.clicks ? ((agg.kpis.items / agg.kpis.clicks) * 100).toFixed(2) : "0"}%
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-3">De cada 100 cliques que você mandou pra Amazon, ~{agg.kpis.clicks ? Math.round((agg.kpis.items / agg.kpis.clicks) * 100) : 0} viraram item no carrinho.</p>
+                </div>
+              )}
+
+              {/* Variação vs período anterior (por plataforma) */}
+              {variacao && (variacao.subiram.length > 0 || variacao.cairam.length > 0) && (
+                <div className="glass rounded-2xl p-5 border-violet-500/25">
+                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-violet-400" strokeWidth={1.75} />
+                    Variação por produto
+                  </h2>
+                  <p className="text-[11px] text-zinc-500 mb-4">{variacao.basis}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <VarCol title="Subiram" items={variacao.subiram} up />
+                    <VarCol title="Caíram" items={variacao.cairam} />
+                  </div>
+                </div>
+              )}
+
+              {/* Anúncios × produto (grupos WhatsApp → esta plataforma) */}
+              {adsByProduct.length > 0 && (
+                <div className="glass rounded-2xl p-5 border-emerald-500/25">
+                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-emerald-400" strokeWidth={1.75} />
+                    Anúncios × produto
+                  </h2>
+                  <p className="text-[11px] text-zinc-500 mb-3">Produtos que você anunciou nos grupos com link {SOURCE_META[source as Exclude<SourceKey, "todas">]?.label} × quanto venderam. Conversão = unidades ÷ anúncios.</p>
+                  <div className="overflow-x-auto scroll-thin">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="text-[10px] uppercase tracking-wider text-zinc-500 text-left">
+                          <th className="font-medium py-1.5 pr-3">Produto</th>
+                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Anúncios</th>
+                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Vendas</th>
+                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Comissão</th>
+                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Conv.</th>
+                          <th className="font-medium py-1.5 pl-3 border-l border-zinc-800"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adsByProduct.map((a, i) => (
+                          <tr key={i} className="border-t border-zinc-800/70">
+                            <td className="py-1.5 pr-3 text-zinc-200 truncate max-w-[220px]">{a.product}</td>
+                            <td className="py-1.5 px-3 text-right text-zinc-300 border-l border-zinc-800/60">{num(a.ads)}</td>
+                            <td className={cn("py-1.5 px-3 text-right border-l border-zinc-800/60", a.units === 0 ? "text-red-400/80" : "text-zinc-200")}>{num(a.units)}</td>
+                            <td className="py-1.5 px-3 text-right text-emerald-400 font-medium border-l border-zinc-800/60">{brl(a.commission)}</td>
+                            <td className={cn("py-1.5 px-3 text-right border-l border-zinc-800/60", a.conv != null && a.conv >= 1 ? "text-emerald-400" : a.units === 0 ? "text-red-400/80" : "text-amber-400")}>{a.conv != null ? a.conv.toFixed(2) : "—"}</td>
+                            <td className="py-1.5 pl-3 border-l border-zinc-800/60">
+                              {a.exampleUrl && <a href={a.exampleUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-white inline-flex"><ExternalLink className="w-3.5 h-3.5" /></a>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[11px] text-zinc-600 mt-2">Linha em vermelho = anunciou e não vendeu (esforço sem retorno). Verde na conv. = &ge;1 venda por anúncio.</p>
+                </div>
+              )}
+
               {/* Status */}
               {Object.keys(agg.kpis.byStatusCount).length > 0 && (
                 <div className="glass rounded-2xl p-5">
@@ -352,7 +443,10 @@ export default function VendasClient() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-white text-sm tracking-tight truncate">{p.name}</p>
-                          <p className="text-[11px] text-zinc-500">{num(p.qty)} un · GMV {brl(p.gmv)}</p>
+                          <p className="text-[11px] text-zinc-500">
+                            {num(p.qty)} un · GMV {brl(p.gmv)}
+                            {p.clicks > 0 && <> · <span className="text-sky-400/80">{num(p.clicks)} cliques ({p.clicks ? ((p.qty / p.clicks) * 100).toFixed(1) : 0}%)</span></>}
+                          </p>
                         </div>
                         <span className="text-emerald-400 font-semibold text-sm shrink-0">{brl(p.commission)}</span>
                       </div>
@@ -366,6 +460,33 @@ export default function VendasClient() {
                 </div>
 
                 <div className="space-y-5">
+                  {/* Vendedores/lojas (exclusivo do ML) */}
+                  {agg.byStore.length > 0 && (
+                    <div className="glass rounded-2xl p-5 border-yellow-500/20">
+                      <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2">
+                        <Store className="w-4 h-4 text-yellow-400" strokeWidth={1.75} />
+                        Vendedores que mais venderam <span className="text-[10px] text-yellow-400/70 font-normal">— só o ML expõe</span>
+                      </h2>
+                      <p className="text-[11px] text-zinc-500 mb-3">Quem realmente vendeu seus produtos indicados.</p>
+                      <div className="space-y-1.5 max-h-[240px] overflow-y-auto scroll-thin">
+                        {agg.byStore.slice(0, 12).map((s, i) => {
+                          const pct = agg.byStore[0]?.commission ? (s.commission / agg.byStore[0].commission) * 100 : 0;
+                          return (
+                            <div key={i} className="relative rounded-lg overflow-hidden">
+                              <div className="absolute inset-y-0 left-0 bg-yellow-500/10" style={{ width: `${Math.max(3, pct)}%` }} />
+                              <div className="relative flex items-center justify-between gap-3 text-sm px-2.5 py-1.5">
+                                <span className="text-zinc-200 truncate">{s.store}</span>
+                                <span className="text-zinc-500 text-xs shrink-0">
+                                  {num(s.qty)} un · <span className="text-emerald-400 font-medium">{brl(s.commission)}</span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Melhores categorias */}
                   {agg.byCategory.length > 0 && (
                     <div className="glass rounded-2xl p-5">
@@ -443,6 +564,43 @@ export default function VendasClient() {
           </p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function FunnelStep({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/70">
+      <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="text-2xl font-display font-semibold text-white tracking-tightest">{value}</p>
+    </div>
+  );
+}
+
+function VarCol({ title, items, up }: { title: string; items: VarItem[]; up?: boolean }) {
+  const Icon = up ? ArrowUp : ArrowDown;
+  const color = up ? "text-emerald-400" : "text-red-400";
+  const bg = up ? "bg-emerald-500/10" : "bg-red-500/10";
+  return (
+    <div>
+      <p className={cn("text-xs font-medium mb-2 flex items-center gap-1.5", color)}>
+        <Icon className="w-3.5 h-3.5" strokeWidth={2} /> {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-zinc-600 text-xs">Sem mudança relevante.</p>
+      ) : (
+        <div className="space-y-1">
+          {items.map((v, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-sm px-2.5 py-1.5 rounded-lg bg-zinc-900/40 border border-zinc-800/50">
+              <span className="text-zinc-200 truncate">{v.product}</span>
+              <span className="shrink-0 flex items-center gap-2 text-xs">
+                <span className="text-zinc-500">{v.anterior}→{v.atual}</span>
+                <span className={cn("font-semibold rounded px-1.5 py-0.5", bg, color)}>{v.delta > 0 ? "+" : ""}{v.delta}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

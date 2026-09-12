@@ -122,11 +122,13 @@ export interface SalesAggregate {
     items: number;
     gmv: number;
     ticket: number; // gmv / pedidos
+    clicks: number; // total de cliques (só Amazon expõe; 0 nas outras)
     byStatusCount: Record<string, number>;
     byStatusCommission: Record<string, number>;
   };
-  byProduct: { name: string; image: string | null; qty: number; commission: number; gmv: number }[];
+  byProduct: { name: string; image: string | null; qty: number; commission: number; gmv: number; clicks: number }[];
   byCategory: { category: string; qty: number; commission: number; gmv: number }[];
+  byStore: { store: string; qty: number; commission: number; gmv: number }[]; // vendedor/loja (só ML expõe)
   byDay: { day: string; commission: number; conversions: number }[];
   byUtm: { utm: string; commission: number; conversions: number }[];
   byDevice: { device: string; commission: number; conversions: number }[];
@@ -144,7 +146,7 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
   const dayMap = new Map<string, { commission: number; conversions: number }>();
   const utmMap = new Map<string, { commission: number; conversions: number }>();
   const devMap = new Map<string, { commission: number; conversions: number }>();
-  const prodMap = new Map<string, { name: string; image: string | null; qty: number; commission: number; gmv: number }>();
+  const prodMap = new Map<string, { name: string; image: string | null; qty: number; commission: number; gmv: number; clicks: number }>();
   const catMap = new Map<string, { category: string; qty: number; commission: number; gmv: number }>();
 
   let commission = 0;
@@ -172,7 +174,7 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
       items += it.qty;
       gmv += it.price * it.qty;
       const key = it.name;
-      const pm = prodMap.get(key) ?? { name: it.name, image: it.image, qty: 0, commission: 0, gmv: 0 };
+      const pm = prodMap.get(key) ?? { name: it.name, image: it.image, qty: 0, commission: 0, gmv: 0, clicks: 0 };
       pm.qty += it.qty;
       pm.commission += it.commission;
       pm.gmv += it.price * it.qty;
@@ -201,11 +203,13 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
       items,
       gmv,
       ticket: conversions.length ? gmv / conversions.length : 0,
+      clicks: 0, // Shopee não expõe cliques
       byStatusCount,
       byStatusCommission,
     },
     byProduct,
     byCategory,
+    byStore: [], // Shopee não expõe vendedor
     byDay,
     byUtm,
     byDevice,
