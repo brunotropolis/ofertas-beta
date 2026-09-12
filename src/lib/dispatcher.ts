@@ -59,6 +59,7 @@ interface Group {
 function buildCaption(offer: Offer): string {
   const parts: string[] = [];
   if (offer.ai_caption) parts.push(offer.ai_caption.trim());
+  else if (offer.title) parts.push(offer.title.trim()); // fallback p/ ofertas de fontes automáticas sem legenda
   if (offer.extra_text) parts.push(offer.extra_text.trim());
   const url = offer.affiliate_url || offer.url;
   if (url) parts.push(url);

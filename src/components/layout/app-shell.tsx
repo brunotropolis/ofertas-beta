@@ -15,6 +15,7 @@ import {
   CalendarClock,
   LayoutDashboard,
   Wallet,
+  History,
   Menu,
   X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/vendas",      label: "Vendas",       icon: Wallet },
   { href: "/publicacoes", label: "Publicações",  icon: List },
   { href: "/fila",        label: "Fila",         icon: Clock },
+  { href: "/historico",   label: "Histórico",    icon: History },
   { href: "/calendario",  label: "Calendário",   icon: CalendarDays },
   { href: "/agendamento", label: "Agendamento",  icon: CalendarClock },
 ];

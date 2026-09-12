@@ -8,14 +8,17 @@ export async function GET(request: Request) {
   const db = supabase as any;
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
+  const source = searchParams.get("source");
+  const limit = Math.min(Number(searchParams.get("limit") ?? 100) || 100, 200);
 
   let query = db
     .from("offers")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(limit);
 
   if (status) query = query.eq("status", status);
+  if (source && source !== "all") query = query.eq("source", source);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
