@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     b.tot.units += units; b.tot.commission += commission; b.tot.gmv += gmv;
     platTot[src].units += units; platTot[src].commission += commission; platTot[src].gmv += gmv;
     const c = catMap.get(category) ?? zero(); c.units += units; c.commission += commission; c.gmv += gmv; catMap.set(category, c);
-    curUnits.set(product, (curUnits.get(product) ?? 0) + units);
+    if (src === "ml") curUnits.set(product, (curUnits.get(product) ?? 0) + units); // variação = ML-only (mesma base da janela anterior)
   };
   const addAd = (src: Src, nameRaw: string | null, url: string | null) => {
     const { product, category } = normalize(nameRaw, null);
