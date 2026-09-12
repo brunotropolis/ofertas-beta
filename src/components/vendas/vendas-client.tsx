@@ -106,7 +106,7 @@ function fmtSync(iso: string | null | undefined): string | null {
 
 export default function VendasClient() {
   const [days, setDays] = useState(30);
-  const [view, setView] = useState<"resultados" | "analise">("resultados");
+  const [view, setView] = useState<"resultados" | "analise">("analise");
   const [source, setSource] = useState<SourceKey>("todas");
   const [data, setData] = useState<VendasResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +155,7 @@ export default function VendasClient() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1">
-            {([["resultados", "Resultados"], ["analise", "Análise"]] as ["resultados" | "analise", string][]).map(([k, label]) => (
+            {([["analise", "Análise"], ["resultados", "Resultados"]] as ["resultados" | "analise", string][]).map(([k, label]) => (
               <button key={k} onClick={() => setView(k)}
                 className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
                   view === k ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-white")}>

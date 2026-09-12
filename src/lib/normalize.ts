@@ -7,6 +7,8 @@ export interface Norm { product: string; category: string; }
 
 // [regex no nome cru, produto normalizado, categoria]
 const RULES: [RegExp, string, string][] = [
+  // Agregado que a Amazon não detalha (produtos de baixo volume)
+  [/outros produtos.*amazon|^others$/i, "Outros (Amazon — baixo volume)", "Outros"],
   // Fralda (por tamanho)
   [/fralda.*\b(rn|recem|rec[ée]m)\b|\brn\b.*fralda/i, "Fralda RN", "Fralda"],
   [/fralda.*\bxxg\b/i, "Fralda XXG", "Fralda"],
@@ -81,15 +83,30 @@ const RULES: [RegExp, string, string][] = [
   [/cesto|organizador|caixa.*organiz|trocador/i, "Organização/Trocador", "Enxoval"],
 ];
 
-// categoria nativa (ML/Amazon) → nossa categoria padrão (quando keyword não bate)
+// Categorias-mãe (nossas). Toda categoria (keyword OU nativa ML/Amazon) é consolidada nestas.
+const MOTHER = new Set([
+  "Fralda", "Higiene", "Higiene/Pele", "Amamentação", "Alimentação", "Sono",
+  "Desenvolvimento", "Enxoval/Roupa", "Passeio", "Segurança", "Saúde", "Verão/Passeio", "Pós-parto", "Outros",
+]);
+// categoria nativa (ML/Amazon) → nossa categoria-mãe
 const CAT_MAP: [RegExp, string][] = [
-  [/sa[úu]de|resid[êe]ncia|farm/i, "Higiene/Pele"],
-  [/amamenta|aliment/i, "Alimentação"],
-  [/roupa|vestu[áa]rio|cal[çc]ad|camis/i, "Enxoval/Roupa"],
-  [/brinq|desenvolv|beb[êe].*quarto/i, "Desenvolvimento"],
-  [/sono|quarto|ber[çc]/i, "Sono"],
-  [/passeio|transport/i, "Passeio"],
+  [/fralda/i, "Fralda"],
+  [/amamenta/i, "Amamentação"],
+  [/aliment|papinha|mamadeira/i, "Alimentação"],
+  [/passeio|transport|carrinho|bebê.?conforto|cadeira.*(auto|carro)/i, "Passeio"],
+  [/seguran/i, "Segurança"],
+  [/quarto|sono|ber[çc]|dormir|c[óo]modo|enxoval.*ber/i, "Sono"],
+  [/roupa|vestu[áa]rio|cal[çc]ad|camis|\bbody|moda|acess[óo]rio.*(roupa|moda)|sapat|meia/i, "Enxoval/Roupa"],
+  [/brinq|desenvolv|livro|educa|pel[úu]cia|beb[êe].*quarto de bebê/i, "Desenvolvimento"],
+  [/sa[úu]de|term[ôo]metro|nasal|inalad/i, "Saúde"],
+  [/higiene|cuidado|resid[êe]ncia|farm|banho|beleza|perfum/i, "Higiene/Pele"],
 ];
+function toMother(cat: string | null | undefined): string {
+  if (!cat) return "Outros";
+  if (MOTHER.has(cat)) return cat;
+  for (const [rx, m] of CAT_MAP) if (rx.test(cat)) return m;
+  return "Outros";
+}
 
 function cleanName(raw: string): string {
   // fallback de produto: primeiras palavras significativas, sem tamanhos/qtd
@@ -105,11 +122,6 @@ function cleanName(raw: string): string {
 export function normalize(nameRaw: string | null | undefined, nativeCategory?: string | null): Norm {
   const name = (nameRaw || "").toString();
   for (const [rx, product, category] of RULES) if (rx.test(name)) return { product, category };
-  // sem regra: categoria da plataforma (ML/Amazon), mapeada; produto = nome cru enxuto
-  let category = "Outros";
-  if (nativeCategory) {
-    category = nativeCategory;
-    for (const [rx, cat] of CAT_MAP) if (rx.test(nativeCategory)) { category = cat; break; }
-  }
-  return { product: cleanName(name), category };
+  // sem regra de produto: categoria vem da nativa (ML/Amazon) consolidada na mãe; produto = nome cru enxuto
+  return { product: cleanName(name), category: toMother(nativeCategory) };
 }

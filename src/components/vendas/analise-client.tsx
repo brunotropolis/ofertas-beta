@@ -34,6 +34,8 @@ export default function AnaliseClient() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cat, setCat] = useState<string>("(todas)");
+  const [allCats, setAllCats] = useState(false);
+  const [allProds, setAllProds] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     silent ? setRefreshing(true) : setLoading(true);
@@ -87,8 +89,8 @@ export default function AnaliseClient() {
           {/* Categorias */}
           <div className="glass rounded-2xl p-5">
             <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-3 flex items-center gap-2"><Layers className="w-4 h-4 text-orange-400" strokeWidth={1.75} /> Categorias</h2>
-            <div className="space-y-1.5 max-h-[220px] overflow-y-auto scroll-thin">
-              {data.categorias.map((c, i) => {
+            <div className="space-y-1.5">
+              {data.categorias.slice(0, allCats ? 999 : 10).map((c, i) => {
                 const pct = data.categorias[0]?.commission ? (c.commission / data.categorias[0].commission) * 100 : 0;
                 return (
                   <button key={i} onClick={() => setCat(cat === c.category ? "(todas)" : c.category)}
@@ -102,6 +104,11 @@ export default function AnaliseClient() {
                 );
               })}
             </div>
+            {data.categorias.length > 10 && (
+              <button onClick={() => setAllCats(v => !v)} className="mt-2 text-xs text-orange-400 hover:text-orange-300">
+                {allCats ? "ver menos" : `ver todas (${data.categorias.length})`}
+              </button>
+            )}
           </div>
 
           {/* Plataforma × Produto */}
@@ -127,7 +134,7 @@ export default function AnaliseClient() {
                   </tr>
                 </thead>
                 <tbody>
-                  {prods.map((p, i) => (
+                  {prods.slice(0, allProds ? 999 : 10).map((p, i) => (
                     <tr key={i} className="border-b border-zinc-900/60 hover:bg-zinc-900/30">
                       <td className="py-2 pr-3 text-zinc-100 tracking-tight">{p.product}</td>
                       <td className="py-2 px-2 text-zinc-500 text-xs">{p.category}</td>
@@ -144,7 +151,12 @@ export default function AnaliseClient() {
                 </tbody>
               </table>
             </div>
-            <p className="text-[11px] text-zinc-600 mt-3">Verde = plataforma campeã do produto. Amazon entra como snapshot do período semeado (não fatia por dia).</p>
+            {prods.length > 10 && (
+              <button onClick={() => setAllProds(v => !v)} className="mt-3 text-xs text-orange-400 hover:text-orange-300">
+                {allProds ? "ver menos" : `ver todos (${prods.length})`}
+              </button>
+            )}
+            <p className="text-[11px] text-zinc-600 mt-3">Verde = plataforma campeã do produto. "Outros (Amazon)" = agregado de baixo volume que a Amazon não detalha. Amazon entra como snapshot do período semeado.</p>
           </div>
         </>
       )}

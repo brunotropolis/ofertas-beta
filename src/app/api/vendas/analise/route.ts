@@ -76,7 +76,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     period: { days: hoje ? 0 : days, hoje },
     kpis: { ...tot, classificadoPct: tot.commission ? 100 * (1 - naoClass / tot.commission) : 100 },
-    produtos: produtos.slice(0, 60),
+    produtos: produtos.slice(0, 200),
     categorias,
     errors,
   });
