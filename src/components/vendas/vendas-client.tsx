@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AnaliseClient from "./analise-client";
+import MetricasClient from "./metricas-client";
 
 interface Agg {
   kpis: {
@@ -144,7 +145,7 @@ function fmtSync(iso: string | null | undefined): string | null {
 
 export default function VendasClient() {
   const [days, setDays] = useState(30);
-  const [view, setView] = useState<"resultados" | "analise">("analise");
+  const [view, setView] = useState<"resultados" | "analise" | "metricas">("analise");
   const [source, setSource] = useState<SourceKey>("todas");
   const [data, setData] = useState<VendasResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,6 +184,7 @@ export default function VendasClient() {
   const maxDay = agg ? Math.max(1, ...agg.byDay.map((d) => d.commission)) : 1;
   const srcExtra = source !== "todas" && data && data.sources[source].ok ? data.sources[source] : null;
   const isAmazon = source === "amazon";
+  const hasFunnel = !!(srcExtra?.funnel && srcExtra.funnel.clicks > 0 && (source === "ml" || source === "shopee"));
   const srcLabel = source !== "todas" ? SOURCE_META[source].label : "Todas";
 
   // ── tabelas reutilizáveis (dash + página cheia) ──
@@ -258,7 +260,7 @@ export default function VendasClient() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1">
-            {([["analise", "Análise"], ["resultados", "Resultados"]] as ["resultados" | "analise", string][]).map(([k, label]) => (
+            {([["analise", "Análise"], ["resultados", "Resultados"], ["metricas", "Métricas"]] as ["resultados" | "analise" | "metricas", string][]).map(([k, label]) => (
               <button key={k} onClick={() => setView(k)}
                 className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
                   view === k ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-white")}>
@@ -288,6 +290,7 @@ export default function VendasClient() {
       </div>
 
       {view === "analise" && <AnaliseClient />}
+      {view === "metricas" && <MetricasClient />}
 
       {view === "resultados" && (loading ? (
         <div className="glass rounded-2xl p-12 text-center">
@@ -398,12 +401,14 @@ export default function VendasClient() {
                 <Kpi icon={Receipt} label="Ticket méd." value={brl(agg.kpis.ticket)} />
                 {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={MousePointerClick} label="Cliques" value={num(agg.kpis.clicks)} />}
                 {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={Percent} label="Conv. clique→compra" value={pct(agg.kpis.items / agg.kpis.clicks)} accent="sky" />}
-                {source === "ml" && srcExtra?.funnel && srcExtra.funnel.clicks > 0 && <Kpi icon={MousePointerClick} label="Cliques (conta)" value={num(srcExtra.funnel.clicks)} />}
-                {source === "ml" && srcExtra?.funnel && srcExtra.funnel.clicks > 0 && <Kpi icon={Percent} label="Conv. clique→pedido" value={pct(srcExtra.funnel.orders / srcExtra.funnel.clicks)} accent="sky" />}
+                {hasFunnel && <Kpi icon={MousePointerClick} label="Cliques (conta)" value={num(srcExtra!.funnel!.clicks)} />}
+                {hasFunnel && <Kpi icon={Percent} label="Conv. clique→pedido" value={pct(srcExtra!.funnel!.orders / srcExtra!.funnel!.clicks)} accent="sky" />}
               </div>
-              {source === "ml" && srcExtra?.funnel && srcExtra.funnel.clicks > 0 && (
+              {hasFunnel && (
                 <p className="text-[11px] text-zinc-400 px-1">
-                  Funil da conta ML na janela: <span className="text-sky-300 font-medium">{num(srcExtra.funnel.clicks)} cliques</span> → {num(srcExtra.funnel.buyers)} compradores → <span className="text-zinc-200">{num(srcExtra.funnel.orders)} pedidos</span>. Comissão por origem: marketplace {brl(srcExtra.funnel.comm_marketplace)} · seller {brl(srcExtra.funnel.comm_seller)} · brand {brl(srcExtra.funnel.comm_brand)}.
+                  Funil da conta na janela: <span className="text-sky-300 font-medium">{num(srcExtra!.funnel!.clicks)} cliques</span> → {num(srcExtra!.funnel!.buyers)} compradores → <span className="text-zinc-200">{num(srcExtra!.funnel!.orders)} pedidos</span>.
+                  {source === "ml" && <> Comissão por origem: marketplace {brl(srcExtra!.funnel!.comm_marketplace)} · seller {brl(srcExtra!.funnel!.comm_seller)} · brand {brl(srcExtra!.funnel!.comm_brand)}.</>}
+                  {source === "shopee" && <> Comissão estimada do portal (inclui pendentes): {brl(srcExtra!.funnel!.commission)}.</>}
                 </p>
               )}
 
@@ -476,11 +481,11 @@ export default function VendasClient() {
 
               {/* Anúncios × produto (por plataforma) */}
               {srcExtra && (srcExtra.adsByProduct?.length ?? 0) > 0 && (
-                <Section acc="ads" icon={Megaphone} title="Anúncios × produto" desc={`Produtos anunciados nos grupos com link ${srcLabel} × quanto venderam. Conv. = vendas por anúncio (vermelho = anunciou e não vendeu).`}>
+                <Section acc="ads" icon={Megaphone} title="Anúncios × produto" desc={`Produtos anunciados nos grupos com link ${srcLabel} × quanto venderam. Vd/anún. = vendas por anúncio (vermelho = anunciou e não vendeu).`}>
                   <div className="overflow-x-auto scroll-thin">
                     <table className="w-full text-[13px] min-w-[520px] border-collapse">
                       <thead><tr>
-                        <th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-right")}>Conv.</th><th className={cn(TH, "text-center")}>Ver</th>
+                        <th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-right")}>Vd/anún.</th><th className={cn(TH, "text-center")}>Ver</th>
                       </tr></thead>
                       <tbody>{srcExtra.adsByProduct!.map((a, i) => (
                         <tr key={i} className="hover:bg-zinc-800/30">
@@ -488,7 +493,7 @@ export default function VendasClient() {
                           <td className={cn(TD, "text-right text-violet-300 font-semibold")}>{num(a.ads)}</td>
                           <td className={cn(TD, "text-right", a.units === 0 ? "text-red-400/80" : "text-zinc-200")}>{num(a.units)}</td>
                           <td className={cn(TD, "text-right text-emerald-400")}>{brl(a.commission)}</td>
-                          <td className={cn(TD, "text-right font-medium", a.conv != null && a.conv >= 1 ? "text-emerald-400" : a.units === 0 ? "text-red-400/80" : "text-amber-400")}>{pct(a.conv)}</td>
+                          <td className={cn(TD, "text-right font-medium", a.conv != null && a.conv >= 1 ? "text-emerald-400" : a.units === 0 ? "text-red-400/80" : "text-amber-400")}>{a.conv != null ? a.conv.toFixed(1) : "—"}</td>
                           <td className={cn(TD, "text-center")}>{a.exampleUrl ? <VerLink url={a.exampleUrl} name={a.product} /> : "—"}</td>
                         </tr>))}</tbody>
                     </table>

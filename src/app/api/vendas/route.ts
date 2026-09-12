@@ -89,6 +89,21 @@ export async function GET(request: Request) {
   // normaliza um nome cru → { produto, categoria } (mesma taxonomia da aba Análise)
   const norm = (name: string | null, cat: string | null) => normalize(name, cat);
 
+  // funil de conta (cliques→pedidos) da janela — lido de affiliate_metrics (só janelas coletadas 7/30/90)
+  const readFunnel = async (src: string): Promise<Funnel | null> => {
+    try {
+      const { data } = await supabase.from("affiliate_metrics").select("*").eq("source", src).eq("days", days).maybeSingle();
+      const m = data as Record<string, unknown> | null;
+      if (!m) return null;
+      return {
+        clicks: Number(m.clicks) || 0, buyers: Number(m.buyers) || 0, orders: Number(m.orders) || 0,
+        gmv: Number(m.gmv) || 0, commission: Number(m.commission) || 0,
+        comm_marketplace: Number(m.comm_marketplace) || 0, comm_seller: Number(m.comm_seller) || 0, comm_brand: Number(m.comm_brand) || 0,
+        synced_at: (m.synced_at as string) ?? null,
+      };
+    } catch { return null; }
+  };
+
   // ── anúncios da janela (todos os grupos) → por plataforma, dedup link+dia ──
   const adsNorm: Record<Src, Map<string, { ads: number; exampleUrl: string | null }>> = {
     shopee: new Map(), ml: new Map(), amazon: new Map(),
@@ -162,7 +177,7 @@ export async function GET(request: Request) {
       sources.shopee = {
         ok: true, live: true, agg: aggregate(cur),
         variacao: diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho"),
-        ...buildOutputs("shopee", salesNorm),
+        ...buildOutputs("shopee", salesNorm), funnel: await readFunnel("shopee"),
       };
     } catch (err) {
       sources.shopee.error = err instanceof Error ? err.message : String(err);
@@ -199,22 +214,10 @@ export async function GET(request: Request) {
         const p = norm(r.product_name, r.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
       }
-      // funil de conta (cliques→pedidos) — só existe pras janelas coletadas (7/30/90)
-      let funnel: Funnel | null = null;
-      try {
-        const { data: mRaw } = await supabase.from("affiliate_metrics").select("*").eq("source", "ml").eq("days", days).maybeSingle();
-        const mData = mRaw as Record<string, unknown> | null;
-        if (mData) funnel = {
-          clicks: Number(mData.clicks) || 0, buyers: Number(mData.buyers) || 0, orders: Number(mData.orders) || 0,
-          gmv: Number(mData.gmv) || 0, commission: Number(mData.commission) || 0,
-          comm_marketplace: Number(mData.comm_marketplace) || 0, comm_seller: Number(mData.comm_seller) || 0, comm_brand: Number(mData.comm_brand) || 0,
-          synced_at: (mData.synced_at as string) ?? null,
-        };
-      } catch { /* funil opcional */ }
       sources.ml = {
         ok: true, lastSync: lastSyncOf(rows), agg: aggregateRows(rows, "sale"),
         variacao: diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho"),
-        ...buildOutputs("ml", salesNorm), funnel,
+        ...buildOutputs("ml", salesNorm), funnel: await readFunnel("ml"),
       };
     } catch (err) {
       sources.ml = { ok: false, error: err instanceof Error ? err.message : String(err) };

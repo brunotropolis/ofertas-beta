@@ -23,7 +23,7 @@ interface V { product: string; atual: number; anterior: number; delta: number; }
 const PERIODS = [{ v: "0", label: "Hoje" }, { v: "7", label: "7 dias" }, { v: "30", label: "30 dias" }, { v: "90", label: "90 dias" }];
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
-const pct = (r: number | null | undefined) => (r == null || !Number.isFinite(r)) ? "—" : `${(r * 100).toFixed(0)}%`;
+const vdad = (r: number | null | undefined) => (r == null || !Number.isFinite(r)) ? "—" : r.toFixed(1); // vendas por anúncio (quantidade, não %)
 const SRC = [{ k: "ml" as const, label: "ML", dot: "bg-yellow-400" }, { k: "amazon" as const, label: "Amazon", dot: "bg-sky-400" }, { k: "shopee" as const, label: "Shopee", dot: "bg-orange-400" }];
 const SRCLABEL: Record<string, string> = { ml: "Mercado Livre", amazon: "Amazon", shopee: "Shopee" };
 const srchLink = (name: string) => `https://www.google.com/search?q=${encodeURIComponent(name)}`;
@@ -187,11 +187,11 @@ export default function AnaliseClient() {
       )}
 
       {/* Anúncios × Plataforma × Vendas */}
-      <Section acc="efic" icon={Zap} title="Anúncios × Plataforma × Vendas" desc="Por plataforma (maior conversão primeiro): anúncios únicos, vendas, conversão (vendas ÷ anúncios, em %) e % das vendas.">
+      <Section acc="efic" icon={Zap} title="Anúncios × Plataforma × Vendas" desc="Por plataforma (maior conversão primeiro): anúncios únicos, vendas, vendas por anúncio (quantidade) e % das vendas.">
         <div className="overflow-x-auto scroll-thin">
           <table className="w-full text-[13px] min-w-[580px] border-collapse">
             <thead><tr>
-              <th className={cn(TH, "text-left")}>Plataforma</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-right")}>Conversão</th><th className={cn(TH, "text-right")}>% vendas</th>
+              <th className={cn(TH, "text-left")}>Plataforma</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-right")}>Vd/anún.</th><th className={cn(TH, "text-right")}>% vendas</th>
             </tr></thead>
             <tbody>{data.eficiencia.map(e => (
               <tr key={e.source} className="hover:bg-zinc-800/30">
@@ -199,7 +199,7 @@ export default function AnaliseClient() {
                 <td className={cn(TD, "text-right text-amber-400/90")}>{num(e.ads)}</td>
                 <td className={cn(TD, "text-right text-zinc-200")}>{num(e.units)}</td>
                 <td className={cn(TD, "text-right text-emerald-400")}>{brl(e.commission)}</td>
-                <td className={cn(TD, "text-right font-bold text-white")}>{pct(e.vdPorAd)}</td>
+                <td className={cn(TD, "text-right font-bold text-white")}>{vdad(e.vdPorAd)}</td>
                 <td className={cn(TD, "text-right text-zinc-400")}>{e.shareVendas.toFixed(0)}%</td>
               </tr>))}</tbody>
           </table>
@@ -215,15 +215,15 @@ export default function AnaliseClient() {
 
       {/* Top mais anunciados */}
       {data.topAnunciados.length > 0 && (
-        <Section acc="top" icon={Megaphone} title="Top mais anunciados" desc="O que mais postamos — e se converte (vendas ÷ anúncios em %, vermelho quando <100%).">
+        <Section acc="top" icon={Megaphone} title="Top mais anunciados" desc="O que mais postamos — e se converte (vendas por anúncio, vermelho quando <1).">
           <div className="overflow-x-auto scroll-thin">
             <table className="w-full text-[13px] min-w-[520px] border-collapse">
-              <thead><tr><th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-left")}>Categoria</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Conv.</th></tr></thead>
+              <thead><tr><th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-left")}>Categoria</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Vd/anún.</th></tr></thead>
               <tbody>{data.topAnunciados.map((t, i) => (
                 <tr key={i} className="hover:bg-zinc-800/30">
                   <td className={cn(TD, "text-zinc-100")}>{t.product}</td><td className={cn(TD, "text-zinc-400")}>{t.category}</td>
                   <td className={cn(TD, "text-right text-violet-300 font-semibold")}>{num(t.ads)}</td><td className={cn(TD, "text-right text-zinc-200")}>{num(t.units)}</td>
-                  <td className={cn(TD, "text-right font-medium", (t.vdPorAd ?? 0) < 1 ? "text-red-400" : "text-emerald-400")}>{pct(t.vdPorAd)}</td>
+                  <td className={cn(TD, "text-right font-medium", (t.vdPorAd ?? 0) < 1 ? "text-red-400" : "text-emerald-400")}>{vdad(t.vdPorAd)}</td>
                 </tr>))}</tbody>
             </table>
           </div>
