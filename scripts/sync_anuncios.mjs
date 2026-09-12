@@ -18,7 +18,7 @@ const meta = loadEnv("D:/CLAUDE/.env.meta");
 const SUPA = local.NEXT_PUBLIC_SUPABASE_URL, KEY = local.SUPABASE_SERVICE_ROLE_KEY;
 const WHAPI = meta.WHAPI_BASE_URL || "https://gate.whapi.cloud", WTOK = meta.WHAPI_TOKEN;
 const GROUP_ID = process.argv[3] || "120363345689119695@g.us"; // As Ofertas Maternas#1
-const GROUP_NAME = "As Ofertas Maternas#1";
+const GROUP_NAME = process.argv[4] || "As Ofertas Maternas#1";
 const days = parseInt(process.argv[2] || "90", 10);
 const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
 
