@@ -36,7 +36,7 @@ function Section({ acc, icon: Icon, title, desc, right, children }: { acc: keyof
         <h2 className="text-white font-display font-semibold tracking-tight text-[15px] flex items-center gap-2"><Icon className={cn("w-4 h-4", ICO[acc])} strokeWidth={2} /> {title}</h2>
         {right}
       </div>
-      {desc && <p className="text-[11px] text-zinc-500 mt-0.5">{desc}</p>}
+      {desc && <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{desc}</p>}
       <div className="mt-3">{children}</div>
     </div>
   );
@@ -86,7 +86,7 @@ export default function AnaliseClient() {
           {rows.map((p, i) => (
             <tr key={i} className="hover:bg-zinc-800/30">
               <td className={cn(TD, "text-zinc-100")}><span className="inline-flex items-center gap-1.5">{p.product} <VerLink url={p.exampleUrl} name={p.exampleName} /></span></td>
-              <td className={cn(TD, "text-zinc-500")}>{p.category}</td>
+              <td className={cn(TD, "text-zinc-400")}>{p.category}</td>
               {SRC.map(s => { const c = p.plat[s.k]; const best = SRC.every(x => p.plat[x.k].commission <= c.commission) && c.commission > 0; return <td key={s.k} className={cn(TD, "text-right whitespace-nowrap", c.commission > 0 ? (best ? "text-emerald-400 font-semibold" : "text-zinc-300") : "text-zinc-700")}>{c.units || c.commission ? `${num(c.units)} · ${brl(c.commission)}` : "—"}</td>; })}
               <td className={cn(TD, "text-right text-amber-400/90")}>{num(p.tot.ads)}</td>
               <td className={cn(TD, "text-right whitespace-nowrap")}><span className="text-zinc-400">{num(p.tot.units)}</span> · <span className="text-white font-semibold">{brl(p.tot.commission)}</span></td>
@@ -107,7 +107,7 @@ export default function AnaliseClient() {
         <tbody>{rows.map((o, i) => (
           <tr key={i} className="hover:bg-zinc-800/30">
             <td className={cn(TD, "text-zinc-100")}><span className="inline-flex items-center gap-1.5">{o.product} <VerLink url={o.exampleUrl} name={o.exampleName} /></span></td>
-            <td className={cn(TD, "text-zinc-500")}>{o.category}</td>
+            <td className={cn(TD, "text-zinc-400")}>{o.category}</td>
             <td className={cn(TD, "text-right text-white font-semibold")}>{num(o.units)}</td>
             <td className={cn(TD, "text-right text-amber-400")}>{o.ads}</td>
             <td className={cn(TD, "text-right text-emerald-400")}>{brl(o.commission)}</td>
@@ -216,7 +216,7 @@ export default function AnaliseClient() {
               <thead><tr><th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-left")}>Categoria</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>vd/ad</th></tr></thead>
               <tbody>{data.topAnunciados.map((t, i) => (
                 <tr key={i} className="hover:bg-zinc-800/30">
-                  <td className={cn(TD, "text-zinc-100")}>{t.product}</td><td className={cn(TD, "text-zinc-500")}>{t.category}</td>
+                  <td className={cn(TD, "text-zinc-100")}>{t.product}</td><td className={cn(TD, "text-zinc-400")}>{t.category}</td>
                   <td className={cn(TD, "text-right text-violet-300 font-semibold")}>{num(t.ads)}</td><td className={cn(TD, "text-right text-zinc-200")}>{num(t.units)}</td>
                   <td className={cn(TD, "text-right font-medium", (t.vdPorAd ?? 0) < 1 ? "text-red-400" : "text-emerald-400")}>{t.vdPorAd == null ? "—" : t.vdPorAd.toFixed(1)}</td>
                 </tr>))}</tbody>
@@ -279,11 +279,11 @@ export default function AnaliseClient() {
 function Kpi({ icon: Icon, label, value, highlight }: { icon: React.ElementType; label: string; value: string; highlight?: boolean }) {
   return (
     <div className={cn("glass rounded-xl p-3", highlight && "border-orange-500/40")}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className={cn("h-6 w-6 rounded-md grid place-items-center border", highlight ? "bg-orange-500/15 border-orange-500/30" : "bg-zinc-900/80 border-zinc-800/70")}><Icon className={cn("w-3 h-3", highlight ? "text-orange-400" : "text-zinc-400")} strokeWidth={2} /></span>
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</span>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <span className={cn("h-5 w-5 rounded-md grid place-items-center border", highlight ? "bg-orange-500/15 border-orange-500/30" : "bg-zinc-900/80 border-zinc-800/70")}><Icon className={cn("w-3 h-3", highlight ? "text-orange-400" : "text-zinc-400")} strokeWidth={2} /></span>
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-400">{label}</span>
       </div>
-      <p className="text-lg font-display font-bold text-white tracking-tight">{value}</p>
+      <p className="text-2xl font-display font-bold text-white tracking-tight leading-tight">{value}</p>
     </div>
   );
 }
