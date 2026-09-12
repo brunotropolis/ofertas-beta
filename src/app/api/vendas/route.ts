@@ -13,6 +13,7 @@ type Src = "shopee" | "ml" | "amazon";
 interface VarItem { product: string; atual: number; anterior: number; delta: number }
 interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
 interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
+interface Produto { product: string; category: string; units: number; commission: number; gmv: number; clicks: number; ads: number }
 
 interface SourceResult {
   ok: boolean;
@@ -24,13 +25,18 @@ interface SourceResult {
   agg?: SalesAggregate;
   variacao?: Variacao | null;       // janela atual × anterior (por produto normalizado)
   adsByProduct?: AdProduto[];        // anúncios (grupos WhatsApp) × vendas desta plataforma
+  produtos?: Produto[];              // lista normalizada completa (produtos mais vendidos + "ver todos")
+  oportunidades?: Produto[];         // vende bem, quase sem anúncio
 }
+
+interface NormEntry { product: string; category: string; units: number; commission: number; gmv: number; clicks: number }
+const isAgg = (p: string) => /^Outros \(Amazon/i.test(p || "");
 
 // diff de unidades por produto normalizado entre duas janelas
 function diffUnits(cur: Map<string, number>, prev: Map<string, number>, basis: string): Variacao {
   const keys = new Set([...cur.keys(), ...prev.keys()]);
   const arr: VarItem[] = [...keys]
-    .filter((p) => p && p !== "(não classificado)")
+    .filter((p) => p && p !== "(não classificado)" && !isAgg(p))
     .map((product) => {
       const atual = cur.get(product) ?? 0;
       const anterior = prev.get(product) ?? 0;
@@ -44,7 +50,7 @@ function diffUnits(cur: Map<string, number>, prev: Map<string, number>, basis: s
   };
 }
 
-// GET /api/vendas?days=30 → resultados de afiliado das 3 fontes + variação + anúncios×produto.
+// GET /api/vendas?days=30 → resultados de afiliado das 3 fontes + variação + anúncios×produto + produtos/oportunidades.
 //   Shopee: ao vivo (API oficial). ML/Amazon: lidos da tabela affiliate_sales (via coletor /vendas-sync).
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -66,11 +72,10 @@ export async function GET(request: Request) {
     amazon: { ok: false },
   };
 
-  // normaliza um nome cru → produto normalizado (mesma taxonomia da aba Análise)
-  const norm = (name: string | null, cat: string | null) => normalize(name, cat).product;
+  // normaliza um nome cru → { produto, categoria } (mesma taxonomia da aba Análise)
+  const norm = (name: string | null, cat: string | null) => normalize(name, cat);
 
   // ── anúncios da janela (todos os grupos) → por plataforma, dedup link+dia ──
-  // Usado no cruzamento anúncios×produto de cada plataforma.
   const adsNorm: Record<Src, Map<string, { ads: number; exampleUrl: string | null }>> = {
     shopee: new Map(), ml: new Map(), amazon: new Map(),
   };
@@ -85,7 +90,7 @@ export async function GET(request: Request) {
       const day = (a.posted_at || "").slice(0, 10);
       const k = (a.url || a.product_raw) + "|" + day;
       if (seen.has(k)) continue; seen.add(k);
-      const p = norm(a.product_raw, null);
+      const p = norm(a.product_raw, null).product;
       if (!p || p === "(não classificado)") continue;
       const m = adsNorm[a.platform as Src].get(p) ?? { ads: 0, exampleUrl: null };
       m.ads += 1; if (!m.exampleUrl && a.url) m.exampleUrl = a.url;
@@ -93,14 +98,28 @@ export async function GET(request: Request) {
     }
   } catch { /* anúncios opcional */ }
 
-  // cruza vendas normalizadas (produto→units/comissão) com anúncios da plataforma
-  const buildAds = (src: Src, salesNorm: Map<string, { units: number; commission: number }>): AdProduto[] => {
-    const out: AdProduto[] = [];
-    for (const [product, a] of adsNorm[src]) {
-      const s = salesNorm.get(product) ?? { units: 0, commission: 0 };
-      out.push({ product, ads: a.ads, units: s.units, commission: s.commission, conv: a.ads ? s.units / a.ads : null, exampleUrl: a.exampleUrl });
-    }
-    return out.sort((x, y) => y.ads - x.ads).slice(0, 20);
+  // deriva produtos / oportunidades / anúncios×produto de um mapa normalizado da plataforma
+  const buildOutputs = (src: Src, salesNorm: Map<string, NormEntry>) => {
+    const produtos: Produto[] = [...salesNorm.values()]
+      .filter((p) => !isAgg(p.product))
+      .map((p) => ({ ...p, ads: adsNorm[src].get(p.product)?.ads ?? 0 }))
+      .sort((a, b) => b.commission - a.commission)
+      .slice(0, 300);
+    const oportunidades = produtos
+      .filter((p) => p.units >= 10 && p.ads <= 3 && p.category !== "Outros" && p.product !== "(não classificado)")
+      .sort((a, b) => b.units - a.units)
+      .slice(0, 100);
+    const adsByProduct: AdProduto[] = [...adsNorm[src]].map(([product, a]) => {
+      const s = salesNorm.get(product);
+      return { product, ads: a.ads, units: s?.units ?? 0, commission: s?.commission ?? 0, conv: a.ads ? (s?.units ?? 0) / a.ads : null, exampleUrl: a.exampleUrl };
+    }).sort((x, y) => y.ads - x.ads).slice(0, 50);
+    return { produtos, oportunidades, adsByProduct };
+  };
+  const addNorm = (m: Map<string, NormEntry>, name: string | null, cat: string | null, units: number, commission: number, gmv: number, clicks: number) => {
+    const { product, category } = norm(name, cat);
+    const e = m.get(product) ?? { product, category, units: 0, commission: 0, gmv: 0, clicks: 0 };
+    e.units += units; e.commission += commission; e.gmv += gmv; e.clicks += clicks;
+    m.set(product, e);
   };
 
   // ── Shopee (ao vivo): janela atual + anterior (variação) ──────────────────
@@ -113,23 +132,22 @@ export async function GET(request: Request) {
         fetchConversions(appId, secret, start, end),
         fetchConversions(appId, secret, prevStart, start),
       ]);
-      const salesNorm = new Map<string, { units: number; commission: number }>();
+      const salesNorm = new Map<string, NormEntry>();
       const curUnits = new Map<string, number>();
       const prevUnits = new Map<string, number>();
       for (const c of cur) for (const it of c.items) {
-        const p = norm(it.name, it.category);
-        const s = salesNorm.get(p) ?? { units: 0, commission: 0 };
-        s.units += it.qty; s.commission += it.commission; salesNorm.set(p, s);
+        addNorm(salesNorm, it.name, it.category, it.qty, it.commission, it.price * it.qty, 0);
+        const p = norm(it.name, it.category).product;
         curUnits.set(p, (curUnits.get(p) ?? 0) + it.qty);
       }
       for (const c of prev) for (const it of c.items) {
-        const p = norm(it.name, it.category);
+        const p = norm(it.name, it.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + it.qty);
       }
       sources.shopee = {
         ok: true, live: true, agg: aggregate(cur),
         variacao: diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho"),
-        adsByProduct: buildAds("shopee", salesNorm),
+        ...buildOutputs("shopee", salesNorm),
       };
     } catch (err) {
       sources.shopee.error = err instanceof Error ? err.message : String(err);
@@ -153,23 +171,23 @@ export async function GET(request: Request) {
       ]);
       if (curRes.error) throw new Error(curRes.error.message);
       const rows = (curRes.data ?? []) as AffiliateSaleRow[];
-      const salesNorm = new Map<string, { units: number; commission: number }>();
+      const salesNorm = new Map<string, NormEntry>();
       const curUnits = new Map<string, number>();
       for (const r of rows) {
-        const p = norm(r.product_name, r.category);
-        const u = Number(r.units) || 0, c = Number(r.commission) || 0;
-        const s = salesNorm.get(p) ?? { units: 0, commission: 0 }; s.units += u; s.commission += c; salesNorm.set(p, s);
+        const u = Number(r.units) || 0, c = Number(r.commission) || 0, g = Number(r.gross_value) || 0;
+        addNorm(salesNorm, r.product_name, r.category, u, c, g, 0);
+        const p = norm(r.product_name, r.category).product;
         curUnits.set(p, (curUnits.get(p) ?? 0) + u);
       }
       const prevUnits = new Map<string, number>();
       for (const r of (prevRes.data ?? []) as AffiliateSaleRow[]) {
-        const p = norm(r.product_name, r.category);
+        const p = norm(r.product_name, r.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
       }
       sources.ml = {
         ok: true, lastSync: lastSyncOf(rows), agg: aggregateRows(rows, "sale"),
         variacao: diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho"),
-        adsByProduct: buildAds("ml", salesNorm),
+        ...buildOutputs("ml", salesNorm),
       };
     } catch (err) {
       sources.ml = { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -195,27 +213,21 @@ export async function GET(request: Request) {
         const curP = periods[periods.length - 1], prevP = periods[periods.length - 2];
         const curUnits = new Map<string, number>(), prevUnits = new Map<string, number>();
         for (const r of rows) {
-          const p = norm(r.product_name, r.category);
+          const p = norm(r.product_name, r.category).product;
           if (r.period_start === curP) curUnits.set(p, (curUnits.get(p) ?? 0) + (Number(r.units) || 0));
           else if (r.period_start === prevP) prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
         }
         const mes = (d: string) => { const m = d.match(/^(\d{4})-(\d{2})/); return m ? `${m[2]}/${m[1]}` : d; };
-        // ⚠️ o mês corrente costuma estar incompleto (só até o dia do último sync) → comparação parcial
         variacao = diffUnits(curUnits, prevUnits, `${mes(curP)} × ${mes(prevP)} — atenção: mês corrente pode estar incompleto`);
       }
 
-      // anúncios×produto (todo o snapshot de vendas Amazon)
-      const salesNorm = new Map<string, { units: number; commission: number }>();
-      for (const r of rows) {
-        const p = norm(r.product_name, r.category);
-        const s = salesNorm.get(p) ?? { units: 0, commission: 0 };
-        s.units += Number(r.units) || 0; s.commission += Number(r.commission) || 0; salesNorm.set(p, s);
-      }
+      const salesNorm = new Map<string, NormEntry>();
+      for (const r of rows) addNorm(salesNorm, r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0, Number(r.clicks) || 0);
 
       sources.amazon = {
         ok: true, snapshot: true, period, lastSync: lastSyncOf(rows),
         agg: aggregateRows(rows, perDay ? "sale" : "daily"),
-        variacao, adsByProduct: buildAds("amazon", salesNorm),
+        variacao, ...buildOutputs("amazon", salesNorm),
       };
     } catch (err) {
       sources.amazon = { ok: false, error: err instanceof Error ? err.message : String(err) };

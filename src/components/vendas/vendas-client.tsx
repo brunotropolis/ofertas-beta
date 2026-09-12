@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Wallet, ShoppingBag, Package, Receipt, RefreshCw, Loader2,
   AlertTriangle, TrendingUp, Tag, Smartphone, MousePointerClick, Clock, Layers,
-  Store, ArrowUp, ArrowDown, Megaphone, ExternalLink,
+  Store, ArrowUpRight, ArrowDownRight, Megaphone, ExternalLink, Percent, Target, ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AnaliseClient from "./analise-client";
@@ -25,7 +25,12 @@ interface Agg {
 interface VarItem { product: string; atual: number; anterior: number; delta: number }
 interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
 interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
-interface SourceResult { ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean; period?: { start: string | null; end: string | null }; agg?: Agg; variacao?: Variacao | null; adsByProduct?: AdProduto[]; }
+interface Produto { product: string; category: string; units: number; commission: number; gmv: number; clicks: number; ads: number }
+interface SourceResult {
+  ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean;
+  period?: { start: string | null; end: string | null };
+  agg?: Agg; variacao?: Variacao | null; adsByProduct?: AdProduto[]; produtos?: Produto[]; oportunidades?: Produto[];
+}
 interface VendasResp {
   period: { days: number };
   sources: { shopee: SourceResult; ml: SourceResult; amazon: SourceResult };
@@ -56,6 +61,29 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
+const pct = (r: number | null | undefined) => (r == null || !Number.isFinite(r)) ? "—" : `${(r * 100).toFixed(0)}%`;
+const srchLink = (name: string) => `https://www.google.com/search?q=${encodeURIComponent(name)}`;
+
+// ── Section (borda colorida à esquerda, igual Análise) + tabela densa ──
+const ACC: Record<string, string> = { var: "border-l-sky-500", oport: "border-l-emerald-500", ads: "border-l-violet-500", prod: "border-l-rose-500", cat: "border-l-orange-500", store: "border-l-yellow-500", status: "border-l-zinc-500", day: "border-l-orange-500", utm: "border-l-amber-500", dev: "border-l-teal-500" };
+const ICO: Record<string, string> = { var: "text-sky-400", oport: "text-emerald-400", ads: "text-violet-400", prod: "text-rose-400", cat: "text-orange-400", store: "text-yellow-400", status: "text-zinc-400", day: "text-orange-400", utm: "text-amber-400", dev: "text-teal-400" };
+const TH = "py-2 px-2.5 font-semibold text-zinc-400 border border-zinc-700/60 bg-zinc-900/40";
+const TD = "py-1.5 px-2.5 border border-zinc-800/70";
+function Section({ acc, icon: Icon, title, desc, right, children }: { acc: keyof typeof ACC; icon: React.ElementType; title: string; desc?: string; right?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className={cn("glass rounded-xl p-4 border-l-[3px]", ACC[acc])}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-white font-display font-semibold tracking-tight text-[15px] flex items-center gap-2"><Icon className={cn("w-4 h-4", ICO[acc])} strokeWidth={2} /> {title}</h2>
+        {right}
+      </div>
+      {desc && <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{desc}</p>}
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+const VerLink = ({ url, name }: { url: string | null; name: string }) => (
+  <a href={url || srchLink(name)} target="_blank" rel="noopener noreferrer" title={name} className="inline-flex text-sky-400/80 hover:text-sky-300 shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>
+);
 
 function emptyAgg(): Agg {
   return {
@@ -120,6 +148,7 @@ export default function VendasClient() {
   const [data, setData] = useState<VendasResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [full, setFull] = useState<null | "produtos" | "oport">(null);
 
   const load = useCallback(async (silent = false) => {
     silent ? setRefreshing(true) : setLoading(true);
@@ -132,6 +161,7 @@ export default function VendasClient() {
   }, [days]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setFull(null); }, [source, days]);
 
   const okAggs = useMemo(() => {
     if (!data) return [] as Agg[];
@@ -141,7 +171,6 @@ export default function VendasClient() {
       .map((s) => s.agg!);
   }, [data]);
 
-  // agg da view atual
   const agg: Agg | null = useMemo(() => {
     if (!data) return null;
     if (source === "todas") return okAggs.length ? mergeAggs(okAggs) : emptyAgg();
@@ -151,10 +180,70 @@ export default function VendasClient() {
 
   const srcErr = source !== "todas" && data && !data.sources[source].ok ? data.sources[source].error : null;
   const maxDay = agg ? Math.max(1, ...agg.byDay.map((d) => d.commission)) : 1;
-  // extras exclusivos da fonte (só quando uma plataforma está selecionada)
   const srcExtra = source !== "todas" && data && data.sources[source].ok ? data.sources[source] : null;
-  const variacao = srcExtra?.variacao ?? null;
-  const adsByProduct = srcExtra?.adsByProduct ?? [];
+  const isAmazon = source === "amazon";
+  const srcLabel = source !== "todas" ? SOURCE_META[source].label : "Todas";
+
+  // ── tabelas reutilizáveis (dash + página cheia) ──
+  const ProdTable = ({ rows, amazon }: { rows: Produto[]; amazon: boolean }) => (
+    <div className="overflow-x-auto scroll-thin">
+      <table className={cn("w-full text-[13px] border-collapse", amazon ? "min-w-[720px]" : "min-w-[560px]")}>
+        <thead><tr>
+          <th className={cn(TH, "text-left")}>Produto</th>
+          <th className={cn(TH, "text-left")}>Categoria</th>
+          <th className={cn(TH, "text-right")}>Vendas</th>
+          <th className={cn(TH, "text-right")}>Comissão</th>
+          <th className={cn(TH, "text-right")}>Anún.</th>
+          {amazon && <th className={cn(TH, "text-right")}>Cliques</th>}
+          {amazon && <th className={cn(TH, "text-right")}>Conv.</th>}
+          <th className={cn(TH, "text-center")}>Ver</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((p, i) => (
+            <tr key={i} className="hover:bg-zinc-800/30">
+              <td className={cn(TD, "text-zinc-100")}>{p.product}</td>
+              <td className={cn(TD, "text-zinc-400")}>{p.category}</td>
+              <td className={cn(TD, "text-right text-zinc-200")}>{num(p.units)}</td>
+              <td className={cn(TD, "text-right text-emerald-400 font-medium")}>{brl(p.commission)}</td>
+              <td className={cn(TD, "text-right text-amber-400/90")}>{num(p.ads)}</td>
+              {amazon && <td className={cn(TD, "text-right text-sky-300")}>{num(p.clicks)}</td>}
+              {amazon && <td className={cn(TD, "text-right text-sky-300")}>{p.clicks ? pct(p.units / p.clicks) : "—"}</td>}
+              <td className={cn(TD, "text-center")}><VerLink url={null} name={p.product} /></td>
+            </tr>
+          ))}
+          {!rows.length && <tr><td colSpan={amazon ? 8 : 6} className="py-6 text-center text-zinc-500 border border-zinc-800/70">Sem produtos no período.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const OportTable = ({ rows }: { rows: Produto[] }) => (
+    <div className="overflow-x-auto scroll-thin">
+      <table className="w-full text-[13px] min-w-[520px] border-collapse">
+        <thead><tr>
+          <th className={cn(TH, "text-left")}>Produto</th>
+          <th className={cn(TH, "text-left")}>Categoria</th>
+          <th className={cn(TH, "text-right")}>Vendas</th>
+          <th className={cn(TH, "text-right")}>Anún.</th>
+          <th className={cn(TH, "text-right")}>Comissão</th>
+          <th className={cn(TH, "text-center")}>Ver</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((o, i) => (
+            <tr key={i} className="hover:bg-zinc-800/30">
+              <td className={cn(TD, "text-zinc-100")}>{o.product}</td>
+              <td className={cn(TD, "text-zinc-400")}>{o.category}</td>
+              <td className={cn(TD, "text-right text-white font-semibold")}>{num(o.units)}</td>
+              <td className={cn(TD, "text-right text-amber-400")}>{o.ads}</td>
+              <td className={cn(TD, "text-right text-emerald-400")}>{brl(o.commission)}</td>
+              <td className={cn(TD, "text-center")}><VerLink url={null} name={o.product} /></td>
+            </tr>
+          ))}
+          {!rows.length && <tr><td colSpan={6} className="py-6 text-center text-zinc-500 border border-zinc-800/70">Nenhuma oportunidade — tudo que vende já é anunciado.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div>
@@ -180,25 +269,15 @@ export default function VendasClient() {
             <>
               <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1">
                 {PERIODS.map((p) => (
-                  <button
-                    key={p.days}
-                    onClick={() => setDays(p.days)}
-                    className={cn(
-                      "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
-                      days === p.days
-                        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]"
-                        : "text-zinc-400 hover:text-white"
-                    )}
-                  >
+                  <button key={p.days} onClick={() => setDays(p.days)}
+                    className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
+                      days === p.days ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]" : "text-zinc-400 hover:text-white")}>
                     {p.label}
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => load(true)}
-                disabled={refreshing}
-                className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50"
-              >
+              <button onClick={() => load(true)} disabled={refreshing}
+                className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} strokeWidth={1.75} />
                 Atualizar
               </button>
@@ -234,8 +313,10 @@ export default function VendasClient() {
               {(["shopee", "ml", "amazon"] as const).map((k) => {
                 const s = data.sources[k]; const meta = SOURCE_META[k];
                 const sync = fmtSync(s.lastSync);
+                const active = source === k;
                 return (
-                  <div key={k} className="glass rounded-2xl p-3.5">
+                  <button key={k} onClick={() => setSource(active ? "todas" : k)}
+                    className={cn("glass rounded-2xl p-3.5 text-left transition-all", active ? "ring-1 ring-orange-500/60" : "hover:bg-zinc-800/30")}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className={cn("w-2 h-2 rounded-full", meta.dot)} />
                       <span className="text-xs text-zinc-300 font-medium">{meta.label}</span>
@@ -254,7 +335,7 @@ export default function VendasClient() {
                     ) : (
                       <p className="text-[11px] text-red-400/90 leading-tight mt-1">{s.error || "erro"}</p>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -263,14 +344,9 @@ export default function VendasClient() {
           {/* Seletor de fonte */}
           <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1 w-fit">
             {([["todas", "Todas"], ["shopee", "Shopee"], ["ml", "Mercado Livre"], ["amazon", "Amazon"]] as [SourceKey, string][]).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setSource(k)}
-                className={cn(
-                  "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
-                  source === k ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-white"
-                )}
-              >
+              <button key={k} onClick={() => setSource(k)}
+                className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
+                  source === k ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-white")}>
                 {label}
               </button>
             ))}
@@ -281,279 +357,231 @@ export default function VendasClient() {
               <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/20 mb-4">
                 <AlertTriangle className="w-7 h-7 text-red-400" strokeWidth={1.5} />
               </div>
-              <p className="text-zinc-200 font-medium tracking-tight">Não deu pra puxar {SOURCE_META[source as Exclude<SourceKey, "todas">]?.label}</p>
+              <p className="text-zinc-200 font-medium tracking-tight">Não deu pra puxar {srcLabel}</p>
               <p className="text-red-400 text-sm mt-1.5">{srcErr}</p>
             </div>
-          ) : !agg ? null : agg.kpis.conversions === 0 && agg.kpis.commission === 0 ? (
+          ) : !agg ? null : full && srcExtra ? (
+            /* ── páginas cheias (ver todos) ── */
+            <div className="space-y-4">
+              {full === "produtos" && (
+                <Section acc="prod" icon={Package} title={`Todos os produtos ${srcLabel} (${srcExtra.produtos?.length ?? 0})`}
+                  right={<button onClick={() => setFull(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-lg text-xs font-semibold text-white shrink-0"><ChevronLeft className="w-4 h-4" /> Voltar</button>}>
+                  <ProdTable rows={srcExtra.produtos ?? []} amazon={isAmazon} />
+                </Section>
+              )}
+              {full === "oport" && (
+                <Section acc="oport" icon={Target} title={`Oportunidades ${srcLabel} (${srcExtra.oportunidades?.length ?? 0})`} desc="Vende ≥10 un mas ≤3 anúncios — vende sozinho, vale anunciar."
+                  right={<button onClick={() => setFull(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-lg text-xs font-semibold text-white shrink-0"><ChevronLeft className="w-4 h-4" /> Voltar</button>}>
+                  <OportTable rows={srcExtra.oportunidades ?? []} />
+                </Section>
+              )}
+            </div>
+          ) : agg.kpis.conversions === 0 && agg.kpis.commission === 0 ? (
             <div className="glass rounded-2xl p-10 text-center text-zinc-500 text-sm">
               Nenhuma venda no período{source !== "todas" && source !== "shopee" ? " (rode o sync pra popular esta fonte)" : ""}.
             </div>
           ) : (
-            <div className="space-y-5">
-              {source === "amazon" && data.sources.amazon.snapshot && (
+            <div className="space-y-4">
+              {isAmazon && srcExtra?.snapshot && (
                 <p className="text-[11px] text-sky-400/80 bg-sky-500/10 border border-sky-500/20 rounded-xl px-3 py-2">
-                  A Amazon entra como snapshot do último sync{data.sources.amazon.period?.start && data.sources.amazon.period?.end ? ` (${fmtDay(data.sources.amazon.period.start)}–${fmtDay(data.sources.amazon.period.end)})` : ""} — não filtra pelo seletor de 7/30/90 dias.
+                  A Amazon entra como snapshot do último sync{srcExtra.period?.start && srcExtra.period?.end ? ` (${fmtDay(srcExtra.period.start)}–${fmtDay(srcExtra.period.end)})` : ""} — não filtra pelo seletor de 7/30/90 dias.
                 </p>
               )}
-              {/* KPIs da fonte/visão */}
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+
+              {/* KPIs (Amazon soma Cliques + Conversão clique→compra) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
                 <Kpi icon={Wallet} label="Comissão" value={brl(agg.kpis.commission)} highlight />
                 <Kpi icon={ShoppingBag} label="Conversões" value={num(agg.kpis.conversions)} />
                 <Kpi icon={Package} label="Itens" value={num(agg.kpis.items)} />
                 <Kpi icon={TrendingUp} label="GMV" value={brl(agg.kpis.gmv)} />
                 <Kpi icon={Receipt} label="Ticket méd." value={brl(agg.kpis.ticket)} />
+                {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={MousePointerClick} label="Cliques" value={num(agg.kpis.clicks)} />}
+                {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={Percent} label="Conv. clique→compra" value={pct(agg.kpis.items / agg.kpis.clicks)} accent="sky" />}
               </div>
-
-              {/* Funil de cliques (exclusivo da Amazon) */}
-              {source === "amazon" && agg.kpis.clicks > 0 && (
-                <div className="glass rounded-2xl p-5 border-sky-500/25">
-                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
-                    <MousePointerClick className="w-4 h-4 text-sky-400" strokeWidth={1.75} />
-                    Funil de cliques <span className="text-[10px] text-sky-400/70 font-normal">— só a Amazon expõe</span>
-                  </h2>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <FunnelStep label="Cliques" value={num(agg.kpis.clicks)} />
-                    <span className="text-zinc-600">→</span>
-                    <FunnelStep label="Itens pedidos" value={num(agg.kpis.items)} />
-                    <span className="text-zinc-600">=</span>
-                    <div className="rounded-xl px-4 py-3 bg-sky-500/10 border border-sky-500/30">
-                      <p className="text-[10px] uppercase tracking-wider text-sky-400/80">Conversão clique→compra</p>
-                      <p className="text-2xl font-display font-semibold text-sky-300 tracking-tightest">
-                        {agg.kpis.clicks ? ((agg.kpis.items / agg.kpis.clicks) * 100).toFixed(2) : "0"}%
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 mt-3">De cada 100 cliques que você mandou pra Amazon, ~{agg.kpis.clicks ? Math.round((agg.kpis.items / agg.kpis.clicks) * 100) : 0} viraram item no carrinho.</p>
-                </div>
-              )}
-
-              {/* Variação vs período anterior (por plataforma) */}
-              {variacao && (variacao.subiram.length > 0 || variacao.cairam.length > 0) && (
-                <div className="glass rounded-2xl p-5 border-violet-500/25">
-                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-violet-400" strokeWidth={1.75} />
-                    Variação por produto
-                  </h2>
-                  <p className="text-[11px] text-zinc-500 mb-4">{variacao.basis}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <VarCol title="Subiram" items={variacao.subiram} up />
-                    <VarCol title="Caíram" items={variacao.cairam} />
-                  </div>
-                </div>
-              )}
-
-              {/* Anúncios × produto (grupos WhatsApp → esta plataforma) */}
-              {adsByProduct.length > 0 && (
-                <div className="glass rounded-2xl p-5 border-emerald-500/25">
-                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2">
-                    <Megaphone className="w-4 h-4 text-emerald-400" strokeWidth={1.75} />
-                    Anúncios × produto
-                  </h2>
-                  <p className="text-[11px] text-zinc-500 mb-3">Produtos que você anunciou nos grupos com link {SOURCE_META[source as Exclude<SourceKey, "todas">]?.label} × quanto venderam. Conversão = unidades ÷ anúncios.</p>
-                  <div className="overflow-x-auto scroll-thin">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-zinc-500 text-left">
-                          <th className="font-medium py-1.5 pr-3">Produto</th>
-                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Anúncios</th>
-                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Vendas</th>
-                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Comissão</th>
-                          <th className="font-medium py-1.5 px-3 text-right border-l border-zinc-800">Conv.</th>
-                          <th className="font-medium py-1.5 pl-3 border-l border-zinc-800"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {adsByProduct.map((a, i) => (
-                          <tr key={i} className="border-t border-zinc-800/70">
-                            <td className="py-1.5 pr-3 text-zinc-200 truncate max-w-[220px]">{a.product}</td>
-                            <td className="py-1.5 px-3 text-right text-zinc-300 border-l border-zinc-800/60">{num(a.ads)}</td>
-                            <td className={cn("py-1.5 px-3 text-right border-l border-zinc-800/60", a.units === 0 ? "text-red-400/80" : "text-zinc-200")}>{num(a.units)}</td>
-                            <td className="py-1.5 px-3 text-right text-emerald-400 font-medium border-l border-zinc-800/60">{brl(a.commission)}</td>
-                            <td className={cn("py-1.5 px-3 text-right border-l border-zinc-800/60", a.conv != null && a.conv >= 1 ? "text-emerald-400" : a.units === 0 ? "text-red-400/80" : "text-amber-400")}>{a.conv != null ? a.conv.toFixed(2) : "—"}</td>
-                            <td className="py-1.5 pl-3 border-l border-zinc-800/60">
-                              {a.exampleUrl && <a href={a.exampleUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-white inline-flex"><ExternalLink className="w-3.5 h-3.5" /></a>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="text-[11px] text-zinc-600 mt-2">Linha em vermelho = anunciou e não vendeu (esforço sem retorno). Verde na conv. = &ge;1 venda por anúncio.</p>
-                </div>
-              )}
 
               {/* Status */}
               {Object.keys(agg.kpis.byStatusCount).length > 0 && (
-                <div className="glass rounded-2xl p-5">
-                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-3">Status das conversões</h2>
+                <Section acc="status" icon={Receipt} title="Status das conversões">
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(agg.kpis.byStatusCount).map(([st, count]) => {
                       const meta = STATUS_META[st] ?? STATUS_META.UNKNOWN;
                       return (
                         <div key={st} className={cn("rounded-xl px-3 py-2 text-xs", meta.cls)}>
                           <span className="font-semibold uppercase tracking-wide">{meta.label}</span>
-                          <span className="mx-1.5 opacity-60">·</span>
-                          {num(count)} venda{count !== 1 ? "s" : ""}
-                          <span className="mx-1.5 opacity-60">·</span>
-                          {brl(agg.kpis.byStatusCommission[st] ?? 0)}
+                          <span className="mx-1.5 opacity-60">·</span>{num(count)} venda{count !== 1 ? "s" : ""}
+                          <span className="mx-1.5 opacity-60">·</span>{brl(agg.kpis.byStatusCommission[st] ?? 0)}
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                </Section>
               )}
 
-              {/* Timeline por dia */}
+              {/* Comissão por dia */}
               {agg.byDay.length > 0 && (
-                <div className="glass rounded-2xl p-5">
-                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4">Comissão por dia</h2>
+                <Section acc="day" icon={TrendingUp} title="Comissão por dia">
                   <div className="flex items-end gap-1 h-36 overflow-x-auto scroll-thin pb-1">
                     {agg.byDay.map((d) => (
                       <div key={d.day} className="flex flex-col items-center gap-1 min-w-[26px] group">
-                        <div
-                          className="w-full rounded-t-md bg-gradient-to-t from-orange-600 to-orange-400 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
+                        <div className="w-full rounded-t-md bg-gradient-to-t from-orange-600 to-orange-400 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
                           style={{ height: `${Math.max(3, (d.commission / maxDay) * 116)}px` }}
-                          title={`${d.day}: ${brl(d.commission)} · ${d.conversions} vendas`}
-                        />
+                          title={`${d.day}: ${brl(d.commission)} · ${d.conversions} vendas`} />
                         <span className="text-[9px] text-zinc-600 whitespace-nowrap">{d.day.slice(8, 10)}/{d.day.slice(5, 7)}</span>
                       </div>
                     ))}
                   </div>
-                </div>
+                </Section>
               )}
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                {/* Top produtos */}
-                <div className="glass rounded-2xl p-5">
-                  <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
-                    <Package className="w-4 h-4 text-orange-400" strokeWidth={1.75} />
-                    Produtos mais vendidos
-                  </h2>
+              {/* Variação por produto (só quando plataforma selecionada) */}
+              {srcExtra?.variacao && (srcExtra.variacao.subiram.length > 0 || srcExtra.variacao.cairam.length > 0) && (
+                <Section acc="var" icon={TrendingUp} title="Variação por produto" desc={srcExtra.variacao.basis}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                    {([["Subiram", srcExtra.variacao.subiram, ArrowUpRight, "text-emerald-400"], ["Caíram", srcExtra.variacao.cairam, ArrowDownRight, "text-red-400"]] as const).map(([lbl, rows, Ico, col]) => (
+                      <div key={lbl}>
+                        <p className={cn("text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1", col)}><Ico className="w-3.5 h-3.5" /> {lbl}</p>
+                        <table className="w-full text-[13px] border-collapse">
+                          <thead><tr><th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-right")}>Antes</th><th className={cn(TH, "text-right")}>Agora</th><th className={cn(TH, "text-right")}>Δ un.</th></tr></thead>
+                          <tbody>{rows.map((v, i) => (
+                            <tr key={i} className="hover:bg-zinc-800/30">
+                              <td className={cn(TD, "text-zinc-200")}>{v.product}</td>
+                              <td className={cn(TD, "text-right text-zinc-400")}>{v.anterior}</td>
+                              <td className={cn(TD, "text-right text-zinc-200")}>{v.atual}</td>
+                              <td className={cn(TD, "text-right font-semibold", col)}>{v.delta > 0 ? "+" : ""}{v.delta}</td>
+                            </tr>))}
+                            {!rows.length && <tr><td colSpan={4} className="py-3 text-center text-zinc-600 border border-zinc-800/70">Sem mudança relevante.</td></tr>}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Oportunidades não exploradas (por plataforma) */}
+              {srcExtra && (srcExtra.oportunidades?.length ?? 0) > 0 && (
+                <Section acc="oport" icon={Target} title="Oportunidades não exploradas" desc="Vende ≥10 un nesta plataforma mas ≤3 anúncios — vende sozinho, vale anunciar."
+                  right={(srcExtra.oportunidades!.length > 8) ? <button onClick={() => setFull("oport")} className="text-xs text-emerald-400 hover:text-emerald-300 font-medium">ver todas ({srcExtra.oportunidades!.length}) →</button> : undefined}>
+                  <OportTable rows={srcExtra.oportunidades!.slice(0, 8)} />
+                </Section>
+              )}
+
+              {/* Anúncios × produto (por plataforma) */}
+              {srcExtra && (srcExtra.adsByProduct?.length ?? 0) > 0 && (
+                <Section acc="ads" icon={Megaphone} title="Anúncios × produto" desc={`Produtos anunciados nos grupos com link ${srcLabel} × quanto venderam. Conv. = vendas por anúncio (vermelho = anunciou e não vendeu).`}>
+                  <div className="overflow-x-auto scroll-thin">
+                    <table className="w-full text-[13px] min-w-[520px] border-collapse">
+                      <thead><tr>
+                        <th className={cn(TH, "text-left")}>Produto</th><th className={cn(TH, "text-right")}>Anúncios</th><th className={cn(TH, "text-right")}>Vendas</th><th className={cn(TH, "text-right")}>Comissão</th><th className={cn(TH, "text-right")}>Conv.</th><th className={cn(TH, "text-center")}>Ver</th>
+                      </tr></thead>
+                      <tbody>{srcExtra.adsByProduct!.map((a, i) => (
+                        <tr key={i} className="hover:bg-zinc-800/30">
+                          <td className={cn(TD, "text-zinc-100")}>{a.product}</td>
+                          <td className={cn(TD, "text-right text-violet-300 font-semibold")}>{num(a.ads)}</td>
+                          <td className={cn(TD, "text-right", a.units === 0 ? "text-red-400/80" : "text-zinc-200")}>{num(a.units)}</td>
+                          <td className={cn(TD, "text-right text-emerald-400")}>{brl(a.commission)}</td>
+                          <td className={cn(TD, "text-right font-medium", a.conv != null && a.conv >= 1 ? "text-emerald-400" : a.units === 0 ? "text-red-400/80" : "text-amber-400")}>{pct(a.conv)}</td>
+                          <td className={cn(TD, "text-center")}>{a.exampleUrl ? <VerLink url={a.exampleUrl} name={a.product} /> : "—"}</td>
+                        </tr>))}</tbody>
+                    </table>
+                  </div>
+                </Section>
+              )}
+
+              {/* Produtos mais vendidos — lista normalizada + ver todos (por plataforma) */}
+              {srcExtra && (srcExtra.produtos?.length ?? 0) > 0 ? (
+                <Section acc="prod" icon={Package} title="Produtos mais vendidos"
+                  right={(srcExtra.produtos!.length > 20) ? <button onClick={() => setFull("produtos")} className="text-xs text-rose-400 hover:text-rose-300 font-medium">ver todos ({srcExtra.produtos!.length}) →</button> : undefined}>
+                  <ProdTable rows={srcExtra.produtos!.slice(0, 20)} amazon={isAmazon} />
+                </Section>
+              ) : source === "todas" && agg.byProduct.length > 0 ? (
+                <Section acc="prod" icon={Package} title="Produtos mais vendidos (todas as plataformas)">
                   <div className="space-y-2 max-h-[420px] overflow-y-auto scroll-thin">
                     {agg.byProduct.map((p, i) => (
                       <div key={i} className="flex items-center gap-3 bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-2.5">
                         {p.image ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={p.image} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 bg-zinc-900"
-                            onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+                          <img src={p.image} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 bg-zinc-900" onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
                         ) : (
-                          <div className="w-11 h-11 rounded-lg bg-zinc-900 shrink-0 grid place-items-center">
-                            <Package className="w-5 h-5 text-zinc-700" />
-                          </div>
+                          <div className="w-11 h-11 rounded-lg bg-zinc-900 shrink-0 grid place-items-center"><Package className="w-5 h-5 text-zinc-700" /></div>
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-white text-sm tracking-tight truncate">{p.name}</p>
-                          <p className="text-[11px] text-zinc-500">
-                            {num(p.qty)} un · GMV {brl(p.gmv)}
-                            {p.clicks > 0 && <> · <span className="text-sky-400/80">{num(p.clicks)} cliques ({p.clicks ? ((p.qty / p.clicks) * 100).toFixed(1) : 0}%)</span></>}
-                          </p>
+                          <p className="text-[11px] text-zinc-500">{num(p.qty)} un · GMV {brl(p.gmv)}</p>
                         </div>
                         <span className="text-emerald-400 font-semibold text-sm shrink-0">{brl(p.commission)}</span>
                       </div>
                     ))}
-                    {agg.byProduct.length === 0 && (
-                      <p className="text-zinc-500 text-sm">
-                        {source === "amazon" ? "A Amazon entra por dia (sem detalhe por produto)." : "Sem produtos no período."}
-                      </p>
-                    )}
                   </div>
-                </div>
+                </Section>
+              ) : null}
 
-                <div className="space-y-5">
-                  {/* Vendedores/lojas (exclusivo do ML) */}
-                  {agg.byStore.length > 0 && (
-                    <div className="glass rounded-2xl p-5 border-yellow-500/20">
-                      <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-1 flex items-center gap-2">
-                        <Store className="w-4 h-4 text-yellow-400" strokeWidth={1.75} />
-                        Vendedores que mais venderam <span className="text-[10px] text-yellow-400/70 font-normal">— só o ML expõe</span>
-                      </h2>
-                      <p className="text-[11px] text-zinc-500 mb-3">Quem realmente vendeu seus produtos indicados.</p>
-                      <div className="space-y-1.5 max-h-[240px] overflow-y-auto scroll-thin">
-                        {agg.byStore.slice(0, 12).map((s, i) => {
-                          const pct = agg.byStore[0]?.commission ? (s.commission / agg.byStore[0].commission) * 100 : 0;
-                          return (
-                            <div key={i} className="relative rounded-lg overflow-hidden">
-                              <div className="absolute inset-y-0 left-0 bg-yellow-500/10" style={{ width: `${Math.max(3, pct)}%` }} />
-                              <div className="relative flex items-center justify-between gap-3 text-sm px-2.5 py-1.5">
-                                <span className="text-zinc-200 truncate">{s.store}</span>
-                                <span className="text-zinc-500 text-xs shrink-0">
-                                  {num(s.qty)} un · <span className="text-emerald-400 font-medium">{brl(s.commission)}</span>
-                                </span>
-                              </div>
+              {/* Categorias + Vendedores + UTM + Device */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {agg.byCategory.length > 0 && (
+                  <Section acc="cat" icon={Layers} title="Melhores categorias">
+                    <div className="space-y-1.5 max-h-[260px] overflow-y-auto scroll-thin">
+                      {agg.byCategory.map((c, i) => {
+                        const p = agg.byCategory[0]?.commission ? (c.commission / agg.byCategory[0].commission) * 100 : 0;
+                        return (
+                          <div key={i} className="relative rounded-lg overflow-hidden">
+                            <div className="absolute inset-y-0 left-0 bg-orange-500/10" style={{ width: `${Math.max(3, p)}%` }} />
+                            <div className="relative flex items-center justify-between gap-3 text-sm px-2.5 py-1.5">
+                              <span className="text-zinc-200 truncate">{c.category}</span>
+                              <span className="text-zinc-500 text-xs shrink-0">{num(c.qty)} un · <span className="text-emerald-400 font-medium">{brl(c.commission)}</span></span>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </Section>
+                )}
 
-                  {/* Melhores categorias */}
-                  {agg.byCategory.length > 0 && (
-                    <div className="glass rounded-2xl p-5">
-                      <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-orange-400" strokeWidth={1.75} />
-                        Melhores categorias
-                      </h2>
-                      <div className="space-y-1.5 max-h-[240px] overflow-y-auto scroll-thin">
-                        {agg.byCategory.map((c, i) => {
-                          const pct = agg.byCategory[0]?.commission ? (c.commission / agg.byCategory[0].commission) * 100 : 0;
-                          return (
-                            <div key={i} className="relative rounded-lg overflow-hidden">
-                              <div className="absolute inset-y-0 left-0 bg-orange-500/10" style={{ width: `${Math.max(3, pct)}%` }} />
-                              <div className="relative flex items-center justify-between gap-3 text-sm px-2.5 py-1.5">
-                                <span className="text-zinc-200 truncate">{c.category}</span>
-                                <span className="text-zinc-500 text-xs shrink-0">
-                                  {num(c.qty)} un · <span className="text-emerald-400 font-medium">{brl(c.commission)}</span>
-                                </span>
-                              </div>
+                {agg.byStore.length > 0 && (
+                  <Section acc="store" icon={Store} title="Vendedores que mais venderam" desc="Quem realmente vendeu seus produtos indicados.">
+                    <div className="space-y-1.5 max-h-[260px] overflow-y-auto scroll-thin">
+                      {agg.byStore.slice(0, 12).map((s, i) => {
+                        const p = agg.byStore[0]?.commission ? (s.commission / agg.byStore[0].commission) * 100 : 0;
+                        return (
+                          <div key={i} className="relative rounded-lg overflow-hidden">
+                            <div className="absolute inset-y-0 left-0 bg-yellow-500/10" style={{ width: `${Math.max(3, p)}%` }} />
+                            <div className="relative flex items-center justify-between gap-3 text-sm px-2.5 py-1.5">
+                              <span className="text-zinc-200 truncate">{s.store}</span>
+                              <span className="text-zinc-500 text-xs shrink-0">{num(s.qty)} un · <span className="text-emerald-400 font-medium">{brl(s.commission)}</span></span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* UTMs */}
-                  {agg.byUtm.length > 0 && (
-                    <div className="glass rounded-2xl p-5">
-                      <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-orange-400" strokeWidth={1.75} />
-                        Vendas por UTM
-                      </h2>
-                      <div className="space-y-1.5 max-h-[200px] overflow-y-auto scroll-thin">
-                        {agg.byUtm.map((u, i) => (
-                          <div key={i} className="flex items-center justify-between gap-3 text-sm px-1">
-                            <span className="text-zinc-300 truncate font-mono text-xs">{u.utm}</span>
-                            <span className="text-zinc-500 text-xs shrink-0">
-                              {num(u.conversions)}× · <span className="text-emerald-400 font-medium">{brl(u.commission)}</span>
-                            </span>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </Section>
+                )}
 
-                  {/* Device */}
-                  {agg.byDevice.length > 0 && (
-                    <div className="glass rounded-2xl p-5">
-                      <h2 className="text-white font-display font-semibold tracking-tight text-sm mb-4 flex items-center gap-2">
-                        <Smartphone className="w-4 h-4 text-orange-400" strokeWidth={1.75} />
-                        Por dispositivo
-                      </h2>
-                      <div className="flex flex-wrap gap-2">
-                        {agg.byDevice.map((d) => (
-                          <div key={d.device} className="bg-zinc-900/50 border border-zinc-800/60 rounded-xl px-3 py-2 text-xs">
-                            <span className="text-zinc-300 font-medium">{d.device}</span>
-                            <span className="mx-1.5 text-zinc-600">·</span>
-                            <span className="text-zinc-500">{num(d.conversions)}×</span>
-                            <span className="mx-1.5 text-zinc-600">·</span>
-                            <span className="text-emerald-400">{brl(d.commission)}</span>
-                          </div>
-                        ))}
-                      </div>
+                {agg.byUtm.length > 0 && (
+                  <Section acc="utm" icon={Tag} title="Vendas por UTM">
+                    <div className="space-y-1.5 max-h-[220px] overflow-y-auto scroll-thin">
+                      {agg.byUtm.map((u, i) => (
+                        <div key={i} className="flex items-center justify-between gap-3 text-sm px-1">
+                          <span className="text-zinc-300 truncate font-mono text-xs">{u.utm}</span>
+                          <span className="text-zinc-500 text-xs shrink-0">{num(u.conversions)}× · <span className="text-emerald-400 font-medium">{brl(u.commission)}</span></span>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </Section>
+                )}
+
+                {agg.byDevice.length > 0 && (
+                  <Section acc="dev" icon={Smartphone} title="Por dispositivo">
+                    <div className="flex flex-wrap gap-2">
+                      {agg.byDevice.map((d) => (
+                        <div key={d.device} className="bg-zinc-900/50 border border-zinc-800/60 rounded-xl px-3 py-2 text-xs">
+                          <span className="text-zinc-300 font-medium">{d.device}</span>
+                          <span className="mx-1.5 text-zinc-600">·</span><span className="text-zinc-500">{num(d.conversions)}×</span>
+                          <span className="mx-1.5 text-zinc-600">·</span><span className="text-emerald-400">{brl(d.commission)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
               </div>
             </div>
           )}
@@ -568,56 +596,18 @@ export default function VendasClient() {
   );
 }
 
-function FunnelStep({ label, value }: { label: string; value: string }) {
+function Kpi({ icon: Icon, label, value, highlight, accent }: { icon: React.ElementType; label: string; value: string; highlight?: boolean; accent?: "sky" }) {
+  const tone = accent === "sky";
   return (
-    <div className="rounded-xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/70">
-      <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="text-2xl font-display font-semibold text-white tracking-tightest">{value}</p>
-    </div>
-  );
-}
-
-function VarCol({ title, items, up }: { title: string; items: VarItem[]; up?: boolean }) {
-  const Icon = up ? ArrowUp : ArrowDown;
-  const color = up ? "text-emerald-400" : "text-red-400";
-  const bg = up ? "bg-emerald-500/10" : "bg-red-500/10";
-  return (
-    <div>
-      <p className={cn("text-xs font-medium mb-2 flex items-center gap-1.5", color)}>
-        <Icon className="w-3.5 h-3.5" strokeWidth={2} /> {title}
-      </p>
-      {items.length === 0 ? (
-        <p className="text-zinc-600 text-xs">Sem mudança relevante.</p>
-      ) : (
-        <div className="space-y-1">
-          {items.map((v, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-sm px-2.5 py-1.5 rounded-lg bg-zinc-900/40 border border-zinc-800/50">
-              <span className="text-zinc-200 truncate">{v.product}</span>
-              <span className="shrink-0 flex items-center gap-2 text-xs">
-                <span className="text-zinc-500">{v.anterior}→{v.atual}</span>
-                <span className={cn("font-semibold rounded px-1.5 py-0.5", bg, color)}>{v.delta > 0 ? "+" : ""}{v.delta}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Kpi({ icon: Icon, label, value, highlight }: { icon: React.ElementType; label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className={cn("glass rounded-2xl p-4", highlight && "border-orange-500/30")}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className={cn(
-          "h-7 w-7 rounded-lg grid place-items-center border",
-          highlight ? "bg-orange-500/15 border-orange-500/30" : "bg-zinc-900/80 border-zinc-800/70"
-        )}>
-          <Icon className={cn("w-3.5 h-3.5", highlight ? "text-orange-400" : "text-zinc-400")} strokeWidth={1.75} />
+    <div className={cn("glass rounded-xl p-3", highlight && "border-orange-500/40", tone && "border-sky-500/40")}>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <span className={cn("h-5 w-5 rounded-md grid place-items-center border",
+          highlight ? "bg-orange-500/15 border-orange-500/30" : tone ? "bg-sky-500/15 border-sky-500/30" : "bg-zinc-900/80 border-zinc-800/70")}>
+          <Icon className={cn("w-3 h-3", highlight ? "text-orange-400" : tone ? "text-sky-400" : "text-zinc-400")} strokeWidth={2} />
         </span>
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</span>
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-400">{label}</span>
       </div>
-      <p className="text-xl font-display font-semibold text-white tracking-tightest">{value}</p>
+      <p className={cn("text-2xl font-display font-bold tracking-tight leading-tight", tone ? "text-sky-300" : "text-white")}>{value}</p>
     </div>
   );
 }
