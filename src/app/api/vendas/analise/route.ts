@@ -97,10 +97,19 @@ export async function GET(request: Request) {
 
   const champ = (b: Bucket): Src | null => { let best: Src | null = null, m = 0; for (const s of SRCS) if (b.plat[s].units > m) { m = b.plat[s].units; best = s; } return best; };
 
-  const produtos = [...buckets.values()].sort((a, b) => b.tot.commission - a.tot.commission);
-  const categorias = [...catMap.entries()].map(([category, v]) => ({ category, ...v })).sort((a, b) => b.commission - a.commission);
-  const tot = produtos.reduce((a, b) => ({ units: a.units + b.tot.units, commission: a.commission + b.tot.commission, gmv: a.gmv + b.tot.gmv, ads: a.ads + b.tot.ads }), zero());
-  const naoClass = produtos.filter(p => p.category === "Outros").reduce((a, b) => a + b.tot.commission, 0);
+  // "Outros (Amazon — baixo volume)" é o agregado que a AMAZON não detalha (suprime baixo volume).
+  // Não é um produto nosso — sai dos rankings e vira rodapé, mas continua no total (comissão real).
+  const isAgg = (b: Bucket) => /^Outros \(Amazon/i.test(b.product);
+  const produtosAll = [...buckets.values()].sort((a, b) => b.tot.commission - a.tot.commission);
+  const amazonOcultos = produtosAll.filter(isAgg).reduce((a, b) => ({ units: a.units + b.tot.units, commission: a.commission + b.tot.commission, gmv: a.gmv + b.tot.gmv }), { units: 0, commission: 0, gmv: 0 });
+  const produtos = produtosAll.filter(b => !isAgg(b));
+  const tot = produtosAll.reduce((a, b) => ({ units: a.units + b.tot.units, commission: a.commission + b.tot.commission, gmv: a.gmv + b.tot.gmv, ads: a.ads + b.tot.ads }), zero());
+  // categorias: tira o agregado Amazon do "Outros" (deixa só os não-classificados reais)
+  const catArr = [...catMap.entries()].map(([category, v]) => ({ category, units: v.units, commission: v.commission, gmv: v.gmv, ads: v.ads }));
+  const outroC = catArr.find(c => c.category === "Outros");
+  if (outroC) { outroC.units -= amazonOcultos.units; outroC.commission -= amazonOcultos.commission; outroC.gmv -= amazonOcultos.gmv; }
+  const categorias = catArr.filter(c => c.commission > 0.5 || c.units > 0).sort((a, b) => b.commission - a.commission);
+  const naoClass = outroC && outroC.commission > 0 ? outroC.commission : 0;
 
   const eficiencia = SRCS.map(s => ({
     source: s, ads: platTot[s].ads, units: platTot[s].units, commission: platTot[s].commission,
@@ -128,6 +137,7 @@ export async function GET(request: Request) {
     produtos: produtos.slice(0, 200),
     categorias, eficiencia, topAnunciados, oportunidades,
     variacao: { subiram, cairam },
+    amazonOcultos,
     errors,
   });
 }

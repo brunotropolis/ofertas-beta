@@ -15,6 +15,7 @@ interface Resp {
   topAnunciados: { product: string; category: string; ads: number; units: number; commission: number; vdPorAd: number | null }[];
   oportunidades: { product: string; category: string; units: number; commission: number; ads: number; campea: string | null; exampleName: string; exampleUrl: string | null }[];
   variacao: { subiram: V[]; cairam: V[] };
+  amazonOcultos: { units: number; commission: number; gmv: number };
   errors: Record<string, string>;
 }
 interface V { product: string; atual: number; anterior: number; delta: number; }
@@ -156,7 +157,7 @@ export default function AnaliseClient() {
           </Section>
         )}
         {full === "outros" && (
-          <Section acc="outros" icon={HelpCircle} title={`Não classificados (${outrosProds.length})`} desc="Produtos que venderam mas não casaram numa categoria (o 'Outros (Amazon)' é o agregado sem detalhe da Amazon). Clique em Ver pra identificar — me avise padrões e eu adiciono à taxonomia." right={back}>
+          <Section acc="outros" icon={HelpCircle} title={`Não classificados (${outrosProds.length})`} desc="Produtos reais que venderam mas não casaram numa categoria. Clique em Ver pra identificar — me avise os padrões e eu adiciono à taxonomia." right={back}>
             <ProdTable rows={outrosProds} />
           </Section>
         )}
@@ -180,6 +181,9 @@ export default function AnaliseClient() {
         <Kpi icon={Megaphone} label="Anúncios (únicos)" value={num(data.kpis.ads)} />
         <Kpi icon={Layers} label="Classificado" value={`${data.kpis.classificadoPct.toFixed(0)}%`} />
       </div>
+      {data.amazonOcultos.commission > 0 && (
+        <p className="text-[11px] text-zinc-400 flex items-start gap-1.5 px-1"><HelpCircle className="w-3.5 h-3.5 text-sky-400/70 shrink-0 mt-px" /> Do total, <span className="text-zinc-200 font-medium">&nbsp;{brl(data.amazonOcultos.commission)}&nbsp;</span> ({num(data.amazonOcultos.units)} un) são vendas Amazon de baixo volume que <b className="text-zinc-300">a Amazon não detalha por produto</b> (suprime individualmente por política deles) — por isso ficam fora dos rankings, mas contam no total.</p>
+      )}
 
       {/* Anúncios × Plataforma × Vendas */}
       <Section acc="efic" icon={Zap} title="Anúncios × Plataforma × Vendas" desc="Por plataforma (maior conversão primeiro): anúncios únicos, vendas, conversão (vd/ad) e % das vendas.">
@@ -261,7 +265,7 @@ export default function AnaliseClient() {
 
       {/* Outros — seção própria (tabela igual) */}
       {outrosCat && (
-        <Section acc="outros" icon={HelpCircle} title="Não classificados (Outros)" desc={`${num(outrosCat.units)} un · ${brl(outrosCat.commission)} — venderam mas não casaram numa categoria. Clique em Ver pra identificar. ("Outros (Amazon)" = agregado sem detalhe da Amazon, sem link.)`} right={outrosProds.length > 8 ? <button onClick={() => setFull("outros")} className="text-xs text-zinc-300 hover:text-white font-medium">ver todos ({outrosProds.length}) →</button> : undefined}>
+        <Section acc="outros" icon={HelpCircle} title="Não classificados" desc={`${num(outrosCat.units)} un · ${brl(outrosCat.commission)} — produtos reais que venderam mas não casaram numa categoria. Clique em Ver pra identificar; me avise os padrões e eu adiciono à taxonomia (isso vai encolhendo).`} right={outrosProds.length > 8 ? <button onClick={() => setFull("outros")} className="text-xs text-zinc-300 hover:text-white font-medium">ver todos ({outrosProds.length}) →</button> : undefined}>
           <ProdTable rows={outrosProds.slice(0, 8)} />
         </Section>
       )}
