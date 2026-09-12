@@ -200,7 +200,8 @@ export async function GET(request: Request) {
           else if (r.period_start === prevP) prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
         }
         const mes = (d: string) => { const m = d.match(/^(\d{4})-(\d{2})/); return m ? `${m[2]}/${m[1]}` : d; };
-        variacao = diffUnits(curUnits, prevUnits, `${mes(curP)} × ${mes(prevP)} (mês fechado)`);
+        // ⚠️ o mês corrente costuma estar incompleto (só até o dia do último sync) → comparação parcial
+        variacao = diffUnits(curUnits, prevUnits, `${mes(curP)} × ${mes(prevP)} — atenção: mês corrente pode estar incompleto`);
       }
 
       // anúncios×produto (todo o snapshot de vendas Amazon)
