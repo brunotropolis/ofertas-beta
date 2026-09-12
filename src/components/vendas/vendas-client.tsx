@@ -6,6 +6,7 @@ import {
   AlertTriangle, TrendingUp, Tag, Smartphone, MousePointerClick, Clock, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AnaliseClient from "./analise-client";
 
 interface Agg {
   kpis: {
@@ -105,6 +106,7 @@ function fmtSync(iso: string | null | undefined): string | null {
 
 export default function VendasClient() {
   const [days, setDays] = useState(30);
+  const [view, setView] = useState<"resultados" | "analise">("resultados");
   const [source, setSource] = useState<SourceKey>("todas");
   const [data, setData] = useState<VendasResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,35 +153,50 @@ export default function VendasClient() {
             Comissões de afiliado — Shopee ao vivo · Mercado Livre e Amazon via sync.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1">
-            {PERIODS.map((p) => (
-              <button
-                key={p.days}
-                onClick={() => setDays(p.days)}
-                className={cn(
-                  "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
-                  days === p.days
-                    ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]"
-                    : "text-zinc-400 hover:text-white"
-                )}
-              >
-                {p.label}
+            {([["resultados", "Resultados"], ["analise", "Análise"]] as ["resultados" | "analise", string][]).map(([k, label]) => (
+              <button key={k} onClick={() => setView(k)}
+                className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
+                  view === k ? "bg-zinc-100 text-zinc-900" : "text-zinc-400 hover:text-white")}>
+                {label}
               </button>
             ))}
           </div>
-          <button
-            onClick={() => load(true)}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} strokeWidth={1.75} />
-            Atualizar
-          </button>
+          {view === "resultados" && (
+            <>
+              <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.days}
+                    onClick={() => setDays(p.days)}
+                    className={cn(
+                      "px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
+                      days === p.days
+                        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]"
+                        : "text-zinc-400 hover:text-white"
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => load(true)}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} strokeWidth={1.75} />
+                Atualizar
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {loading ? (
+      {view === "analise" && <AnaliseClient />}
+
+      {view === "resultados" && (loading ? (
         <div className="glass rounded-2xl p-12 text-center">
           <Loader2 className="w-6 h-6 mx-auto text-zinc-500 animate-spin" />
           <p className="text-zinc-500 text-sm mt-3">Puxando resultados...</p>
@@ -425,7 +442,7 @@ export default function VendasClient() {
             Shopee/ML: comissões pendentes podem mudar de status. Amazon: snapshot por período (relatório do Associados).
           </p>
         </div>
-      )}
+      ))}
     </div>
   );
 }
