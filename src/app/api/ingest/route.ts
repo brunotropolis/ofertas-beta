@@ -36,6 +36,7 @@ const IngestSchema = z.object({
   caption: z.string().max(2000).nullable().optional(),
   extra_text: z.string().max(2000).nullable().optional(),
   campaign_ids: z.array(z.string().uuid()).optional(),
+  perfil: z.string().max(80).nullable().optional(), // slug do perfil (ex: "ofertas-maternas")
 });
 
 function authorized(request: Request): boolean {
@@ -85,6 +86,17 @@ export async function POST(request: Request) {
     if (dup) return NextResponse.json({ deduped: true, offer_id: dup.id });
   }
 
+  // ── Resolve perfil (slug → id) ───────────────────────────────────────────
+  let perfilId: string | null = null;
+  if (p.perfil) {
+    const { data: perfilRow } = await db
+      .from("perfis")
+      .select("id")
+      .eq("slug", p.perfil)
+      .maybeSingle();
+    perfilId = perfilRow?.id ?? null;
+  }
+
   // ── Cria oferta ─────────────────────────────────────────────────────────
   const willQueue = !!p.campaign_ids?.length;
   const { data: offer, error: offerErr } = await db
@@ -102,6 +114,7 @@ export async function POST(request: Request) {
       image_url: p.image_url ?? null,
       ai_caption: p.caption ?? null,
       extra_text: p.extra_text ?? null,
+      perfil_id: perfilId,
       status: willQueue ? "queued" : "draft",
     })
     .select()
