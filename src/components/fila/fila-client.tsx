@@ -13,6 +13,7 @@ import {
   SortableContext, arrayMove, verticalListSortingStrategy, useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { usePerfil } from "@/lib/profile-context";
 
 interface Offer {
   id: string;
@@ -67,6 +68,7 @@ export default function FilaClient() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [feedback, setFeedback] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const dragging = useRef(false);
+  const { perfilId } = usePerfil();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -77,7 +79,8 @@ export default function FilaClient() {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const res = await fetch("/api/queue", { cache: "no-store" });
+      const q = perfilId ? `?perfil=${perfilId}` : "";
+      const res = await fetch(`/api/queue${q}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setItems(data.items ?? []);
@@ -93,7 +96,8 @@ export default function FilaClient() {
     load();
     const t = setInterval(() => load(true), 15000);
     return () => clearInterval(t);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfilId]);
 
   async function handlePublish(item: QueueItem) {
     setPublishing(item.id);

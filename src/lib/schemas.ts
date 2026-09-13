@@ -45,6 +45,7 @@ export const CampaignCreateSchema = z.object({
   ai_prompt: z.string().max(8000).nullable().optional(),
   timer_minutes: z.number().int().min(5).max(120).optional(),
   is_active: z.boolean().optional(),
+  perfil_id: z.string().uuid().nullable().optional(),
 });
 
 export const CampaignUpdateSchema = CampaignCreateSchema.partial();

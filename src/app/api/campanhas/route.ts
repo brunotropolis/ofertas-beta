@@ -2,14 +2,17 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { CampaignCreateSchema, parseOrError } from "@/lib/schemas";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
-  const { data, error } = await db
+  const perfil = new URL(request.url).searchParams.get("perfil");
+  let query = db
     .from("campaigns")
     .select("*, campaign_phones(count), campaign_groups(count)")
     .order("created_at", { ascending: false });
+  if (perfil) query = query.eq("perfil_id", perfil);
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }

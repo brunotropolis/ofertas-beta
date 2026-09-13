@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Megaphone, Plus, Pencil, Trash2, Phone, Users, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePerfil } from "@/lib/profile-context";
 import CampaignModal, { type CampaignFormData } from "./campaign-modal";
 import Link from "next/link";
 import type { Database } from "@/lib/types/database";
@@ -22,6 +23,12 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<CampaignRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { perfilId } = usePerfil();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const visibleCampaigns = perfilId
+    ? campaigns.filter((c) => (c as any).perfil_id === perfilId)
+    : campaigns;
 
   function openCreate() {
     setEditing(null);
@@ -57,7 +64,7 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
       const res = await fetch("/api/campanhas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, perfil_id: perfilId }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -110,15 +117,15 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
         </button>
       </div>
 
-      {campaigns.length === 0 ? (
+      {visibleCampaigns.length === 0 ? (
         <EmptyCard
           icon={<Megaphone className="w-8 h-8 text-zinc-600" strokeWidth={1.5} />}
-          title="Nenhuma campanha criada ainda"
-          subtitle="Crie sua primeira campanha para começar a publicar ofertas"
+          title="Nenhuma campanha neste perfil"
+          subtitle="Crie uma campanha para começar a publicar ofertas deste perfil"
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {campaigns.map((campaign) => (
+          {visibleCampaigns.map((campaign) => (
             <div
               key={campaign.id}
               className="group relative glass rounded-2xl p-5 transition-all hover:border-orange-500/30 hover:shadow-[0_8px_32px_-12px_rgba(255,107,53,0.25)]"

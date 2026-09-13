@@ -5,6 +5,7 @@ import {
   List, Loader2, RefreshCw, Send, Trash2, Tag, X, Check, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePerfil } from "@/lib/profile-context";
 
 interface Offer {
   id: string;
@@ -45,14 +46,19 @@ export default function PublicacoesClient() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [enqueueFor, setEnqueueFor] = useState<Offer | null>(null);
+  const { perfilId } = usePerfil();
 
   async function load(silent = false) {
     silent ? setRefreshing(true) : setLoading(true);
     try {
-      const q = source === "all" ? "" : `?source=${source}`;
+      const params = new URLSearchParams();
+      if (source !== "all") params.set("source", source);
+      if (perfilId) params.set("perfil", perfilId);
+      const qs = params.toString();
+      const campQs = perfilId ? `?perfil=${perfilId}` : "";
       const [oRes, cRes] = await Promise.all([
-        fetch(`/api/ofertas${q}`, { cache: "no-store" }),
-        campaigns.length ? Promise.resolve(null) : fetch("/api/campanhas", { cache: "no-store" }),
+        fetch(`/api/ofertas${qs ? "?" + qs : ""}`, { cache: "no-store" }),
+        fetch(`/api/campanhas${campQs}`, { cache: "no-store" }),
       ]);
       if (oRes.ok) setOffers(await oRes.json());
       if (cRes && cRes.ok) setCampaigns(await cRes.json());
@@ -62,7 +68,7 @@ export default function PublicacoesClient() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source, perfilId]);
 
   async function handleDiscard(o: Offer) {
     if (!confirm("Descartar essa oferta?")) return;

@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const source = searchParams.get("source");
+  const perfil = searchParams.get("perfil");
   const limit = Math.min(Number(searchParams.get("limit") ?? 100) || 100, 200);
 
   let query = db
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
 
   if (status) query = query.eq("status", status);
   if (source && source !== "all") query = query.eq("source", source);
+  if (perfil) query = query.eq("perfil_id", perfil);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
