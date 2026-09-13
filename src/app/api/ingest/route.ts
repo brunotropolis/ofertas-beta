@@ -97,6 +97,36 @@ export async function POST(request: Request) {
     perfilId = perfilRow?.id ?? null;
   }
 
+  // ── Encurta link Amazon (URL longa) via worker utm-redirector ────────────
+  // Amazon manda a URL inteira (?tag=...&linkCode=osi&th=1&psc=1). Encurta pra
+  // manualdorecemnascido.com.br/l/amz<ASIN> (302 → URL completa, tag preservada).
+  // Best-effort: qualquer falha mantém a URL completa. ML(meli.la)/Shopee já vêm curtos.
+  let affiliateUrl = p.affiliate_url || p.url;
+  const isAmazon = p.platform === "amazon" || /(^|\.)amazon\.com/.test((() => { try { return new URL(affiliateUrl).hostname; } catch { return ""; } })());
+  if (isAmazon && /amazon\.com/.test(affiliateUrl) && process.env.UTM_WORKER_SECRET) {
+    const asin =
+      (p.source_ref?.replace(/^amazon_/, "") || "").match(/^[A-Z0-9]{8,12}$/)?.[0] ||
+      affiliateUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{8,12})/)?.[1] ||
+      null;
+    if (asin) {
+      try {
+        const slug = "amz" + asin;
+        const reg = await fetch("https://manualdorecemnascido.com.br/_utmapi/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Worker-Secret": process.env.UTM_WORKER_SECRET,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+          },
+          body: JSON.stringify({ slug, url: affiliateUrl, description: "amazon ingest" }),
+        });
+        if (reg.ok) affiliateUrl = `https://manualdorecemnascido.com.br/l/${slug}`;
+      } catch {
+        /* mantém a URL completa */
+      }
+    }
+  }
+
   // ── Cria oferta ─────────────────────────────────────────────────────────
   const willQueue = !!p.campaign_ids?.length;
   const { data: offer, error: offerErr } = await db
@@ -106,7 +136,7 @@ export async function POST(request: Request) {
       source_ref: p.source_ref ?? null,
       platform: p.platform ?? null,
       url: p.url,
-      affiliate_url: p.affiliate_url || p.url,
+      affiliate_url: affiliateUrl,
       title: p.title ?? null,
       price_current: p.price_current ?? null,
       price_original: p.price_original ?? null,
