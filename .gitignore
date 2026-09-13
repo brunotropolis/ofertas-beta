@@ -35,3 +35,5 @@ next-env.d.ts
 
 # scratch scripts (nunca commitar — podem ter segredos)
 scripts/_*.mjs
+
+scripts/_*.json
