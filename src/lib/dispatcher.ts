@@ -35,6 +35,9 @@ interface Offer {
   image_url: string | null;
   ai_caption: string | null;
   extra_text: string | null;
+  price_current: number | null;
+  price_original: number | null;
+  discount_pct: number | null;
 }
 interface QueueItem {
   id: string;
@@ -56,13 +59,68 @@ interface Group {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildCaption(offer: Offer): string {
-  const parts: string[] = [];
-  if (offer.ai_caption) parts.push(offer.ai_caption.trim());
-  else if (offer.title) parts.push(offer.title.trim()); // fallback p/ ofertas de fontes automáticas sem legenda
+// ─── Legenda no padrão do dispatcher geek antigo ────────────────────────────
+// Estrutura: {2 linhas criativas} · {bloco de preços} · {extra} · COMPRE AQUI 👇 · {link}
+
+function moneyBRL(v: number): string {
+  return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function priceBlock(offer: Offer): string {
+  const a = offer.price_current;
+  if (a == null) return "";
+  const o = offer.price_original;
+  if (o != null && o > a) {
+    return `🏷️ Custa ~${moneyBRL(o)}~\n💰 POR *${moneyBRL(a)}*`;
+  }
+  return `💰 POR *${moneyBRL(a)}*`;
+}
+
+// 2 linhas criativas via Claude Haiku (mesmo tom geek do fluxo antigo). Null se não der.
+async function generateCreativeLines(offer: Offer): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const nome = offer.title || "Produto";
+  const preco = offer.price_current != null ? moneyBRL(offer.price_current) : "";
+  const prompt = `Voce e um criador de anuncios para WhatsApp. Tom geek, inteligente e levemente irreverente.
+Gere exatamente 2 linhas:
+1. Titulo: emoji + nome do produto + impressao curta de quem testou
+2. Copy: emoji + beneficio direto em frase curta e atual
+Regras: Um emoji unico por linha, variando entre 🔥 ⚡ 🚀 🎧 🎯 🧠 💎 🎮 💡 🧩. Sem exageros. Retornar APENAS as 2 linhas.
+PRODUTO: ${nome}
+PRECO: ${preco}`;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 300,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const txt = ((j as any).content?.[0]?.text || "").trim();
+    return txt || null;
+  } catch {
+    return null;
+  }
+}
+
+// Monta a legenda final. Gera as linhas criativas se a oferta não trouxe ai_caption.
+async function buildCaption(offer: Offer): Promise<string> {
+  let creative = offer.ai_caption?.trim() || "";
+  if (!creative) creative = (await generateCreativeLines(offer)) || "";
+  if (!creative) creative = `🔥 ${offer.title || "Oferta imperdível"}`;
+
+  const parts: string[] = [creative];
+  const pb = priceBlock(offer);
+  if (pb) parts.push(pb);
   if (offer.extra_text) parts.push(offer.extra_text.trim());
   const url = offer.affiliate_url || offer.url;
-  if (url) parts.push(url);
+  parts.push(`COMPRE AQUI 👇\n${url}`);
   return parts.join("\n\n");
 }
 
@@ -76,28 +134,6 @@ async function sendText(instance: string, jid: string, text: string) {
       text,
       delay: 0,
       linkPreview: true,
-    }),
-  });
-  if (!res.ok) throw new Error(`Evolution ${res.status}: ${await res.text().catch(() => "")}`);
-}
-
-async function sendMedia(
-  instance: string,
-  jid: string,
-  imageUrl: string,
-  caption: string
-) {
-  const res = await fetch(`${EVO_URL}/message/sendMedia/${encodeURIComponent(instance)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", apikey: EVO_KEY },
-    body: JSON.stringify({
-      number: jid,
-      mediatype: "image",
-      mimetype: "image/jpeg",
-      media: imageUrl,
-      caption,
-      fileName: "oferta.jpg",
-      delay: 0,
     }),
   });
   if (!res.ok) throw new Error(`Evolution ${res.status}: ${await res.text().catch(() => "")}`);
@@ -194,7 +230,7 @@ export async function publishQueueItemForCampaign(
     throw new Error("nenhum grupo habilitado na campanha");
   }
 
-  const caption = buildCaption(offer as Offer);
+  const caption = await buildCaption(offer as Offer);
   let successes = 0;
   let failures = 0;
 
@@ -202,11 +238,8 @@ export async function publishQueueItemForCampaign(
     // Sorteia telefone
     const phone = phoneList[Math.floor(Math.random() * phoneList.length)];
     try {
-      if ((offer as Offer).image_url) {
-        await sendMedia(phone.evolution_instance_id, group.group_jid, (offer as Offer).image_url!, caption);
-      } else {
-        await sendText(phone.evolution_instance_id, group.group_jid, caption);
-      }
+      // Sempre texto + linkPreview: a imagem carrega como thumb do link (não como arquivo).
+      await sendText(phone.evolution_instance_id, group.group_jid, caption);
       await db.from("publication_log").insert({
         queue_id: queueItem.id,
         campaign_id: campaign.id,
