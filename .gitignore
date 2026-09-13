@@ -32,3 +32,6 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch scripts (nunca commitar — podem ter segredos)
+scripts/_*.mjs
