@@ -6,18 +6,19 @@
  *      a) Achou último envio bem-sucedido dela → passou >= timer_minutes desde então?
  *      b) Se sim, pega o item MAIS ANTIGO da fila (status=pending) que inclui essa campanha
  *         E que ainda não tem log de sucesso pra ela.
- *      c) Publica em todos os grupos habilitados dela via Evolution, escolhendo telefone
- *         aleatório NÃO admin.
+ *      c) Publica em todos os grupos habilitados dela. Canal:
+ *         - Se o PERFIL da campanha tem waha_url → posta via WAHA (card com foto,
+ *           endpoint /api/send/link-custom-preview), usando a copy do ai_prompt da campanha.
+ *         - Senão → Evolution (texto + linkPreview), escolhendo telefone aleatório não-admin.
  *      d) Cada envio vira 1 linha em publication_log (success ou error).
  *      e) Se todas as campanhas do queue item já foram enviadas → marca queue como published.
- *
- * Rotação de telefone: random entre phones ativos + não admin da campanha.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
+const WAHA_KEY = process.env.WAHA_OFERTAS_API_KEY || process.env.WAHA_API_KEY || "";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -26,6 +27,12 @@ interface Campaign {
   id: string;
   name: string;
   timer_minutes: number;
+  ai_prompt?: string | null;
+  perfil_id?: string | null;
+}
+interface PerfilWaha {
+  waha_url: string;
+  waha_session: string;
 }
 interface Offer {
   id: string;
@@ -56,39 +63,44 @@ interface Group {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Helpers de legenda
 // ─────────────────────────────────────────────────────────────────────────────
-
-// ─── Legenda no padrão do dispatcher geek antigo ────────────────────────────
-// Estrutura: {2 linhas criativas} · {bloco de preços} · {extra} · COMPRE AQUI 👇 · {link}
 
 function moneyBRL(v: number): string {
   return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function priceBlock(offer: Offer): string {
+// Bloco de preço no tom maternidade: "💰 Por *R$X*" + "> Custa R$Y"
+function priceBlockMaternity(offer: Offer): string {
   const a = offer.price_current;
   if (a == null) return "";
   const o = offer.price_original;
-  if (o != null && o > a) {
-    return `🏷️ Custa ~${moneyBRL(o)}~\n💰 POR *${moneyBRL(a)}*`;
-  }
+  const lines = [`💰 Por *${moneyBRL(a)}*`];
+  if (o != null && o > a) lines.push(`> Custa ${moneyBRL(o)}`);
+  return lines.join("\n");
+}
+
+// Bloco de preço geek (fluxo antigo)
+function priceBlockGeek(offer: Offer): string {
+  const a = offer.price_current;
+  if (a == null) return "";
+  const o = offer.price_original;
+  if (o != null && o > a) return `🏷️ Custa ~${moneyBRL(o)}~\n💰 POR *${moneyBRL(a)}*`;
   return `💰 POR *${moneyBRL(a)}*`;
 }
 
-// 2 linhas criativas via Claude Haiku (mesmo tom geek do fluxo antigo). Null se não der.
-async function generateCreativeLines(offer: Offer): Promise<string | null> {
+// Linha curta de preço pra description do card
+function priceLine(offer: Offer): string {
+  const a = offer.price_current;
+  if (a == null) return offer.title?.slice(0, 120) || "Oferta";
+  const o = offer.price_original;
+  return o != null && o > a ? `💰 ${moneyBRL(a)} (de ${moneyBRL(o)})` : `💰 ${moneyBRL(a)}`;
+}
+
+// Chama a Claude Haiku com um prompt (ex: ai_prompt da campanha ou fallback geek).
+async function callHaiku(prompt: string): Promise<string | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  const nome = offer.title || "Produto";
-  const preco = offer.price_current != null ? moneyBRL(offer.price_current) : "";
-  const prompt = `Voce e um criador de anuncios para WhatsApp. Tom geek, inteligente e levemente irreverente.
-Gere exatamente 2 linhas:
-1. Titulo: emoji + nome do produto + impressao curta de quem testou
-2. Copy: emoji + beneficio direto em frase curta e atual
-Regras: Um emoji unico por linha, variando entre 🔥 ⚡ 🚀 🎧 🎯 🧠 💎 🎮 💡 🧩. Sem exageros. Retornar APENAS as 2 linhas.
-PRODUTO: ${nome}
-PRECO: ${preco}`;
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -109,38 +121,109 @@ PRECO: ${preco}`;
   }
 }
 
-// Monta a legenda final. Gera as linhas criativas se a oferta não trouxe ai_caption.
-async function buildCaption(offer: Offer): Promise<string> {
+// Copy pela copy do perfil/campanha (ai_prompt). Substitui {TITULO}/{PRECO}.
+async function generateFromCampaignPrompt(offer: Offer, aiPrompt: string): Promise<string | null> {
+  const nome = offer.title || "Produto";
+  const preco = offer.price_current != null ? moneyBRL(offer.price_current) : "";
+  let prompt = aiPrompt;
+  if (prompt.includes("{TITULO}") || prompt.includes("{PRECO}")) {
+    prompt = prompt.replace(/{TITULO}/g, nome).replace(/{PRECO}/g, preco);
+  } else {
+    prompt = `${aiPrompt}\n\nPRODUTO: ${nome}\nPREÇO: ${preco}`;
+  }
+  return callHaiku(prompt);
+}
+
+// Copy geek (fallback quando não há ai_prompt).
+async function generateCreativeLines(offer: Offer): Promise<string | null> {
+  const nome = offer.title || "Produto";
+  const preco = offer.price_current != null ? moneyBRL(offer.price_current) : "";
+  const prompt = `Voce e um criador de anuncios para WhatsApp. Tom geek, inteligente e levemente irreverente.
+Gere exatamente 2 linhas:
+1. Titulo: emoji + nome do produto + impressao curta de quem testou
+2. Copy: emoji + beneficio direto em frase curta e atual
+Regras: Um emoji unico por linha, variando entre 🔥 ⚡ 🚀 🎧 🎯 🧠 💎 🎮 💡 🧩. Sem exageros. Retornar APENAS as 2 linhas.
+PRODUTO: ${nome}
+PRECO: ${preco}`;
+  return callHaiku(prompt);
+}
+
+// Monta a legenda final. style 'maternity' usa a copy do ai_prompt + preço maternidade.
+async function buildCaption(offer: Offer, campaign: Campaign, style: "maternity" | "geek"): Promise<string> {
   let creative = offer.ai_caption?.trim() || "";
+  if (!creative && campaign.ai_prompt) creative = (await generateFromCampaignPrompt(offer, campaign.ai_prompt)) || "";
   if (!creative) creative = (await generateCreativeLines(offer)) || "";
-  if (!creative) creative = `🔥 ${offer.title || "Oferta imperdível"}`;
+  if (!creative) creative = `${style === "maternity" ? "✨" : "🔥"} ${offer.title || "Oferta imperdível"}`;
 
   const parts: string[] = [creative];
-  const pb = priceBlock(offer);
+  if (style === "maternity" && offer.title) parts.push(`*${offer.title.trim()}*`);
+
+  const pb = style === "maternity" ? priceBlockMaternity(offer) : priceBlockGeek(offer);
   if (pb) parts.push(pb);
   if (offer.extra_text) parts.push(offer.extra_text.trim());
+
   const url = offer.affiliate_url || offer.url;
-  parts.push(`COMPRE AQUI 👇\n${url}`);
+  parts.push(`Compre aqui 👇\n${url}`);
   return parts.join("\n\n");
 }
 
-// Payloads no formato Evolution API v2 (flat) — o evo-v2 rejeita o formato v1 aninhado.
-async function sendText(instance: string, jid: string, text: string) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Envio — Evolution (texto + linkPreview) e WAHA (card custom com foto)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function sendTextEvolution(instance: string, jid: string, text: string) {
   const res = await fetch(`${EVO_URL}/message/sendText/${encodeURIComponent(instance)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: EVO_KEY },
-    body: JSON.stringify({
-      number: jid,
-      text,
-      delay: 0,
-      linkPreview: true,
-    }),
+    body: JSON.stringify({ number: jid, text, delay: 0, linkPreview: true }),
   });
   if (!res.ok) throw new Error(`Evolution ${res.status}: ${await res.text().catch(() => "")}`);
 }
 
+async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, offer: Offer) {
+  if (!WAHA_KEY) throw new Error("WAHA_OFERTAS_API_KEY não configurado");
+  const url = offer.affiliate_url || offer.url;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const preview: any = {
+    url,
+    title: (offer.title || "Oferta").slice(0, 120),
+    description: priceLine(offer),
+  };
+  if (offer.image_url) preview.image = { url: offer.image_url };
+
+  const res = await fetch(`${perfil.waha_url}/api/send/link-custom-preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Api-Key": WAHA_KEY },
+    body: JSON.stringify({
+      session: perfil.waha_session,
+      chatId,
+      text,
+      linkPreviewHighQuality: true,
+      preview,
+    }),
+  });
+  if (!res.ok) throw new Error(`WAHA ${res.status}: ${await res.text().catch(() => "")}`);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Verifica se a campanha "tá na hora" — timer_minutes desde último envio OK
+// Resolve config WAHA do perfil da campanha (null = campanha via Evolution)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function resolvePerfilWaha(db: DB, perfilId: string | null | undefined): Promise<PerfilWaha | null> {
+  if (!perfilId) return null;
+  const { data } = await db
+    .from("perfis")
+    .select("waha_url, waha_session")
+    .eq("id", perfilId)
+    .maybeSingle();
+  if (data?.waha_url && data?.waha_session) {
+    return { waha_url: data.waha_url as string, waha_session: data.waha_session as string };
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timer / seleção de fila
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function campaignIsDue(db: DB, campaign: Campaign): Promise<boolean> {
@@ -152,26 +235,13 @@ async function campaignIsDue(db: DB, campaign: Campaign): Promise<boolean> {
     .order("sent_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-
-  if (!data?.sent_at) return true; // nunca enviou → devido
-
-  const lastSentMs = new Date(data.sent_at as string).getTime();
-  const nowMs = Date.now();
-  const elapsedMin = (nowMs - lastSentMs) / 60_000;
+  if (!data?.sent_at) return true;
+  const elapsedMin = (Date.now() - new Date(data.sent_at as string).getTime()) / 60_000;
   return elapsedMin >= campaign.timer_minutes;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Acha próximo item da fila devido pra essa campanha
-// (mais antigo, pending, campanha nos ids, sem log de sucesso pra essa campanha)
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function pickNextForCampaign(
-  db: DB,
-  campaignId: string
-): Promise<QueueItem | null> {
+async function pickNextForCampaign(db: DB, campaignId: string): Promise<QueueItem | null> {
   const nowIso = new Date().toISOString();
-
   const { data: items } = await db
     .from("publication_queue")
     .select("id, offer_id, campaign_ids, scheduled_at, status")
@@ -181,12 +251,9 @@ async function pickNextForCampaign(
     .order("position", { ascending: true })
     .order("created_at", { ascending: true })
     .limit(20);
-
   if (!items?.length) return null;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const item of items as any[]) {
-    // Já tem sucesso pra essa campanha? Se sim, pula.
     const { count } = await db
       .from("publication_log")
       .select("id", { count: "exact", head: true })
@@ -200,7 +267,6 @@ async function pickNextForCampaign(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Publica UM queue item pra UMA campanha (todos os grupos habilitados)
-// Retorna { successes, failures }
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function publishQueueItemForCampaign(
@@ -208,44 +274,43 @@ export async function publishQueueItemForCampaign(
   queueItem: QueueItem,
   campaign: Campaign
 ): Promise<{ successes: number; failures: number }> {
-  // 1. Buscar oferta, telefones ativos não-admin, grupos habilitados
+  const perfilWaha = await resolvePerfilWaha(db, campaign.perfil_id);
+  const viaWaha = !!perfilWaha;
+
   const [{ data: offer }, { data: phones }, { data: groups }] = await Promise.all([
     db.from("offers").select("*").eq("id", queueItem.offer_id).maybeSingle(),
     db.from("campaign_phones").select("id, phone_number, evolution_instance_id")
-      .eq("campaign_id", campaign.id)
-      .eq("is_active", true)
-      .eq("is_admin", false),
+      .eq("campaign_id", campaign.id).eq("is_active", true).eq("is_admin", false),
     db.from("campaign_groups").select("id, group_jid, group_name")
-      .eq("campaign_id", campaign.id)
-      .eq("is_enabled", true),
+      .eq("campaign_id", campaign.id).eq("is_enabled", true),
   ]);
 
   if (!offer) throw new Error("offer não encontrado");
   const phoneList = (phones ?? []) as Phone[];
   const groupList = (groups ?? []) as Group[];
-  if (phoneList.length === 0) {
+  if (groupList.length === 0) throw new Error("nenhum grupo habilitado na campanha");
+  if (!viaWaha && phoneList.length === 0) {
     throw new Error("nenhum telefone ativo (não-admin) na campanha");
   }
-  if (groupList.length === 0) {
-    throw new Error("nenhum grupo habilitado na campanha");
-  }
 
-  const caption = await buildCaption(offer as Offer);
+  const caption = await buildCaption(offer as Offer, campaign, viaWaha ? "maternity" : "geek");
   let successes = 0;
   let failures = 0;
 
   for (const group of groupList) {
-    // Sorteia telefone
-    const phone = phoneList[Math.floor(Math.random() * phoneList.length)];
+    const phone = phoneList.length ? phoneList[Math.floor(Math.random() * phoneList.length)] : null;
     try {
-      // Sempre texto + linkPreview: a imagem carrega como thumb do link (não como arquivo).
-      await sendText(phone.evolution_instance_id, group.group_jid, caption);
+      if (viaWaha) {
+        await sendCardWaha(perfilWaha!, group.group_jid, caption, offer as Offer);
+      } else {
+        await sendTextEvolution(phone!.evolution_instance_id, group.group_jid, caption);
+      }
       await db.from("publication_log").insert({
         queue_id: queueItem.id,
         campaign_id: campaign.id,
         group_jid: group.group_jid,
         group_name: group.group_name,
-        phone_used: phone.phone_number,
+        phone_used: viaWaha ? `waha:${perfilWaha!.waha_session}` : phone!.phone_number,
         status: "success",
       });
       successes++;
@@ -255,19 +320,16 @@ export async function publishQueueItemForCampaign(
         campaign_id: campaign.id,
         group_jid: group.group_jid,
         group_name: group.group_name,
-        phone_used: phone.phone_number,
+        phone_used: viaWaha ? `waha:${perfilWaha!.waha_session}` : phone?.phone_number ?? "",
         status: "error",
         error_message: err instanceof Error ? err.message : String(err),
       });
       failures++;
     }
-    // Espaça 300ms entre grupos pra não estourar rate limit
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 600));
   }
 
-  // Se TODAS as campanhas do item têm ao menos 1 sucesso agora → marca published
   await maybeMarkQueueDone(db, queueItem);
-
   return { successes, failures };
 }
 
@@ -304,16 +366,11 @@ export interface TickResult {
 }
 
 export async function tickAll(db: DB): Promise<TickResult> {
-  const result: TickResult = {
-    campaigns_checked: 0,
-    campaigns_due: 0,
-    publications: 0,
-    errors: [],
-  };
+  const result: TickResult = { campaigns_checked: 0, campaigns_due: 0, publications: 0, errors: [] };
 
   const { data: campaigns } = await db
     .from("campaigns")
-    .select("id, name, timer_minutes")
+    .select("id, name, timer_minutes, ai_prompt, perfil_id")
     .eq("is_active", true);
 
   const camps = (campaigns ?? []) as Campaign[];
@@ -327,13 +384,11 @@ export async function tickAll(db: DB): Promise<TickResult> {
       const item = await pickNextForCampaign(db, campaign.id);
       if (!item) continue;
 
-      // Marca item como publishing (soft lock) enquanto processa
       await db.from("publication_queue").update({ status: "publishing" }).eq("id", item.id);
 
       try {
         const { successes } = await publishQueueItemForCampaign(db, item, campaign);
         if (successes > 0) result.publications++;
-        // Se ainda tem campanhas pendentes, volta pra pending
         const { data: fresh } = await db
           .from("publication_queue")
           .select("status")
