@@ -54,6 +54,10 @@ const VerLink = ({ url, name }: { url: string | null; name: string }) => {
 
 export default function AnaliseClient() {
   const [days, setDays] = useState("30");
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null); // período personalizado aplicado
+  const [showCustom, setShowCustom] = useState(false);
+  const [fromInput, setFromInput] = useState("");
+  const [toInput, setToInput] = useState("");
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,10 +66,16 @@ export default function AnaliseClient() {
 
   const load = useCallback(async (silent = false) => {
     silent ? setRefreshing(true) : setLoading(true);
-    try { const r = await fetch(`/api/vendas/analise?days=${days}`, { cache: "no-store" }); if (r.ok) setData(await r.json()); }
+    try {
+      const q = range ? `from=${range.from}&to=${range.to}` : `days=${days}`;
+      const r = await fetch(`/api/vendas/analise?${q}`, { cache: "no-store" }); if (r.ok) setData(await r.json());
+    }
     finally { setLoading(false); setRefreshing(false); }
-  }, [days]);
+  }, [days, range]);
   useEffect(() => { load(); }, [load]);
+
+  const pickPreset = (v: string) => { setRange(null); setShowCustom(false); setDays(v); };
+  const applyCustom = () => { if (fromInput && toInput && fromInput <= toInput) setRange({ from: fromInput, to: toInput }); };
 
   const catsMain = useMemo(() => (data?.categorias ?? []).filter(c => c.category !== "Outros"), [data]);
   const outrosCat = useMemo(() => (data?.categorias ?? []).find(c => c.category === "Outros"), [data]);
@@ -122,10 +132,22 @@ export default function AnaliseClient() {
   const header = (
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <p className="text-zinc-400 text-sm">Vendas × Anúncios normalizados e cruzados por plataforma.</p>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-0.5 bg-zinc-900/60 border border-zinc-800 rounded-full p-0.5">
-          {PERIODS.map(p => (<button key={p.v} onClick={() => setDays(p.v)} className={cn("px-3 py-1 text-xs font-semibold rounded-full transition-all", days === p.v ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white" : "text-zinc-400 hover:text-white")}>{p.label}</button>))}
+          {PERIODS.map(p => (<button key={p.v} onClick={() => pickPreset(p.v)} className={cn("px-3 py-1 text-xs font-semibold rounded-full transition-all", !range && !showCustom && days === p.v ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white" : "text-zinc-400 hover:text-white")}>{p.label}</button>))}
+          <button onClick={() => setShowCustom(s => !s)} className={cn("px-3 py-1 text-xs font-semibold rounded-full transition-all", (range || showCustom) ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white" : "text-zinc-400 hover:text-white")}>
+            {range ? `${range.from.slice(8)}/${range.from.slice(5, 7)}–${range.to.slice(8)}/${range.to.slice(5, 7)}` : "Período"}
+          </button>
         </div>
+        {showCustom && (
+          <div className="flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-800 rounded-full px-2 py-1">
+            <input type="date" value={fromInput} onChange={e => setFromInput(e.target.value)} className="bg-transparent text-zinc-200 text-xs outline-none [color-scheme:dark]" />
+            <span className="text-zinc-600 text-xs">→</span>
+            <input type="date" value={toInput} onChange={e => setToInput(e.target.value)} className="bg-transparent text-zinc-200 text-xs outline-none [color-scheme:dark]" />
+            <button onClick={applyCustom} disabled={!fromInput || !toInput || fromInput > toInput}
+              className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-orange-500/90 hover:bg-orange-500 text-white disabled:opacity-40">Aplicar</button>
+          </div>
+        )}
         <button onClick={() => load(true)} disabled={refreshing} className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-medium rounded-full disabled:opacity-50">
           <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} strokeWidth={2} /> Atualizar
         </button>

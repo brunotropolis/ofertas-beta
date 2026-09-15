@@ -80,18 +80,33 @@ function diffUnits(cur: Map<string, number>, prev: Map<string, number>, basis: s
   };
 }
 
-// GET /api/vendas?days=30 → resultados de afiliado das 3 fontes + variação + anúncios×produto + produtos/oportunidades.
+// GET /api/vendas?days=30 (ou ?from=YYYY-MM-DD&to=YYYY-MM-DD, dias BRT inclusivos) →
+//   resultados de afiliado das 3 fontes + variação + anúncios×produto + produtos/oportunidades.
 //   Shopee: ao vivo (API oficial). ML/Amazon: lidos da tabela affiliate_sales (via coletor /vendas-sync).
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const days = Math.min(Math.max(parseInt(searchParams.get("days") || "30", 10) || 30, 1), 180);
-  const end = Math.floor(Date.now() / 1000);
-  const start = end - days * 86400;
-  const prevStart = start - days * 86400; // janela anterior de mesmo tamanho
+  const fromP = searchParams.get("from"), toP = searchParams.get("to");
+  const now = Math.floor(Date.now() / 1000);
+  let start: number, end: number, days: number;
+  let custom = false;
+  if (fromP && toP && DAY_RE.test(fromP) && DAY_RE.test(toP) && fromP <= toP) {
+    custom = true;
+    // período personalizado: dias BRT inclusivos (from 00:00 → to 23:59:59, teto = agora)
+    start = Math.floor(Date.parse(fromP + "T00:00:00-03:00") / 1000);
+    end = Math.min(now, Math.floor(Date.parse(toP + "T00:00:00-03:00") / 1000) + 86400 - 1);
+    if (end <= start) return NextResponse.json({ error: "Período inválido (início no futuro?)" }, { status: 400 });
+    days = Math.max(1, Math.round((end - start) / 86400));
+  } else {
+    days = Math.min(Math.max(parseInt(searchParams.get("days") || "30", 10) || 30, 1), 180);
+    end = now;
+    start = end - days * 86400;
+  }
+  const prevStart = start - (end - start); // janela anterior de mesmo tamanho
   const startIso = new Date(start * 1000).toISOString();
   const endIso = new Date(end * 1000).toISOString();
   const prevStartIso = new Date(prevStart * 1000).toISOString();
@@ -105,8 +120,10 @@ export async function GET(request: Request) {
   // normaliza um nome cru → { produto, categoria } (mesma taxonomia da aba Análise)
   const norm = (name: string | null, cat: string | null) => normalize(name, cat);
 
-  // funil de conta (cliques→pedidos) da janela — lido de affiliate_metrics (só janelas coletadas 7/30/90)
+  // funil de conta (cliques→pedidos) da janela — lido de affiliate_metrics (só janelas coletadas 7/30/90,
+  // sempre ancoradas em "agora": período personalizado não tem funil)
   const readFunnel = async (src: string): Promise<Funnel | null> => {
+    if (custom) return null;
     try {
       const { data } = await supabase.from("affiliate_metrics").select("*").eq("source", src).eq("days", days).maybeSingle();
       const m = data as Record<string, unknown> | null;
@@ -295,5 +312,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ period: { days, from: start, to: end }, sources, combined });
+  return NextResponse.json({ period: { days, from: start, to: end, custom }, sources, combined });
 }

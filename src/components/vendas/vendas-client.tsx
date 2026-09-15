@@ -145,6 +145,10 @@ function fmtSync(iso: string | null | undefined): string | null {
 
 export default function VendasClient() {
   const [days, setDays] = useState(30);
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null); // período personalizado aplicado
+  const [showCustom, setShowCustom] = useState(false);
+  const [fromInput, setFromInput] = useState("");
+  const [toInput, setToInput] = useState("");
   const [view, setView] = useState<"resultados" | "analise" | "metricas">("analise");
   const [source, setSource] = useState<SourceKey>("todas");
   const [data, setData] = useState<VendasResp | null>(null);
@@ -155,15 +159,19 @@ export default function VendasClient() {
   const load = useCallback(async (silent = false) => {
     silent ? setRefreshing(true) : setLoading(true);
     try {
-      const res = await fetch(`/api/vendas?days=${days}`, { cache: "no-store" });
+      const q = range ? `from=${range.from}&to=${range.to}` : `days=${days}`;
+      const res = await fetch(`/api/vendas?${q}`, { cache: "no-store" });
       if (res.ok) setData(await res.json());
     } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, [days]);
+  }, [days, range]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setFull(null); }, [source, days]);
+  useEffect(() => { setFull(null); }, [source, days, range]);
+
+  const pickPreset = (v: number) => { setRange(null); setShowCustom(false); setDays(v); };
+  const applyCustom = () => { if (fromInput && toInput && fromInput <= toInput) setRange({ from: fromInput, to: toInput }); };
 
   const okAggs = useMemo(() => {
     if (!data) return [] as Agg[];
@@ -272,13 +280,27 @@ export default function VendasClient() {
             <>
               <div className="flex gap-1 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1">
                 {PERIODS.map((p) => (
-                  <button key={p.days} onClick={() => setDays(p.days)}
+                  <button key={p.days} onClick={() => pickPreset(p.days)}
                     className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
-                      days === p.days ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]" : "text-zinc-400 hover:text-white")}>
+                      !range && !showCustom && days === p.days ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]" : "text-zinc-400 hover:text-white")}>
                     {p.label}
                   </button>
                 ))}
+                <button onClick={() => setShowCustom((s) => !s)}
+                  className={cn("px-3.5 py-1.5 text-xs font-medium rounded-full transition-all",
+                    (range || showCustom) ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_12px_rgba(255,107,53,0.35)]" : "text-zinc-400 hover:text-white")}>
+                  {range ? `${range.from.slice(8)}/${range.from.slice(5, 7)}–${range.to.slice(8)}/${range.to.slice(5, 7)}` : "Período"}
+                </button>
               </div>
+              {showCustom && (
+                <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800/70 rounded-full px-2.5 py-1.5">
+                  <input type="date" value={fromInput} onChange={(e) => setFromInput(e.target.value)} className="bg-transparent text-zinc-200 text-xs outline-none [color-scheme:dark]" />
+                  <span className="text-zinc-600 text-xs">→</span>
+                  <input type="date" value={toInput} onChange={(e) => setToInput(e.target.value)} className="bg-transparent text-zinc-200 text-xs outline-none [color-scheme:dark]" />
+                  <button onClick={applyCustom} disabled={!fromInput || !toInput || fromInput > toInput}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-500/90 hover:bg-orange-500 text-white disabled:opacity-40">Aplicar</button>
+                </div>
+              )}
               <button onClick={() => load(true)} disabled={refreshing}
                 className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50">
                 <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} strokeWidth={1.75} />

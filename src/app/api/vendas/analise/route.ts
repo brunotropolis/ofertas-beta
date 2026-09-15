@@ -50,11 +50,22 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const daysParam = searchParams.get("days");
   const hoje = daysParam === "0" || daysParam === "hoje";
-  const days = hoje ? 1 : Math.min(Math.max(parseInt(daysParam || "30", 10) || 30, 1), 180);
-  const end = Math.floor(Date.now() / 1000);
-  let start: number;
-  if (hoje) { const d = new Date(Date.now() - 3 * 3600 * 1000); start = Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000) + 3 * 3600; }
-  else start = end - days * 86400;
+  const fromP = searchParams.get("from"), toP = searchParams.get("to");
+  const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const now = Math.floor(Date.now() / 1000);
+  let start: number, end: number, days: number;
+  if (fromP && toP && DAY_RE.test(fromP) && DAY_RE.test(toP) && fromP <= toP) {
+    // período personalizado: dias BRT inclusivos (from 00:00 → to 23:59:59, teto = agora)
+    start = Math.floor(Date.parse(fromP + "T00:00:00-03:00") / 1000);
+    end = Math.min(now, Math.floor(Date.parse(toP + "T00:00:00-03:00") / 1000) + 86400 - 1);
+    if (end <= start) return NextResponse.json({ error: "Período inválido (início no futuro?)" }, { status: 400 });
+    days = Math.max(1, Math.round((end - start) / 86400));
+  } else {
+    days = hoje ? 1 : Math.min(Math.max(parseInt(daysParam || "30", 10) || 30, 1), 180);
+    end = now;
+    if (hoje) { const d = new Date(Date.now() - 3 * 3600 * 1000); start = Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000) + 3 * 3600; }
+    else start = end - days * 86400;
+  }
   const prevStart = start - (end - start); // janela anterior de mesmo tamanho
   const iso = (s: number) => new Date(s * 1000).toISOString();
 
@@ -161,7 +172,7 @@ export async function GET(request: Request) {
   const cairam = [...variacao].sort((a, b) => a.delta - b.delta).slice(0, 8);
 
   return NextResponse.json({
-    period: { days: hoje ? 0 : days, hoje },
+    period: { days: hoje ? 0 : days, hoje, custom: !!(fromP && toP && DAY_RE.test(fromP) && DAY_RE.test(toP) && fromP <= toP) },
     kpis: { ...tot, classificadoPct: tot.commission ? 100 * (1 - naoClass / tot.commission) : 100 },
     produtos: produtos.slice(0, 200),
     categorias, eficiencia, topAnunciados, oportunidades,
