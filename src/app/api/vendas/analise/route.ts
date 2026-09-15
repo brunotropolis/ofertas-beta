@@ -15,6 +15,21 @@ const SRCS: Src[] = ["shopee", "ml", "amazon"];
 
 interface Bucket { product: string; category: string; plat: Record<Src, Cell>; tot: Cell; exampleName: string; exampleUrl: string | null; }
 
+// PostgREST corta em 1000 linhas por request (mesmo com .limit maior) — paginar SEMPRE com ordem estável.
+const PAGE = 1000;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchPaged<T>(make: () => any): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; from < 100000; from += PAGE) {
+    const { data, error } = await make().range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as T[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
 // posts promocionais que o coletor pega em vez do produto (não são produtos)
 const stripDeco = (s: string) => (s || "").replace(/^[^\p{L}\d]+/u, "").trim();
 const isNoiseAd = (raw: string) => {
@@ -82,22 +97,23 @@ export async function GET(request: Request) {
   } else errors.shopee = "sem credenciais";
 
   // ML janela atual + Amazon recortada pra janela (pro-rata nos buckets que só encostam)
-  try { const { data } = await supabase.from("affiliate_sales").select("*").eq("source", "ml").gte("sold_at", iso(start)).lte("sold_at", iso(end)).limit(5000); for (const r of (data ?? []) as AffiliateSaleRow[]) addSale("ml", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
+  try { const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "ml").gte("sold_at", iso(start)).lte("sold_at", iso(end)).order("external_id")); for (const r of data) addSale("ml", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
   catch (e) { errors.ml = e instanceof Error ? e.message : String(e); }
-  try { const { data } = await supabase.from("affiliate_sales").select("*").eq("source", "amazon").limit(5000); for (const r of windowAmazonRows((data ?? []) as AffiliateSaleRow[], start, end)) addSale("amazon", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
+  try { const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "amazon").order("external_id")); for (const r of windowAmazonRows(data, start, end)) addSale("amazon", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
   catch (e) { errors.amazon = e instanceof Error ? e.message : String(e); }
 
   // ML janela anterior (só p/ variação)
   if (!hoje) try {
-    const { data } = await supabase.from("affiliate_sales").select("product_name,category,units").eq("source", "ml").gte("sold_at", iso(prevStart)).lt("sold_at", iso(start)).limit(5000);
-    for (const r of (data ?? []) as AffiliateSaleRow[]) { const { product } = normalize(r.product_name, r.category); prevUnits.set(product, (prevUnits.get(product) ?? 0) + (Number(r.units) || 0)); }
+    const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("product_name,category,units").eq("source", "ml").gte("sold_at", iso(prevStart)).lt("sold_at", iso(start)).order("external_id"));
+    for (const r of data) { const { product } = normalize(r.product_name, r.category); prevUnits.set(product, (prevUnits.get(product) ?? 0) + (Number(r.units) || 0)); }
   } catch { /* variação opcional */ }
 
   // Anúncios (todos os grupos) — dedup por link+dia (o dispatcher cross-posta a mesma oferta)
   try {
-    const { data } = await supabase.from("anuncios").select("platform,product_raw,url,posted_at,group_name").gte("posted_at", iso(start)).lte("posted_at", iso(end)).limit(20000);
+    const data = await fetchPaged<{ platform: string; product_raw: string; url: string; posted_at: string; group_name: string }>(() =>
+      supabase.from("anuncios").select("platform,product_raw,url,posted_at,group_name").gte("posted_at", iso(start)).lte("posted_at", iso(end)).order("posted_at").order("msg_id"));
     const seen = new Set<string>();
-    for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string; group_name: string }[]) {
+    for (const a of data) {
       if (!(SRCS as string[]).includes(a.platform)) continue;
       if (/cupo|cupom|cupons/i.test(a.group_name || "") || /cupo|cupom|cupons|desconto no app/i.test(a.product_raw || "")) continue; // cupom não é produto
       if (isNoiseAd(a.product_raw)) continue; // post promocional/preço não é produto

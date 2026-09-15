@@ -46,6 +46,22 @@ const isNoiseAd = (raw: string) => {
 interface NormEntry { product: string; category: string; units: number; commission: number; gmv: number; clicks: number }
 const isAgg = (p: string) => /^Outros \(Amazon/i.test(p || "");
 
+// PostgREST corta em 1000 linhas por request (mesmo com .limit maior) — paginar SEMPRE,
+// com ordem estável, senão linhas somem em silêncio (foi o que escondeu bucket da Amazon).
+const PAGE = 1000;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchPaged<T>(make: () => any): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; from < 100000; from += PAGE) {
+    const { data, error } = await make().range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as T[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
 // diff de unidades por produto normalizado entre duas janelas
 function diffUnits(cur: Map<string, number>, prev: Map<string, number>, basis: string): Variacao {
   const keys = new Set([...cur.keys(), ...prev.keys()]);
@@ -109,11 +125,12 @@ export async function GET(request: Request) {
     shopee: new Map(), ml: new Map(), amazon: new Map(),
   };
   try {
-    const { data } = await supabase.from("anuncios")
-      .select("platform,product_raw,url,posted_at,group_name")
-      .gte("posted_at", startIso).lte("posted_at", endIso).limit(20000);
+    const data = await fetchPaged<{ platform: string; product_raw: string; url: string; posted_at: string; group_name: string }>(() =>
+      supabase.from("anuncios")
+        .select("platform,product_raw,url,posted_at,group_name")
+        .gte("posted_at", startIso).lte("posted_at", endIso).order("posted_at").order("msg_id"));
     const seen = new Set<string>();
-    for (const a of (data ?? []) as { platform: string; product_raw: string; url: string; posted_at: string; group_name: string }[]) {
+    for (const a of data) {
       if (a.platform !== "shopee" && a.platform !== "ml" && a.platform !== "amazon") continue;
       if (/cupo|cupom|cupons/i.test(a.group_name || "") || /cupo|cupom|cupons|desconto no app/i.test(a.product_raw || "")) continue;
       if (isNoiseAd(a.product_raw)) continue; // descarta post promocional/preço (não é produto)
@@ -193,14 +210,12 @@ export async function GET(request: Request) {
   // ── ML: janela atual (agg) + anterior (variação) ──────────────────────────
   const mlJob = (async () => {
     try {
-      const [curRes, prevRes] = await Promise.all([
-        supabase.from("affiliate_sales").select("*").eq("source", "ml")
-          .gte("sold_at", startIso).lte("sold_at", endIso).order("sold_at", { ascending: false }).limit(5000),
-        supabase.from("affiliate_sales").select("product_name,category,units").eq("source", "ml")
-          .gte("sold_at", prevStartIso).lt("sold_at", startIso).limit(5000),
+      const [rows, prevRows] = await Promise.all([
+        fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "ml")
+          .gte("sold_at", startIso).lte("sold_at", endIso).order("sold_at", { ascending: false }).order("external_id")),
+        fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("product_name,category,units").eq("source", "ml")
+          .gte("sold_at", prevStartIso).lt("sold_at", startIso).order("external_id")),
       ]);
-      if (curRes.error) throw new Error(curRes.error.message);
-      const rows = (curRes.data ?? []) as AffiliateSaleRow[];
       const salesNorm = new Map<string, NormEntry>();
       const curUnits = new Map<string, number>();
       for (const r of rows) {
@@ -210,7 +225,7 @@ export async function GET(request: Request) {
         curUnits.set(p, (curUnits.get(p) ?? 0) + u);
       }
       const prevUnits = new Map<string, number>();
-      for (const r of (prevRes.data ?? []) as AffiliateSaleRow[]) {
+      for (const r of prevRows) {
         const p = norm(r.product_name, r.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
       }
@@ -228,9 +243,8 @@ export async function GET(request: Request) {
   //    Variação = mês mais recente × anterior (usa TODOS os buckets, independe da janela) ──
   const amazonJob = (async () => {
     try {
-      const { data, error } = await supabase.from("affiliate_sales").select("*").eq("source", "amazon").limit(5000);
-      if (error) throw new Error(error.message);
-      const allRows = (data ?? []) as AffiliateSaleRow[];
+      const allRows = await fetchPaged<AffiliateSaleRow>(() =>
+        supabase.from("affiliate_sales").select("*").eq("source", "amazon").order("external_id"));
       const rows = windowAmazonRows(allRows, start, end);
       const perDay = rows.some((r) => r.sold_at);
       const period = {
