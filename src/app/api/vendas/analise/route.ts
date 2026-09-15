@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fetchConversions } from "@/lib/shopee-sales";
 import { normalize } from "@/lib/normalize";
-import type { AffiliateSaleRow } from "@/lib/affiliate-sales";
+import { windowAmazonRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,10 +81,10 @@ export async function GET(request: Request) {
     catch (e) { errors.shopee = e instanceof Error ? e.message : String(e); }
   } else errors.shopee = "sem credenciais";
 
-  // ML janela atual + Amazon snapshot
+  // ML janela atual + Amazon recortada pra janela (pro-rata nos buckets que só encostam)
   try { const { data } = await supabase.from("affiliate_sales").select("*").eq("source", "ml").gte("sold_at", iso(start)).lte("sold_at", iso(end)).limit(5000); for (const r of (data ?? []) as AffiliateSaleRow[]) addSale("ml", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
   catch (e) { errors.ml = e instanceof Error ? e.message : String(e); }
-  try { const { data } = await supabase.from("affiliate_sales").select("*").eq("source", "amazon").limit(5000); for (const r of (data ?? []) as AffiliateSaleRow[]) addSale("amazon", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
+  try { const { data } = await supabase.from("affiliate_sales").select("*").eq("source", "amazon").limit(5000); for (const r of windowAmazonRows((data ?? []) as AffiliateSaleRow[], start, end)) addSale("amazon", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
   catch (e) { errors.amazon = e instanceof Error ? e.message : String(e); }
 
   // ML janela anterior (só p/ variação)

@@ -232,7 +232,7 @@ export default function AnaliseClient() {
 
       {/* Variação */}
       {(data.variacao.subiram.length > 0 || data.variacao.cairam.length > 0) && (
-        <Section acc="var" icon={TrendingUp} title="Variação vs período anterior (ML)" desc="Unidades vendidas nesta janela vs a janela anterior de mesmo tamanho. Δ = diferença de unidades. Amazon é snapshot; Shopee entra depois.">
+        <Section acc="var" icon={TrendingUp} title="Variação vs período anterior (ML)" desc="Unidades vendidas nesta janela vs a janela anterior de mesmo tamanho. Δ = diferença de unidades. Amazon entra pro-rata (agregada por mês); Shopee entra depois.">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             {([["Subiram", data.variacao.subiram, ArrowUpRight, "text-emerald-400"], ["Caíram", data.variacao.cairam, ArrowDownRight, "text-red-400"]] as const).map(([lbl, rows, Ico, col]) => (
               <div key={lbl}>
@@ -275,7 +275,7 @@ export default function AnaliseClient() {
       <Section acc="prod" icon={Package} title="Plataforma × Produto" right={<div className="flex items-center gap-2"><Filter className="w-3.5 h-3.5 text-zinc-500" /><select value={cat} onChange={e => setCat(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-zinc-200 px-2 py-1 outline-none">{catOptions.map(c => <option key={c} value={c}>{c}</option>)}</select></div>}>
         <ProdTable rows={prods.slice(0, 10)} />
         {prods.length > 10 && <button onClick={() => setFull("produtos")} className="mt-3 text-xs text-rose-400 hover:text-rose-300">ver todos ({prods.length}) →</button>}
-        <p className="text-[11px] text-zinc-600 mt-2">Verde = plataforma campeã. Amazon = snapshot do período.</p>
+        <p className="text-[11px] text-zinc-600 mt-2">Verde = plataforma campeã. Amazon = pro-rata da janela (agregada por mês).</p>
       </Section>
     </div>
   );

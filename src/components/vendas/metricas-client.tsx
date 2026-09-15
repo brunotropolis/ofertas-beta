@@ -50,7 +50,7 @@ const PLATS = [
     fonte: "Relatório CSV do Associados",
     puxa: ["Produtos, categoria, unidades, receita e ganhos", "Cliques POR PRODUTO → conversão clique→compra (só a Amazon dá por produto)", "2 tracking IDs (0c-20 + 04-20), somadas"],
     naopuxa: ["Comissão por dia (vem agregada no período)", "Variação por janela móvel (só mês a mês)", "Status, dispositivo, UTM, vendedor", "Produtos de baixo volume (a Amazon suprime → viram 'Outros')"],
-    gotcha: "Entra como snapshot do período (não filtra pelo seletor 7/30/90). Relatório limita ~31 dias. Download é manual (CSV).",
+    gotcha: "Agregada por mês (sem por-dia); a janela 7/30/90 entra pro-rata. Relatório limita ~31 dias. Download é manual (CSV).",
   },
 ] as const;
 

@@ -61,6 +61,44 @@ function brtDay(iso: string): string {
 }
 
 /**
+ * Recorta linhas da Amazon pra janela [startSec, endSec] (epoch s).
+ * Linha por-dia (sold_at) entra inteira se o dia (BRT) cai na janela.
+ * Linha por-bucket (period_start/end, grão que a Amazon exporta) entra
+ * PRO-RATA pela fração de dias do bucket dentro da janela — aproximação
+ * necessária porque a Amazon não expõe o dado por-dia/por-venda.
+ */
+export function windowAmazonRows(rows: AffiliateSaleRow[], startSec: number, endSec: number): AffiliateSaleRow[] {
+  const dayMs = 86400000;
+  const toDayBRT = (sec: number) => new Date(sec * 1000 - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const startDay = toDayBRT(startSec);
+  const endDay = toDayBRT(endSec);
+  const out: AffiliateSaleRow[] = [];
+  for (const r of rows) {
+    if (r.sold_at) {
+      const d = brtDay(r.sold_at);
+      if (d >= startDay && d <= endDay) out.push(r);
+      continue;
+    }
+    if (!r.period_start || !r.period_end) continue;
+    const os = r.period_start > startDay ? r.period_start : startDay;
+    const oe = r.period_end < endDay ? r.period_end : endDay;
+    if (os > oe) continue;
+    const bucketDays = Math.round((Date.parse(r.period_end) - Date.parse(r.period_start)) / dayMs) + 1;
+    const overlapDays = Math.round((Date.parse(oe) - Date.parse(os)) / dayMs) + 1;
+    const f = bucketDays > 0 ? overlapDays / bucketDays : 0;
+    if (f >= 0.999) { out.push(r); continue; }
+    out.push({
+      ...r,
+      gross_value: toNum(r.gross_value) * f,
+      commission: toNum(r.commission) * f,
+      units: Math.round(Number(r.units ?? 0) * f),
+      clicks: r.clicks == null ? r.clicks : Math.round(Number(r.clicks) * f),
+    });
+  }
+  return out;
+}
+
+/**
  * Agrega linhas do banco em SalesAggregate.
  * mode "sale"  → cada linha é uma venda (ML): conversões = nº de linhas.
  * mode "daily" → cada linha é um dia (Amazon): conversões ≈ itens; sem produto/status por venda.

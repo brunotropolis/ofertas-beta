@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fetchConversions, aggregate, type SalesAggregate } from "@/lib/shopee-sales";
-import { aggregateRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
+import { aggregateRows, windowAmazonRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
 import { normalize } from "@/lib/normalize";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ interface SourceResult {
   error?: string;
   live?: boolean;
   lastSync?: string | null;
-  snapshot?: boolean; // Amazon: dado agregado por período (não fatia pelo seletor 7/30/90)
+  snapshot?: boolean; // Amazon: dado agregado por período (janela aplicada pro-rata via windowAmazonRows)
   period?: { start: string | null; end: string | null };
   agg?: SalesAggregate;
   variacao?: Variacao | null;       // janela atual × anterior (por produto normalizado)
@@ -224,12 +224,14 @@ export async function GET(request: Request) {
     }
   })();
 
-  // ── Amazon: snapshot (todos os buckets). Variação = mês mais recente × anterior ──
+  // ── Amazon: buckets por período, RECORTADOS pra janela (pro-rata nos que só encostam).
+  //    Variação = mês mais recente × anterior (usa TODOS os buckets, independe da janela) ──
   const amazonJob = (async () => {
     try {
       const { data, error } = await supabase.from("affiliate_sales").select("*").eq("source", "amazon").limit(5000);
       if (error) throw new Error(error.message);
-      const rows = (data ?? []) as AffiliateSaleRow[];
+      const allRows = (data ?? []) as AffiliateSaleRow[];
+      const rows = windowAmazonRows(allRows, start, end);
       const perDay = rows.some((r) => r.sold_at);
       const period = {
         start: rows.reduce<string | null>((a, r) => (r.period_start && (!a || r.period_start < a) ? r.period_start : a), null),
@@ -237,12 +239,12 @@ export async function GET(request: Request) {
       };
 
       // variação: agrupa por período (period_start), pega os 2 mais recentes, compara por produto
-      const periods = [...new Set(rows.map((r) => r.period_start).filter(Boolean) as string[])].sort();
+      const periods = [...new Set(allRows.map((r) => r.period_start).filter(Boolean) as string[])].sort();
       let variacao: Variacao | null = null;
       if (periods.length >= 2) {
         const curP = periods[periods.length - 1], prevP = periods[periods.length - 2];
         const curUnits = new Map<string, number>(), prevUnits = new Map<string, number>();
-        for (const r of rows) {
+        for (const r of allRows) {
           const p = norm(r.product_name, r.category).product;
           if (r.period_start === curP) curUnits.set(p, (curUnits.get(p) ?? 0) + (Number(r.units) || 0));
           else if (r.period_start === prevP) prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
@@ -255,7 +257,7 @@ export async function GET(request: Request) {
       for (const r of rows) addNorm(salesNorm, r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0, Number(r.clicks) || 0);
 
       sources.amazon = {
-        ok: true, snapshot: true, period, lastSync: lastSyncOf(rows),
+        ok: true, snapshot: true, period, lastSync: lastSyncOf(allRows),
         agg: aggregateRows(rows, perDay ? "sale" : "daily"),
         variacao, ...buildOutputs("amazon", salesNorm),
       };

@@ -388,7 +388,7 @@ export default function VendasClient() {
             <div className="space-y-4">
               {isAmazon && srcExtra?.snapshot && (
                 <p className="text-[11px] text-sky-400/80 bg-sky-500/10 border border-sky-500/20 rounded-xl px-3 py-2">
-                  A Amazon entra como snapshot do último sync{srcExtra.period?.start && srcExtra.period?.end ? ` (${fmtDay(srcExtra.period.start)}–${fmtDay(srcExtra.period.end)})` : ""} — não filtra pelo seletor de 7/30/90 dias.
+                  A Amazon é agregada por mês no Associados — a janela{srcExtra.period?.start && srcExtra.period?.end ? ` (buckets ${fmtDay(srcExtra.period.start)}–${fmtDay(srcExtra.period.end)})` : ""} é recortada proporcional aos dias (aproximação: mês que só encosta na janela entra pro-rata).
                 </p>
               )}
 
@@ -601,7 +601,7 @@ export default function VendasClient() {
 
           <p className="text-[11px] text-zinc-600 text-center flex items-center justify-center gap-1.5">
             <MousePointerClick className="w-3 h-3" />
-            Shopee/ML: comissões pendentes podem mudar de status. Amazon: snapshot por período (relatório do Associados).
+            Shopee/ML: comissões pendentes podem mudar de status. Amazon: agregada por mês (relatório do Associados), recortada pro-rata pela janela.
           </p>
         </div>
       ))}
