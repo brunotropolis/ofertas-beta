@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
 import { Header } from "./header";
+import { ProfileSelector } from "./profile-selector";
 import {
   Megaphone,
   Tag,
@@ -117,10 +118,22 @@ function SidebarDesktop({ pathname }: { pathname: string }) {
       <div className="px-5 py-6 border-b border-orange-900/30">
         <Logo />
       </div>
+      <ProjectPicker />
       <nav className="flex-1 px-3 py-4 overflow-y-auto scroll-thin">
         <NavSections pathname={pathname} />
       </nav>
     </aside>
+  );
+}
+
+function ProjectPicker() {
+  return (
+    <div className="px-4 pt-4 pb-1">
+      <p className="px-1 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-200/40">
+        Selecione o projeto
+      </p>
+      <ProfileSelector />
+    </div>
   );
 }
 
@@ -160,6 +173,7 @@ function DrawerMobile({
             <X className="w-5 h-5" strokeWidth={1.75} />
           </button>
         </div>
+        <ProjectPicker />
         <nav className="flex-1 px-3 py-4 overflow-y-auto scroll-thin">
           <NavSections pathname={pathname} />
         </nav>

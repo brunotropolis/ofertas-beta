@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Phone, Users, Bot, ToggleRight, ToggleLeft, Pencil, Store } from "lucide-react";
+import { Phone, Users, Bot, ToggleRight, ToggleLeft, Pencil, Store, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PhonesTab from "./phones-tab";
 import GroupsTab from "./groups-tab";
 import PlatformsTab from "./platforms-tab";
+import KeywordsTab from "./keywords-tab";
 import CampaignModal, { type CampaignFormData } from "./campaign-modal";
 import type { Database } from "@/lib/types/database";
 
@@ -17,6 +18,8 @@ interface Props {
   campaign: Campaign;
   initialPhones: CampaignPhone[];
   initialGroups: CampaignGroup[];
+  perfilId: string | null;
+  perfilNome: string | null;
 }
 
 const TABS = [
@@ -24,11 +27,12 @@ const TABS = [
   { id: "groups", label: "Grupos", icon: Users },
   { id: "platforms", label: "Plataformas", icon: Store },
   { id: "prompt", label: "Prompt IA", icon: Bot },
+  { id: "keywords", label: "Palavras-chave", icon: Tag },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
-export default function CampaignDetailClient({ campaign: initial, initialPhones, initialGroups }: Props) {
+export default function CampaignDetailClient({ campaign: initial, initialPhones, initialGroups, perfilId, perfilNome }: Props) {
   const [campaign, setCampaign] = useState(initial);
   const [phones, setPhones] = useState(initialPhones);
   const [activeTab, setActiveTab] = useState<TabId>("phones");
@@ -139,6 +143,9 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
       )}
       {activeTab === "prompt" && (
         <PromptTab campaign={campaign} onSave={handleSave} />
+      )}
+      {activeTab === "keywords" && (
+        <KeywordsTab perfilId={perfilId} perfilNome={perfilNome} />
       )}
 
       {showEdit && (

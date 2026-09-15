@@ -34,6 +34,14 @@ export default async function CampaignDetailPage({
   const phones = (phonesResult.data ?? []) as CampaignPhone[];
   const groups = (groupsResult.data ?? []) as CampaignGroup[];
 
+  // Perfil (nicho) da campanha — as palavras-chave vivem no perfil.
+  const perfilId = (campaign as unknown as { perfil_id?: string | null }).perfil_id ?? null;
+  let perfilNome: string | null = null;
+  if (perfilId) {
+    const { data: perfil } = await supabase.from("perfis").select("nome").eq("id", perfilId).maybeSingle();
+    perfilNome = (perfil as { nome?: string } | null)?.nome ?? null;
+  }
+
   return (
     <div>
       <nav className="flex items-center gap-1 text-sm text-gray-400 mb-6">
@@ -48,6 +56,8 @@ export default async function CampaignDetailPage({
         campaign={campaign}
         initialPhones={phones}
         initialGroups={groups}
+        perfilId={perfilId}
+        perfilNome={perfilNome}
       />
     </div>
   );

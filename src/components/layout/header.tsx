@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { LogOut, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ProfileSelector } from "./profile-selector";
 
 export function Header({ onOpenMenu }: { onOpenMenu?: () => void }) {
   const router = useRouter();
@@ -44,9 +43,6 @@ export function Header({ onOpenMenu }: { onOpenMenu?: () => void }) {
       >
         <Menu className="w-6 h-6" strokeWidth={1.75} />
       </button>
-
-      {/* Seletor de Perfil / nicho */}
-      <ProfileSelector />
 
       {/* Espaço flexível */}
       <div className="flex-1" />
