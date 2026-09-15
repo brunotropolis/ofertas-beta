@@ -175,9 +175,11 @@ export async function GET(request: Request) {
   const shopeeJob = (async () => {
     if (!appId || !secret) { sources.shopee.error = "Credenciais Shopee não configuradas (SHOPEE_APP_ID/SECRET)"; return; }
     try {
+      // janela anterior é opcional: a API da Shopee recusa >3 meses atrás (erro 11001),
+      // então no seletor 90d o prev (90–180d) falha — não pode derrubar a janela atual
       const [cur, prev] = await Promise.all([
         fetchConversions(appId, secret, start, end),
-        fetchConversions(appId, secret, prevStart, start),
+        fetchConversions(appId, secret, prevStart, start).catch(() => [] as Awaited<ReturnType<typeof fetchConversions>>),
       ]);
       const salesNorm = new Map<string, NormEntry>();
       const curUnits = new Map<string, number>();
@@ -193,7 +195,7 @@ export async function GET(request: Request) {
       }
       sources.shopee = {
         ok: true, live: true, agg: aggregate(cur),
-        variacao: diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho"),
+        variacao: prev.length ? diffUnits(curUnits, prevUnits, "vs período anterior de mesmo tamanho") : null,
         ...buildOutputs("shopee", salesNorm), funnel: await readFunnel("shopee"),
       };
     } catch (err) {
