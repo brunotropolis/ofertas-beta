@@ -88,13 +88,15 @@ export async function POST(request: Request) {
 
   // ── Resolve perfil (slug → id) ───────────────────────────────────────────
   let perfilId: string | null = null;
+  let shortDomain = "manualdorecemnascido.com.br"; // padrão (marca-mãe)
   if (p.perfil) {
     const { data: perfilRow } = await db
       .from("perfis")
-      .select("id")
+      .select("id, short_domain")
       .eq("slug", p.perfil)
       .maybeSingle();
     perfilId = perfilRow?.id ?? null;
+    if (perfilRow?.short_domain) shortDomain = perfilRow.short_domain as string;
   }
 
   // ── Encurta link Amazon (URL longa) via worker utm-redirector ────────────
@@ -120,7 +122,7 @@ export async function POST(request: Request) {
           },
           body: JSON.stringify({ slug, url: affiliateUrl, description: "amazon ingest" }),
         });
-        if (reg.ok) affiliateUrl = `https://manualdorecemnascido.com.br/l/${slug}`;
+        if (reg.ok) affiliateUrl = `https://${shortDomain}/l/${slug}`;
       } catch {
         /* mantém a URL completa */
       }
