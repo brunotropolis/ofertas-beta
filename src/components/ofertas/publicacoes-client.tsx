@@ -86,6 +86,9 @@ export default function PublicacoesClient() {
     setEditing(null);
   }
 
+  // Já publicados saem da lista (Publicações = só o que falta revisar/postar)
+  const visible = offers.filter((o) => o.status !== "published");
+
   return (
     <div>
       <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
@@ -122,17 +125,17 @@ export default function PublicacoesClient() {
 
       {loading ? (
         <div className="glass rounded-2xl p-12 text-center"><Loader2 className="w-6 h-6 mx-auto text-zinc-500 animate-spin" /></div>
-      ) : offers.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="glass rounded-2xl p-12 text-center">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-zinc-900/70 border border-zinc-800/60 mb-4">
             <List className="w-7 h-7 text-zinc-600" strokeWidth={1.5} />
           </div>
-          <p className="text-zinc-200 font-medium tracking-tight">Nenhuma oferta {source !== "all" ? `de ${source}` : "capturada ainda"}</p>
+          <p className="text-zinc-200 font-medium tracking-tight">Nenhuma oferta {source !== "all" ? `de ${source}` : "pra revisar"}</p>
           <p className="text-zinc-500 text-sm mt-1.5">As fontes empurram ofertas pra cá via <code className="text-orange-400">/api/ingest</code></p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {offers.map((o) => (
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {visible.map((o) => (
             <OfferCard
               key={o.id}
               offer={o}
@@ -213,7 +216,7 @@ function OfferCard({
             <span className="text-[10px] uppercase tracking-wider text-zinc-500">Legenda</span>
             {usedFallback && <span className="text-[10px] text-amber-400/80" title="Sem legenda salva — a IA gera na hora do post">IA na hora</span>}
           </div>
-          <p className="text-[12px] leading-relaxed text-zinc-300 whitespace-pre-wrap max-h-40 overflow-y-auto scroll-thin break-words">
+          <p className="text-[11px] leading-relaxed text-zinc-300 whitespace-pre-wrap max-h-28 overflow-y-auto scroll-thin break-words">
             {caption}
           </p>
         </div>

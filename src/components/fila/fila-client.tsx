@@ -44,15 +44,24 @@ interface QueueItem {
   offer: Offer | null;
 }
 
-function fmtWhen(iso: string): string {
+// Hora compacta pro rail: "17:40" (+ "amanhã"/"dd/mm" só se não for hoje)
+function fmtShort(iso: string): { time: string; day: string | null } {
   const d = new Date(iso);
   const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const t = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  if (sameDay) return `hoje ${t}`;
+  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return { time, day: null };
   const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
-  if (d.toDateString() === tomorrow.toDateString()) return `amanhã ${t}`;
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === tomorrow.toDateString()) return { time, day: "amanhã" };
+  return { time, day: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) };
+}
+
+const PLAT_META: Record<string, { label: string; cls: string }> = {
+  amazon:  { label: "Amazon", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+  shopee:  { label: "Shopee", cls: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
+  ml:      { label: "Merc. Livre", cls: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30" },
+};
+function platMeta(p: string | null | undefined) {
+  return (p && PLAT_META[p]) || { label: (p || "—").toUpperCase(), cls: "bg-zinc-700/40 text-zinc-300 border-zinc-600/40" };
 }
 
 interface Campaign {
@@ -272,6 +281,14 @@ function SortableRow({
   const meta = STATUS_META[item.status];
   const StatusIcon = meta.icon;
 
+  const plat = platMeta(item.offer?.platform);
+  const whenIso = item.scheduled_at || item.eta;
+  const when = item.status === "pending" && whenIso ? fmtShort(whenIso) : null;
+  const whenFallback =
+    item.status === "publishing" ? "postando…" :
+    item.status === "error" ? "erro" :
+    item.has_active_campaign === false ? "pausada" : "—";
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -302,6 +319,19 @@ function SortableRow({
       >
         {locked ? <Lock className="w-4 h-4" /> : <GripVertical className="w-4 h-4" />}
       </button>
+
+      {/* Rail destacado (fora da caixa): plataforma + horário */}
+      <div className={cn("shrink-0 flex flex-col items-center justify-center gap-0.5 rounded-xl border px-2.5 py-2 min-w-[84px]", plat.cls)}>
+        <span className="text-[10px] uppercase font-bold tracking-wide leading-none">{plat.label}</span>
+        {when ? (
+          <span className="text-center leading-tight mt-1">
+            {when.day && <span className="block text-[9px] opacity-80">{when.day}</span>}
+            <span className="block text-base font-bold tabular-nums text-white">{when.time}</span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-zinc-300 mt-1">{whenFallback}</span>
+        )}
+      </div>
 
       <div className="flex items-start md:items-center gap-3 md:gap-4 min-w-0 flex-1">
         {item.offer?.image_url ? (
@@ -349,21 +379,8 @@ function SortableRow({
               {item.campaign_ids.slice(0, 2).map(campaignName).join(", ")}
               {item.campaign_ids.length > 2 ? "..." : ""}
             </span>
-            {/* Quando vai postar */}
-            {item.status === "pending" && (
-              item.scheduled_at ? (
-                <span className="text-[11px] text-orange-300 flex items-center gap-1" title="Agendado">
-                  <Clock className="w-3 h-3" /> agendado {fmtWhen(item.scheduled_at)}
-                </span>
-              ) : item.eta ? (
-                <span className="text-[11px] text-orange-300/90 flex items-center gap-1" title="Estimativa pelo timer da campanha">
-                  <Clock className="w-3 h-3" /> ~{fmtWhen(item.eta)}
-                </span>
-              ) : item.has_active_campaign === false ? (
-                <span className="text-[11px] text-zinc-500 flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> campanha pausada
-                </span>
-              ) : null
+            {item.scheduled_at && (
+              <span className="text-[11px] text-orange-300/90" title="Agendado manualmente">agendado</span>
             )}
           </div>
           {item.error_message && (

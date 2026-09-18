@@ -14,9 +14,11 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(Number(searchParams.get("limit") ?? 200) || 200, 500);
+  const limit = Math.min(Number(searchParams.get("limit") ?? 500) || 500, 1000);
+  const since = searchParams.get("since"); // ISO
+  const until = searchParams.get("until"); // ISO
 
-  const { data: logs, error } = await db
+  let q = db
     .from("publication_log")
     .select(`
       id, queue_id, campaign_id, group_jid, group_name, phone_used, status, sent_at, error_message,
@@ -24,6 +26,10 @@ export async function GET(request: Request) {
     `)
     .order("sent_at", { ascending: false })
     .limit(limit);
+  if (since) q = q.gte("sent_at", since);
+  if (until) q = q.lte("sent_at", until);
+
+  const { data: logs, error } = await q;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -40,9 +46,9 @@ export async function GET(request: Request) {
   }));
 
   // Resumo do dia (últimas 24h)
-  const since = Date.now() - 24 * 3600_000;
+  const since24 = Date.now() - 24 * 3600_000;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const last24 = (logs ?? []).filter((l: any) => new Date(l.sent_at).getTime() >= since);
+  const last24 = (logs ?? []).filter((l: any) => new Date(l.sent_at).getTime() >= since24);
   const summary = {
     total_24h: last24.length,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
