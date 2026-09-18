@@ -38,7 +38,21 @@ interface QueueItem {
   published_at: string | null;
   error_message: string | null;
   created_at: string;
+  created_by: string | null;
+  eta: string | null;
+  has_active_campaign?: boolean;
   offer: Offer | null;
+}
+
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const t = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `hoje ${t}`;
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  if (d.toDateString() === tomorrow.toDateString()) return `amanhã ${t}`;
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 interface Campaign {
@@ -313,6 +327,13 @@ function SortableRow({
               <StatusIcon className={cn("w-3 h-3", item.status === "publishing" && "animate-spin")} strokeWidth={2} />
               {meta.label}
             </span>
+            {/* Origem: automático (created_by null) x manual */}
+            <span className={cn(
+              "inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded",
+              item.created_by ? "bg-sky-500/15 text-sky-300" : "bg-violet-500/15 text-violet-300"
+            )}>
+              {item.created_by ? "Manual" : "Auto"}
+            </span>
             {item.offer?.price_current !== null && item.offer?.price_current !== undefined && (
               <span className="text-[11px] text-emerald-400 font-semibold">
                 R$ {Number(item.offer.price_current).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -328,11 +349,21 @@ function SortableRow({
               {item.campaign_ids.slice(0, 2).map(campaignName).join(", ")}
               {item.campaign_ids.length > 2 ? "..." : ""}
             </span>
-            {item.scheduled_at && (
-              <span className="text-[11px] text-orange-300 flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {new Date(item.scheduled_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-              </span>
+            {/* Quando vai postar */}
+            {item.status === "pending" && (
+              item.scheduled_at ? (
+                <span className="text-[11px] text-orange-300 flex items-center gap-1" title="Agendado">
+                  <Clock className="w-3 h-3" /> agendado {fmtWhen(item.scheduled_at)}
+                </span>
+              ) : item.eta ? (
+                <span className="text-[11px] text-orange-300/90 flex items-center gap-1" title="Estimativa pelo timer da campanha">
+                  <Clock className="w-3 h-3" /> ~{fmtWhen(item.eta)}
+                </span>
+              ) : item.has_active_campaign === false ? (
+                <span className="text-[11px] text-zinc-500 flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> campanha pausada
+                </span>
+              ) : null
             )}
           </div>
           {item.error_message && (
