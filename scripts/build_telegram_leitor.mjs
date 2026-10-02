@@ -62,6 +62,7 @@ const res = await runLeitor({
     channels: ${JSON.stringify(CHANNELS)},
     shopee: { appId: ${JSON.stringify(env.SHOPEE_APP_ID)}, secret: ${JSON.stringify(env.SHOPEE_APP_SECRET)} },
     ml: { cookie: ${JSON.stringify(mlCookie)}, csrf: 'Mqp1xO_51aAxfOR-BiDjSQnt', tag: 'manualmanual20230331072922', social: 'https://www.mercadolivre.com.br/social/manualdorecemnascido' },
+    amazon: { accessKey: $env.AMAZON_ACCESS_KEY, secretKey: $env.AMAZON_SECRET_KEY, partnerTag: $env.AMAZON_PARTNER_TAG || 'manualdorec0c-20' },
     amazonTag: 'manualdorec0c-20', firstRunHours: 6,
   },
 });

@@ -22,6 +22,14 @@ function decodeHtml(s) {
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n));
 }
+// n8n (Code node) não tem o global URL → junta Location relativo na mão
+function joinUrl(loc, base) {
+  if (/^https?:\/\//i.test(loc)) return loc;
+  if (loc.startsWith("//")) return base.split("//")[0] + loc;
+  const origin = (base.match(/^https?:\/\/[^/]+/i) || [""])[0];
+  if (loc.startsWith("/")) return origin + loc;
+  return base.replace(/[^/]*([?#].*)?$/, "") + loc;
+}
 function money(s) { if (!s) return null; const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) && n > 0 ? n : null; }
 function brtStamp(ms) { return new Date(ms - 3 * 3600_000).toISOString().slice(0, 10).replace(/-/g, ""); }
 
@@ -108,7 +116,7 @@ async function resolve(ctx, url) {
     let r;
     try { r = await ctx.http({ url: u, manual: true, headers: { "user-agent": UA } }); } catch (e) { return { url: u, body: "" }; }
     const loc = r.headers?.location;
-    if (r.status >= 300 && r.status < 400 && loc) { u = new URL(loc, u).href; continue; }
+    if (r.status >= 300 && r.status < 400 && loc) { u = joinUrl(loc, u); continue; }
     const body = typeof r.body === "string" ? r.body : "";
     const ret = u.match(/[?&]u=([^&]+)/);
     if (/retarget/.test(u) && ret) { u = decodeURIComponent(ret[1]); continue; }
@@ -133,6 +141,28 @@ async function shopeeShort(ctx, originUrl) {
   return j?.data?.generateShortLink?.shortLink || null;
 }
 
+async function shopeeInfo(ctx, shopId, itemId) {
+  const { appId, secret } = ctx.cfg.shopee;
+  const body = JSON.stringify({ query: `{productOfferV2(shopId:${+shopId},itemId:${+itemId},limit:1){nodes{productName imageUrl priceMin}}}` });
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const r = await ctx.http({ url: "https://open-api.affiliate.shopee.com.br/graphql", method: "POST", headers: { "content-type": "application/json", authorization: `SHA256 Credential=${appId},Timestamp=${ts},Signature=${ctx.sha256(appId + ts + body + secret)}` }, body });
+  const j = typeof r.body === "string" ? JSON.parse(r.body) : r.body;
+  return j?.data?.productOfferV2?.nodes?.[0] || null;
+}
+
+// Amazon Creators API (getItems): foto 500px + título oficial. Token reaproveitado na rodada.
+async function amazonInfo(ctx, asin) {
+  const a = ctx.cfg.amazon;
+  if (!a?.accessKey) return null;
+  if (!ctx._amzToken) {
+    const t = await ctx.http({ url: "https://api.amazon.com/auth/o2/token", method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ grant_type: "client_credentials", client_id: a.accessKey, client_secret: a.secretKey, scope: "creatorsapi::default" }) });
+    ctx._amzToken = (typeof t.body === "string" ? JSON.parse(t.body) : t.body).access_token;
+  }
+  const r = await ctx.http({ url: "https://creatorsapi.amazon/catalog/v1/getItems", method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + ctx._amzToken, "x-marketplace": "www.amazon.com.br" }, body: JSON.stringify({ itemIds: [asin], partnerTag: a.partnerTag, marketplace: "www.amazon.com.br", resources: ["images.primary.large", "itemInfo.title"] }) });
+  const it = (typeof r.body === "string" ? JSON.parse(r.body) : r.body)?.itemsResult?.items?.[0];
+  return it ? { image: it.images?.primary?.large?.url || null, title: it.itemInfo?.title?.displayValue || null } : null;
+}
+
 async function mlCreateLink(ctx, productUrl) {
   const { cookie, csrf, tag } = ctx.cfg.ml;
   const r = await ctx.http({
@@ -155,7 +185,8 @@ async function productLink(ctx, links) {
     if (p2 === "amazon") {
       const asin = (url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/) || [])[1];
       if (!asin) continue; // amzn.to → página do Prime etc.
-      return { platform: "amazon", ref: asin, url: `https://www.amazon.com.br/dp/${asin}`, affiliate_url: `https://www.amazon.com.br/dp/${asin}?tag=${ctx.cfg.amazonTag}` };
+      const info = await amazonInfo(ctx, asin).catch(() => null);
+      return { platform: "amazon", ref: asin, url: `https://www.amazon.com.br/dp/${asin}`, affiliate_url: `https://www.amazon.com.br/dp/${asin}?tag=${ctx.cfg.amazonTag}`, image: info?.image || null, officialTitle: info?.title || null };
     }
     if (p2 === "shopee") {
       const m = url.match(/\/product\/(\d+)\/(\d+)/) || url.match(/-i\.(\d+)\.(\d+)/) || url.match(/shopee\.com\.br\/[^/?]+\/(\d+)\/(\d+)/);
@@ -163,21 +194,24 @@ async function productLink(ctx, links) {
       const clean = `https://shopee.com.br/product/${m[1]}/${m[2]}`;
       const aff = await shopeeShort(ctx, clean);
       if (!aff) continue;
-      return { platform: "shopee", ref: m[2], url: clean, affiliate_url: aff };
+      const info = await shopeeInfo(ctx, m[1], m[2]).catch(() => null);
+      return { platform: "shopee", ref: m[2], url: clean, affiliate_url: aff, image: info?.imageUrl || null, officialTitle: info?.productName || null };
     }
     if (p2 === "ml") {
-      let prod = null;
+      let prod = null, mlImage = null;
       if (/\/p\/MLB\d+|produto\.mercadolivre\.com\.br\/MLB-?\d+|\/MLB-\d+/.test(url)) prod = url.split(/[?#]/)[0];
       else if (/\/social\//.test(url) && body) {
         // vitrine do afiliado → 1º card (produto em destaque do link)
         const m = body.match(/"polycards":\[\{[\s\S]*?"url":"([^"]+)"/);
+        const pic = body.match(/"polycards":\[\{[\s\S]*?"pictures":\[\{"id":"([^"]+)"/);
+        if (pic) mlImage = `https://http2.mlstatic.com/D_${pic[1]}-O.jpg`;
         if (m) prod = "https://" + m[1].replace(/\\u002F/g, "/").replace(/^https?:\/\//, "").split(/[?#]/)[0];
       }
       if (!prod) continue;
       const aff = await mlCreateLink(ctx, prod);
       if (!aff) continue;
       const ref = (prod.match(/MLB-?(\d+)/) || [])[1] || prod;
-      return { platform: "ml", ref, url: prod, affiliate_url: aff };
+      return { platform: "ml", ref, url: prod, affiliate_url: aff, image: mlImage };
     }
   }
   return null;
@@ -202,6 +236,7 @@ const LOJA_NOME = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
 // ── 5. Rodada ──────────────────────────────────────────────────────────────
 async function runLeitor(ctx) {
   const { cfg, state } = ctx;
+  if (state.v !== 3) { state.v = 3; state.last = {}; } // troca de versão = relê a janela inicial (dedup no ingest evita repetido)
   state.last = state.last || {};
   const now = Date.now();
   const res = { lidos: 0, novos: 0, ruido: 0, fora_nicho: 0, sem_link: 0, enviados: [], erros: [] };
@@ -224,17 +259,22 @@ async function runLeitor(ctx) {
         if (kind === "produto") {
           if (!nicheOk(p.text, ctx.kw)) { res.fora_nicho++; continue; }
           const link = await productLink(ctx, p.links);
-          if (!link) { res.sem_link++; continue; }
+          if (!link) {
+            res.sem_link++;
+            const l0 = p.links.find((l) => platformOf(l));
+            if (l0 && (res.debug = res.debug || []).length < 6) { const r0 = await resolve(ctx, l0); res.debug.push(`${ch}/${p.id} ${l0} -> ${r0.url.slice(0, 140)}`); }
+            continue;
+          }
           const { cur, orig } = pricesOf(p.text);
           const codes = extractCodes(p.text);
           res.enviados.push({
             source: "telegram", source_channel: "@" + ch, kind: "produto", perfil: "ofertas-maternas",
             source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
             platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
-            title: titleOf(p.text) || null, price_current: cur, price_original: orig,
-            image_url: p.photo, coupon_code: codes[0] || null,
+            title: titleOf(p.text) || link.officialTitle || null, price_current: cur, price_original: orig,
+            image_url: link.image || p.photo, coupon_code: codes[0] || null,
             extra_text: codes.length ? `🏷️ Use o cupom: *${codes.join(" / ")}*` : null,
-            coupon_meta: { post: `https://t.me/${ch}/${p.id}` },
+            coupon_meta: { post: `https://t.me/${ch}/${p.id}`, foto: link.image ? "loja" : "telegram" },
           });
         } else {
           if (CUPOM_FORA.test(p.text) && !BABY.test(p.text)) { res.fora_nicho++; continue; }

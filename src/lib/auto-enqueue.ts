@@ -120,6 +120,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       .select("id")
       .eq("perfil_id", c.perfil_id)
       .eq("status", "draft")
+      .eq("source", "auto") // só coletores; Telegram/manual passam pela curadoria (decisão Bruno 02/Out)
       .not("image_url", "is", null)
       .not("affiliate_url", "is", null)
       .order("created_at", { ascending: false })

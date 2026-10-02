@@ -15,11 +15,12 @@ const http = async ({ url, method = "GET", headers = {}, body, manual }) => {
       channels: ["grupo_promocoes", "amigacompra", "promocaozinha", "cuponsm", "afiliadosshopeebroficial", "cuponsdasho", "fadadoscupons"],
       shopee: { appId: env.SHOPEE_APP_ID, secret: env.SHOPEE_APP_SECRET },
       ml: { cookie: env.ML_COOKIE_MATERNA, csrf: "Mqp1xO_51aAxfOR-BiDjSQnt", tag: "manualmanual20230331072922", social: "https://www.mercadolivre.com.br/social/manualdorecemnascido" },
+      amazon: { accessKey: env.AMAZON_ACCESS_KEY, secretKey: env.AMAZON_SECRET_KEY, partnerTag: env.AMAZON_PARTNER_TAG },
       amazonTag: "manualdorec0c-20", firstRunHours: hours,
     },
   });
   const { enviados, ...resto } = res;
   console.log(JSON.stringify(resto));
-  for (const e of enviados) console.log(`[${e.kind}] ${e.source_channel} ${e.platform} | ${e.title} | R$${e.price_current ?? "-"} | ${e.coupon_code ?? ""} | ${e.affiliate_url} | img:${!!e.image_url}`);
+  for (const e of enviados) console.log(`[${e.kind}] ${e.source_channel} ${e.platform} | ${e.title} | R$${e.price_current ?? "-"} | ${e.coupon_code ?? ""} | ${e.affiliate_url} | foto:${e.coupon_meta?.foto || '-'} ${String(e.image_url).slice(0, 60)}`);
   fs.writeFileSync(process.env.OUT || "tg-dryrun.json", JSON.stringify(enviados, null, 1));
 })();
