@@ -125,7 +125,7 @@ export async function POST(request: Request) {
             "X-Worker-Secret": process.env.UTM_WORKER_SECRET,
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
           },
-          body: JSON.stringify({ slug, url: affiliateUrl, description: "amazon ingest" }),
+          body: JSON.stringify({ slug, url: affiliateUrl, description: "amazon ingest", hidden: true }),
         });
         if (reg.ok) affiliateUrl = `https://${shortDomain}/l/${slug}`;
       } catch {
