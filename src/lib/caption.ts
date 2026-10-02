@@ -54,7 +54,8 @@ export function buildCaptionPreview(offer: CaptionOffer): { text: string; usedFa
   if (offer.kind === "cupom") return { text: buildCouponCaption(offer), usedFallback: false };
   const creativeRaw = offer.ai_caption?.trim() || "";
   const usedFallback = !creativeRaw;
-  const creative = creativeRaw || `✨ ${offer.title || "Oferta imperdível"}`;
+  // sem legenda salva: a IA escreve 2 linhas na hora do post — o preview não repete o título no lugar delas
+  const creative = creativeRaw || "✍️ (2 linhas da IA na hora do post)";
 
   const parts: string[] = [creative];
   if (offer.title) parts.push(`*${offer.title.trim()}*`);

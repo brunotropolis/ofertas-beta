@@ -159,7 +159,8 @@ async function buildCaption(offer: Offer, campaign: Campaign, style: "maternity"
   let creative = offer.ai_caption?.trim() || "";
   if (!creative && campaign.ai_prompt) creative = (await generateFromCampaignPrompt(offer, campaign.ai_prompt)) || "";
   if (!creative) creative = (await generateCreativeLines(offer)) || "";
-  if (!creative) creative = `${style === "maternity" ? "✨" : "🔥"} ${offer.title || "Oferta imperdível"}`;
+  // fallback sem IA: chamada genérica (o título já vai em negrito logo abaixo — não repetir)
+  if (!creative) creative = style === "maternity" ? "🌟 OFERTA DO DIA 🌟" : `🔥 ${offer.title || "Oferta imperdível"}`;
 
   const parts: string[] = [creative];
   if (style === "maternity" && offer.title) parts.push(`*${offer.title.trim()}*`);

@@ -14,6 +14,8 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 const BABY = /beb[eê]|fralda|infantil|len[cç]os? umedecid|mamadeira|chupeta|gestante|matern|carrinho de beb|ber[cç]o|banheira|bab[aá] eletr|kids|crian[cç]a|brinquedo|pampers|huggies|mamypoko|babysec|pom ?pom|personal baby|turma da m[oô]nica baby|johnson'?s baby|granado beb|bepantol baby|baruel baby|desitin|fisher.?price|assadura|enxoval|cadeirinha|beb[eê] conforto|amamenta|tapete de atividade|andador|mordedor|naninha|dia das crian|buba|chicco|galzerano|burigotto|cosco|styll baby|safety 1st|nuk\b|avent|lillo|kababy|multikids baby/i;
 const CUPOM_FORA = /\bmoda\b|beleza|decor|\bcasa\b|eletr[oô]n|celular|smartphone|perfum|\bpet\b|m[oó]veis|esporte|games?\b|inform[aá]tica|ferrament|automot|supermercado|bebidas?|vinho|cerveja|maquiagem|skincare|\btv\b|notebook/i;
+// "ESGOTADO" (o canal costuma EDITAR o post depois). "Esgota rápido" é chamada de urgência, não conta.
+const ESGOTADO = /esgotad[oa]s?|esgotou|acabou o estoque|sem estoque/i;
 const STOP_CODES = new Set(["OFF", "PIX", "FULL", "SHOPEE", "CUPOM", "CUPONS", "MERCADO", "LIVRE", "AMAZON", "PRIME", "LINK", "ATIVE", "AQUI", "ALERTA", "SAIU", "SAINDO", "RESGATE", "CARRINHO", "LOJAS", "OFICIAIS", "RELAMPAGO", "OFERTA", "OFERTAS", "BRL", "FRETE", "GRATIS", "HOJE", "AGORA", "CORRE", "RAPIDO", "MAGALU", "LISTA", "SITE", "CODIGO", "VOLTOU", "BAIXOU", "PROMO", "PROMOCAO", "ACIMA", "LIMITE", "ATENCAO", "URGENTE", "NOVO", "NOVOS", "DESCONTO", "VALE"]);
 
 function norm(s) { return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
@@ -239,7 +241,7 @@ async function runLeitor(ctx) {
   if (state.v !== 3) { state.v = 3; state.last = {}; } // troca de versão = relê a janela inicial (dedup no ingest evita repetido)
   state.last = state.last || {};
   const now = Date.now();
-  const res = { lidos: 0, novos: 0, ruido: 0, fora_nicho: 0, sem_link: 0, enviados: [], erros: [] };
+  const res = { lidos: 0, novos: 0, ruido: 0, fora_nicho: 0, sem_link: 0, esgotado: 0, enviados: [], erros: [], esgotados: [] };
 
   for (const ch of cfg.channels) {
     let html;
@@ -247,12 +249,15 @@ async function runLeitor(ctx) {
     catch (e) { res.erros.push(`${ch}: ${e.message}`); continue; }
     const posts = parseChannel(String(html || ""), ch);
     res.lidos += posts.length;
+    // posts (novos ou antigos, editados) que viraram ESGOTADO → painel tira o item
+    for (const p of posts) if (ESGOTADO.test(p.text)) res.esgotados.push(`https://t.me/${ch}/${p.id}`);
     const last = state.last[ch];
     const fresh = posts.filter((p) => (last ? p.id > last : now - p.time < cfg.firstRunHours * 3600_000));
     if (posts.length) state.last[ch] = Math.max(last || 0, ...posts.map((p) => p.id));
     res.novos += fresh.length;
 
     for (const p of fresh) {
+      if (ESGOTADO.test(p.text)) { res.esgotado++; continue; }
       const kind = classify(p);
       if (kind === "ruido") { res.ruido++; continue; }
       try {

@@ -75,8 +75,15 @@ for (const o of res.enviados) {
     else if (b && b.deduped) dedup++; else ok++;
   } catch (e) { falhas.push(o.source_ref + ' ' + e.message); }
 }
-const { enviados, ...resumo } = res;
-return [{ json: { ...resumo, candidatos: enviados.length, criados: ok, repetidos: dedup, falhas_ingest: falhas, itens: enviados.map((e) => '[' + e.kind + '] ' + e.source_channel + ' ' + e.platform + ' | ' + e.title) } }];
+let removidos_esgotado = 0;
+if (res.esgotados.length) {
+  try {
+    const r = await helpers.httpRequest({ url: 'https://app.buscadorgeek.com.br/api/ingest/esgotado', method: 'POST', headers: { 'x-ingest-secret': INGEST_SECRET, 'content-type': 'application/json' }, body: JSON.stringify({ posts: res.esgotados }), json: true, timeout: 20000 });
+    removidos_esgotado = (r && r.removidos) || 0;
+  } catch (e) { falhas.push('esgotado ' + e.message); }
+}
+const { enviados, esgotados, ...resumo } = res;
+return [{ json: { ...resumo, removidos_esgotado, candidatos: enviados.length, criados: ok, repetidos: dedup, falhas_ingest: falhas, itens: enviados.map((e) => '[' + e.kind + '] ' + e.source_channel + ' ' + e.platform + ' | ' + e.title) } }];
 `;
 
 const jsCode = `// GERADO por ofertas-beta/scripts/build_telegram_leitor.mjs — não editar aqui, editar o core e rodar o build.\n${sha256}\n${core}\n${main}`;
