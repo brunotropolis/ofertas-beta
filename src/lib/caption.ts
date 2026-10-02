@@ -13,6 +13,24 @@ export interface CaptionOffer {
   extra_text?: string | null;
   price_current?: number | null;
   price_original?: number | null;
+  kind?: string | null;
+  coupon_code?: string | null;
+  coupon_meta?: { codes?: string[]; loja?: string; regra?: string } | null;
+  platform?: string | null;
+}
+
+const LOJA: Record<string, string> = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
+
+/** Legenda de CUPOM (sem IA): loja + regra + código(s) + link. Usada no post e no preview. */
+export function buildCouponCaption(offer: CaptionOffer): string {
+  const loja = LOJA[offer.coupon_meta?.loja || offer.platform || ""] || "";
+  const codes = offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : offer.coupon_code ? [offer.coupon_code] : [];
+  const parts: string[] = [`🎟️ *CUPOM ${loja.toUpperCase()}* 🎟️`.replace("  ", " ")];
+  if (offer.extra_text?.trim()) parts.push(offer.extra_text.trim());
+  if (codes.length) parts.push(codes.length === 1 ? `Código: *${codes[0]}*` : codes.map((c) => `👉 *${c}*`).join("\n"));
+  const url = offer.affiliate_url || offer.url;
+  parts.push(`Resgate aqui 👇\n${url}`);
+  return parts.join("\n\n");
 }
 
 export function moneyBRL(v: number): string {
@@ -33,6 +51,7 @@ function priceBlockMaternity(offer: CaptionOffer): string {
  * bate 100% com o post). Retorna também se usou fallback (pra UI avisar).
  */
 export function buildCaptionPreview(offer: CaptionOffer): { text: string; usedFallback: boolean } {
+  if (offer.kind === "cupom") return { text: buildCouponCaption(offer), usedFallback: false };
   const creativeRaw = offer.ai_caption?.trim() || "";
   const usedFallback = !creativeRaw;
   const creative = creativeRaw || `✨ ${offer.title || "Oferta imperdível"}`;

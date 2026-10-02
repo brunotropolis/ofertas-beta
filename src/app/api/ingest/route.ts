@@ -37,6 +37,11 @@ const IngestSchema = z.object({
   extra_text: z.string().max(2000).nullable().optional(),
   campaign_ids: z.array(z.string().uuid()).optional(),
   perfil: z.string().max(80).nullable().optional(), // slug do perfil (ex: "ofertas-maternas")
+  // Telegram / cupom
+  kind: z.enum(["produto", "cupom"]).default("produto"),
+  coupon_code: z.string().max(60).nullable().optional(),
+  coupon_meta: z.record(z.string(), z.unknown()).nullable().optional(),
+  source_channel: z.string().max(120).nullable().optional(),
 });
 
 function authorized(request: Request): boolean {
@@ -147,6 +152,10 @@ export async function POST(request: Request) {
       ai_caption: p.caption ?? null,
       extra_text: p.extra_text ?? null,
       perfil_id: perfilId,
+      kind: p.kind,
+      coupon_code: p.coupon_code ?? null,
+      coupon_meta: p.coupon_meta ?? null,
+      source_channel: p.source_channel ?? null,
       status: willQueue ? "queued" : "draft",
     })
     .select()

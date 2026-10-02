@@ -15,6 +15,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildCouponCaption } from "@/lib/caption";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
@@ -45,6 +46,10 @@ interface Offer {
   price_current: number | null;
   price_original: number | null;
   discount_pct: number | null;
+  kind?: string | null;
+  coupon_code?: string | null;
+  coupon_meta?: { codes?: string[]; loja?: string; regra?: string } | null;
+  platform?: string | null;
 }
 interface QueueItem {
   id: string;
@@ -150,6 +155,7 @@ PRECO: ${preco}`;
 
 // Monta a legenda final. style 'maternity' usa a copy do ai_prompt + preço maternidade.
 async function buildCaption(offer: Offer, campaign: Campaign, style: "maternity" | "geek"): Promise<string> {
+  if (offer.kind === "cupom") return buildCouponCaption(offer);
   let creative = offer.ai_caption?.trim() || "";
   if (!creative && campaign.ai_prompt) creative = (await generateFromCampaignPrompt(offer, campaign.ai_prompt)) || "";
   if (!creative) creative = (await generateCreativeLines(offer)) || "";
@@ -187,7 +193,9 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
   const preview: any = {
     url,
     title: (offer.title || "Oferta").slice(0, 120),
-    description: priceLine(offer),
+    description: offer.kind === "cupom"
+      ? `🎟️ ${(offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : [offer.coupon_code]).filter(Boolean).join(" · ")}`
+      : priceLine(offer),
   };
   if (offer.image_url) preview.image = { url: offer.image_url };
 

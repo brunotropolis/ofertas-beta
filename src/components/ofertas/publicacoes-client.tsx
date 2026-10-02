@@ -24,6 +24,10 @@ interface Offer {
   extra_text: string | null;
   status: string;
   created_at: string;
+  kind?: "produto" | "cupom" | null;
+  coupon_code?: string | null;
+  coupon_meta?: { codes?: string[]; loja?: string; regra?: string; post?: string } | null;
+  source_channel?: string | null;
 }
 
 interface Campaign { id: string; name: string; is_active: boolean }
@@ -196,6 +200,7 @@ function OfferCard({
         )}
         <div className="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap">
           <span className={cn("text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded backdrop-blur-sm", SOURCE_BADGE[offer.source] ?? SOURCE_BADGE.manual)}>{offer.source}</span>
+          {offer.kind === "cupom" && <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-fuchsia-500/85 text-white">cupom</span>}
           {offer.status === "queued" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/80 text-white">na fila</span>}
           {offer.status === "published" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/80 text-white">publicado</span>}
         </div>
@@ -209,6 +214,25 @@ function OfferCard({
           )}
           {offer.discount_pct ? <span className="text-[10px] bg-orange-500/15 text-orange-300 font-bold px-1.5 py-0.5 rounded">-{offer.discount_pct}%</span> : null}
         </div>
+
+        {offer.source_channel && (
+          <a
+            href={offer.coupon_meta?.post || "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10.5px] text-sky-300/80 hover:text-sky-200 mb-1.5 truncate"
+            title="Ver o post original no Telegram"
+          >
+            {offer.source_channel}
+          </a>
+        )}
+        {(offer.coupon_meta?.codes?.length || offer.coupon_code) && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {(offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : [offer.coupon_code!]).map((c) => (
+              <span key={c} className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded border border-dashed border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-500/10">{c}</span>
+            ))}
+          </div>
+        )}
 
         {/* Legenda completa (como vai sair) */}
         <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/70 p-2.5 mb-2">
