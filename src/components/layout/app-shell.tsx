@@ -14,7 +14,7 @@ import {
   Clock,
   CalendarDays,
   CalendarClock,
-  LayoutDashboard,
+  Home,
   Wallet,
   History,
   Menu,
@@ -25,6 +25,10 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 type NavSection = { title: string; items: NavItem[] };
 
 const NAV_SECTIONS: NavSection[] = [
+  {
+    title: "Geral",
+    items: [{ href: "/inicio", label: "Início", icon: Home }],
+  },
   {
     title: "Setup",
     items: [{ href: "/campanhas", label: "Campanhas", icon: Megaphone }],
@@ -47,12 +51,12 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Utilidades",
     items: [
       { href: "/historico", label: "Histórico", icon: History },
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     ],
   },
 ];
 
 const NAV_BOTTOM_MOBILE = [
+  { href: "/inicio", label: "Início", icon: Home },
   { href: "/campanhas", label: "Camp.", icon: Megaphone },
   { href: "/publicacoes", label: "Public.", icon: List },
   { href: "/fila", label: "Fila", icon: Clock },

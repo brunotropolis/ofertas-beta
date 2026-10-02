@@ -46,6 +46,12 @@ export const CampaignCreateSchema = z.object({
   timer_minutes: z.number().int().min(5).max(120).optional(),
   is_active: z.boolean().optional(),
   perfil_id: z.string().uuid().nullable().optional(),
+  // postagem automática (trickle) — ver lib/auto-enqueue.ts
+  auto_enqueue: z.boolean().optional(),
+  auto_daily_cap: z.number().int().min(0).max(500).optional(),
+  auto_window_start: z.number().int().min(0).max(23).optional(),
+  auto_window_end: z.number().int().min(1).max(24).optional(),
+  auto_buffer: z.number().int().min(0).max(50).optional(),
 });
 
 export const CampaignUpdateSchema = CampaignCreateSchema.partial();
