@@ -49,6 +49,7 @@ const SOURCE_BADGE: Record<string, string> = {
 
 export default function PublicacoesClient() {
   const [source, setSource] = useState<(typeof SOURCES)[number]["key"]>("all");
+  const [kind, setKind] = useState<"all" | "produto" | "cupom">("all");
   const [offers, setOffers] = useState<Offer[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,9 @@ export default function PublicacoesClient() {
     try {
       const params = new URLSearchParams();
       if (source !== "all") params.set("source", source);
+      if (source === "telegram" && kind !== "all") params.set("kind", kind);
+      params.set("pending", "1");
+      params.set("limit", "200");
       if (perfilId) params.set("perfil", perfilId);
       const qs = params.toString();
       const campQs = perfilId ? `?perfil=${perfilId}` : "";
@@ -77,7 +81,7 @@ export default function PublicacoesClient() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source, perfilId]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source, kind, perfilId]);
 
   async function handleDiscard(o: Offer) {
     if (!confirm("Descartar essa oferta?")) return;
@@ -127,6 +131,27 @@ export default function PublicacoesClient() {
         ))}
       </div>
 
+      {source === "telegram" && (
+        <div className="flex gap-1.5 -mt-3 mb-6 items-center">
+          <span className="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">Telegram:</span>
+          {([["all", "Tudo"], ["produto", "Ofertas"], ["cupom", "Cupons"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setKind(k)}
+              className={cn(
+                "px-3.5 py-1 text-xs font-medium rounded-full border transition-all",
+                kind === k
+                  ? k === "cupom" ? "bg-fuchsia-500/20 border-fuchsia-400/60 text-fuchsia-100" : "bg-sky-500/20 border-sky-400/60 text-sky-100"
+                  : "border-zinc-800 text-zinc-400 hover:text-white"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="text-[11px] text-zinc-500 ml-2">mais recentes primeiro</span>
+        </div>
+      )}
+
       {loading ? (
         <div className="glass rounded-2xl p-12 text-center"><Loader2 className="w-6 h-6 mx-auto text-zinc-500 animate-spin" /></div>
       ) : visible.length === 0 ? (
@@ -138,7 +163,7 @@ export default function PublicacoesClient() {
           <p className="text-zinc-500 text-sm mt-1.5">As fontes empurram ofertas pra cá via <code className="text-orange-400">/api/ingest</code></p>
         </div>
       ) : (
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid gap-2.5 grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
           {visible.map((o) => (
             <OfferCard
               key={o.id}
@@ -173,6 +198,13 @@ export default function PublicacoesClient() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+function timeAgo(iso: string) {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 60) return `${Math.max(min, 0)}min`;
+  if (min < 1440) return `${Math.round(min / 60)}h`;
+  return `${Math.round(min / 1440)}d`;
+}
+
 function OfferCard({
   offer, onEnqueue, onEdit, onDiscard,
 }: {
@@ -206,12 +238,13 @@ function OfferCard({
         </div>
       </div>
 
-      <div className="p-3.5 flex flex-col flex-1">
+      <div className="p-2.5 flex flex-col flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
           {offer.platform && <span className="text-[10px] uppercase tracking-wider text-zinc-500">{offer.platform}</span>}
           {offer.price_current != null && (
             <span className="text-sm text-emerald-400 font-semibold ml-auto">R$ {Number(offer.price_current).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
           )}
+          <span className="text-[10px] text-zinc-500" title={new Date(offer.created_at).toLocaleString("pt-BR")}>{timeAgo(offer.created_at)}</span>
           {offer.discount_pct ? <span className="text-[10px] bg-orange-500/15 text-orange-300 font-bold px-1.5 py-0.5 rounded">-{offer.discount_pct}%</span> : null}
         </div>
 
@@ -240,7 +273,7 @@ function OfferCard({
             <span className="text-[10px] uppercase tracking-wider text-zinc-500">Legenda</span>
             {usedFallback && <span className="text-[10px] text-amber-400/80" title="Sem legenda salva — a IA gera na hora do post">IA na hora</span>}
           </div>
-          <p className="text-[11px] leading-relaxed text-zinc-300 whitespace-pre-wrap max-h-28 overflow-y-auto scroll-thin break-words">
+          <p className="text-[10.5px] leading-snug text-zinc-300 whitespace-pre-wrap max-h-20 overflow-y-auto scroll-thin break-words">
             {caption}
           </p>
         </div>
@@ -256,19 +289,19 @@ function OfferCard({
           <a href={link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-zinc-600 hover:text-orange-400"><ExternalLink className="w-3 h-3" /></a>
         </button>
 
-        <div className="flex items-center gap-2 mt-auto pt-3 border-t border-zinc-800/60">
+        <div className="flex items-center gap-1.5 mt-auto pt-2.5 border-t border-zinc-800/60">
           <button
             onClick={onEnqueue}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white text-xs rounded-full transition-all glow-orange-sm"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white text-xs rounded-full transition-all glow-orange-sm"
           >
             <Send className="w-3.5 h-3.5" strokeWidth={2} /> Enfileirar
           </button>
           <button
             onClick={onEdit}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-200 bg-zinc-800/70 hover:bg-zinc-700 border border-zinc-700/60 text-xs rounded-full transition-colors"
+            className="flex items-center gap-1.5 p-2 text-zinc-200 bg-zinc-800/70 hover:bg-zinc-700 border border-zinc-700/60 text-xs rounded-full transition-colors"
             title="Editar legenda, título, preço e link"
           >
-            <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} /> Editar
+            <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
           <button
             onClick={onDiscard}

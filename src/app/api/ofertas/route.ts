@@ -10,7 +10,9 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const source = searchParams.get("source");
   const perfil = searchParams.get("perfil");
-  const limit = Math.min(Number(searchParams.get("limit") ?? 100) || 100, 200);
+  const kind = searchParams.get("kind"); // produto | cupom
+  const pending = searchParams.get("pending") === "1"; // esconde publicados no servidor (a lista mostra os N mais recentes do que falta)
+  const limit = Math.min(Number(searchParams.get("limit") ?? 100) || 100, 300);
 
   let query = db
     .from("offers")
@@ -21,6 +23,8 @@ export async function GET(request: Request) {
   if (status) query = query.eq("status", status);
   if (source && source !== "all") query = query.eq("source", source);
   if (perfil) query = query.eq("perfil_id", perfil);
+  if (kind === "produto" || kind === "cupom") query = query.eq("kind", kind);
+  if (pending) query = query.neq("status", "published");
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
