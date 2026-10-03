@@ -91,7 +91,8 @@ const jsCode = `// GERADO por ofertas-beta/scripts/build_telegram_leitor.mjs —
 if (process.env.PRINT_CODE) { fs.writeFileSync(process.env.PRINT_CODE, jsCode); process.exit(0); }
 
 const nodes = [
-  { parameters: { rule: { interval: [{ field: "minutes", minutesInterval: 5 }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
+  // só 8h–20h BRT (decisão Bruno 02/Out: nada de madrugada)
+  { parameters: { rule: { interval: [{ field: "cronExpression", expression: "*/5 8-19 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
   { parameters: { jsCode }, name: "LER CANAIS + INGEST", type: "n8n-nodes-base.code", typeVersion: 2, position: [240, 0] },
 ];
 const connections = { "A cada 5 min": { main: [[{ node: "LER CANAIS + INGEST", type: "main", index: 0 }]] } };
