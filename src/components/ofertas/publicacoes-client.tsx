@@ -28,6 +28,7 @@ interface Offer {
   coupon_code?: string | null;
   coupon_meta?: { codes?: string[]; loja?: string; regra?: string; post?: string } | null;
   source_channel?: string | null;
+  promo_meta?: { prime_exclusive?: boolean; badge?: string | null; deal_end?: string | null } | null;
 }
 
 interface Campaign { id: string; name: string; is_active: boolean }
@@ -232,6 +233,7 @@ function OfferCard({
         )}
         <div className="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap">
           <span className={cn("text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded backdrop-blur-sm", SOURCE_BADGE[offer.source] ?? SOURCE_BADGE.manual)}>{offer.source}</span>
+          {offer.promo_meta?.prime_exclusive && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-600/85 text-white" title={offer.promo_meta.deal_end ? `até ${new Date(offer.promo_meta.deal_end).toLocaleString("pt-BR")}` : ""}>PRIME</span>}
           {offer.kind === "cupom" && <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-fuchsia-500/85 text-white">cupom</span>}
           {offer.status === "queued" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/80 text-white">na fila</span>}
           {offer.status === "published" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/80 text-white">publicado</span>}

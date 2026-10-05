@@ -15,7 +15,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildCouponCaption } from "@/lib/caption";
+import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
@@ -49,6 +49,7 @@ interface Offer {
   kind?: string | null;
   coupon_code?: string | null;
   coupon_meta?: { codes?: string[]; loja?: string; regra?: string } | null;
+  promo_meta?: PromoMeta | null;
   platform?: string | null;
 }
 interface QueueItem {
@@ -73,16 +74,6 @@ interface Group {
 
 function moneyBRL(v: number): string {
   return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-// Bloco de preço no tom maternidade: "💰 Por *R$X*" + "> Custa R$Y"
-function priceBlockMaternity(offer: Offer): string {
-  const a = offer.price_current;
-  if (a == null) return "";
-  const o = offer.price_original;
-  const lines = [`💰 Por *${moneyBRL(a)}*`];
-  if (o != null && o > a) lines.push(`> Custa ${moneyBRL(o)}`);
-  return lines.join("\n");
 }
 
 // Bloco de preço geek (fluxo antigo)
@@ -156,21 +147,24 @@ PRECO: ${preco}`;
 // Monta a legenda final. style 'maternity' usa a copy do ai_prompt + preço maternidade.
 async function buildCaption(offer: Offer, campaign: Campaign, style: "maternity" | "geek"): Promise<string> {
   if (offer.kind === "cupom") return buildCouponCaption(offer);
+  if (style === "maternity") {
+    // padrão do grupo (lib/caption). Fralda usa o cabeçalho "OFERTAS DE FRALDAS 🚼" — não gasta IA.
+    let creative: string | null = null;
+    if (!isFralda(offer.title)) {
+      creative = offer.ai_caption?.trim() || null;
+      if (!creative && campaign.ai_prompt) creative = (await generateFromCampaignPrompt(offer, campaign.ai_prompt)) || null;
+    }
+    return buildMaternityCaption(offer, creative);
+  }
+
   let creative = offer.ai_caption?.trim() || "";
-  if (!creative && campaign.ai_prompt) creative = (await generateFromCampaignPrompt(offer, campaign.ai_prompt)) || "";
   if (!creative) creative = (await generateCreativeLines(offer)) || "";
-  // fallback sem IA: chamada genérica (o título já vai em negrito logo abaixo — não repetir)
-  if (!creative) creative = style === "maternity" ? "🌟 OFERTA DO DIA 🌟" : `🔥 ${offer.title || "Oferta imperdível"}`;
-
+  if (!creative) creative = `🔥 ${offer.title || "Oferta imperdível"}`;
   const parts: string[] = [creative];
-  if (style === "maternity" && offer.title) parts.push(`*${offer.title.trim()}*`);
-
-  const pb = style === "maternity" ? priceBlockMaternity(offer) : priceBlockGeek(offer);
+  const pb = priceBlockGeek(offer);
   if (pb) parts.push(pb);
   if (offer.extra_text) parts.push(offer.extra_text.trim());
-
-  const url = offer.affiliate_url || offer.url;
-  parts.push(`Compre aqui 👇\n${url}`);
+  parts.push(`Compre aqui 👇\n${offer.affiliate_url || offer.url}`);
   return parts.join("\n\n");
 }
 

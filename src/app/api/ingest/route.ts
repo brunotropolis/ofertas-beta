@@ -43,6 +43,7 @@ const IngestSchema = z.object({
   coupon_code: z.string().max(60).nullable().optional(),
   coupon_meta: z.record(z.string(), z.unknown()).nullable().optional(),
   source_channel: z.string().max(120).nullable().optional(),
+  promo_meta: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // Código curto estável: letra da plataforma + 6 chars base36 do hash (mesma entrada → mesmo slug).
@@ -184,6 +185,7 @@ export async function POST(request: Request) {
       coupon_code: p.coupon_code ?? null,
       coupon_meta: p.coupon_meta ?? null,
       source_channel: p.source_channel ?? null,
+      promo_meta: p.promo_meta ?? null,
       status: willQueue ? "queued" : "draft",
     })
     .select()

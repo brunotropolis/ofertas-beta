@@ -99,7 +99,7 @@ function extractCodes(t) {
 
 function titleOf(t) {
   const lines = t.split("\n").map((l) => l.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}\u{2B00}-\u{2BFF}‼️*_~>]/gu, "").trim());
-  const bad = /https?:|R\$|cupo[mn]|compre|frete|vendido por|site confi|tempo limitado|selecione|programe e poupe|resgate|clique|aproveit|parcel|^por\b|^de\b/i;
+  const bad = /https?:|R\$|cupo[mn]|compre|frete|vendido por|site confi|tempo limitado|selecione|programe e poupe|resgate|clique|aproveit|parcel|^por\b|^de\b|exclusivo|membros prime|amazon prime|recorr[eê]ncia|adicione|confira o desconto|tela de pagamento/i;
   const hype = /esgota|voltou|baixou|prefere|nova fragr|pacote maior|lan[cç]amento|corre+|aproveit|alerta|presente|imperd[ií]vel|caiu+|pode aproveitar|chega antes|de olho|menor pre[cç]o|achadinho|oferta/i;
   const cand = lines.filter((l) => l.length >= 12 && /[a-zà-ú]/.test(l) && !bad.test(l) && !(l.length < 40 && hype.test(l)) && !/!$/.test(l));
   return (cand[0] || lines.find((l) => l.length > 5) || "").slice(0, 200);
@@ -109,6 +109,19 @@ function pricesOf(t) {
   const cur = money((t.match(/\bpor:?\s*R\$\s*([\d.]+(?:,\d{1,2})?)/i) || [])[1]) ?? money((t.match(/R\$\s*([\d.]+(?:,\d{1,2})?)/) || [])[1]);
   const orig = money((t.match(/\bde:?\s*R\$\s*([\d.]+(?:,\d{1,2})?)/i) || [])[1]);
   return { cur, orig: orig && cur && orig > cur ? orig : null };
+}
+
+// instruções do post de origem → promo_meta (a legenda repete no padrão do grupo)
+function promoFlags(t) {
+  const f = {};
+  if (/programe e poupe|comprar com recorr[eê]ncia|recorr[eê]ncia/i.test(t)) f.programe_poupe = true;
+  if (/exclusivo (para|pra) membros prime|oferta prime|s[oó] (para|pra) prime/i.test(t)) f.prime_exclusive = true;
+  if (/confira o desconto|tela de pagamento/i.test(t)) f.confira_pagamento = true;
+  const v = t.match(/vendido por:?\s*([A-Za-zÀ-ú0-9 &.'-]{2,40}?)(?:\.|\n|$)/i);
+  if (v && !/amazon|mercado livre|shopee/i.test(v[1])) f.vendido_por = v[1].trim();
+  const a = t.match(/adicione\s+(\d+)\s+ou mais/i);
+  if (a) f.adicione_n = +a[1];
+  return f;
 }
 
 // ── 3. Resolver encurtador → URL final ────────────────────────────────────
@@ -160,9 +173,22 @@ async function amazonInfo(ctx, asin) {
     const t = await ctx.http({ url: "https://api.amazon.com/auth/o2/token", method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ grant_type: "client_credentials", client_id: a.accessKey, client_secret: a.secretKey, scope: "creatorsapi::default" }) });
     ctx._amzToken = (typeof t.body === "string" ? JSON.parse(t.body) : t.body).access_token;
   }
-  const r = await ctx.http({ url: "https://creatorsapi.amazon/catalog/v1/getItems", method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + ctx._amzToken, "x-marketplace": "www.amazon.com.br" }, body: JSON.stringify({ itemIds: [asin], partnerTag: a.partnerTag, marketplace: "www.amazon.com.br", resources: ["images.primary.large", "itemInfo.title"] }) });
+  const r = await ctx.http({ url: "https://creatorsapi.amazon/catalog/v1/getItems", method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + ctx._amzToken, "x-marketplace": "www.amazon.com.br" }, body: JSON.stringify({ itemIds: [asin], partnerTag: a.partnerTag, marketplace: "www.amazon.com.br", resources: ["images.primary.large", "itemInfo.title", "offersV2.listings.price", "offersV2.listings.dealDetails", "offersV2.listings.availability", "offersV2.listings.merchantInfo"] }) });
   const it = (typeof r.body === "string" ? JSON.parse(r.body) : r.body)?.itemsResult?.items?.[0];
-  return it ? { image: it.images?.primary?.large?.url || null, title: it.itemInfo?.title?.displayValue || null } : null;
+  if (!it) return null;
+  const l = it.offersV2?.listings?.[0] || {};
+  const ppu = l.price?.pricePerUnit;
+  return {
+    image: it.images?.primary?.large?.url || null, title: it.itemInfo?.title?.displayValue || null,
+    outOfStock: l.availability?.type === "OUT_OF_STOCK",
+    price: l.price?.money?.amount ?? null, original: l.price?.savingBasis?.money?.amount ?? null,
+    promo: {
+      prime_exclusive: l.dealDetails?.accessType === "PRIME_EXCLUSIVE" || undefined,
+      badge: l.dealDetails?.badge || undefined, deal_end: l.dealDetails?.endTime || undefined,
+      unit_price: ppu && /unidade/i.test(ppu.displayAmount || "") ? ppu.amount : undefined,
+      amazon_seller: l.merchantInfo?.name ? /amazon/i.test(l.merchantInfo.name) : undefined,
+    },
+  };
 }
 
 async function mlCreateLink(ctx, productUrl) {
@@ -188,7 +214,8 @@ async function productLink(ctx, links) {
       const asin = (url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/) || [])[1];
       if (!asin) continue; // amzn.to → página do Prime etc.
       const info = await amazonInfo(ctx, asin).catch(() => null);
-      return { platform: "amazon", ref: asin, url: `https://www.amazon.com.br/dp/${asin}`, affiliate_url: `https://www.amazon.com.br/dp/${asin}?tag=${ctx.cfg.amazonTag}`, image: info?.image || null, officialTitle: info?.title || null };
+      if (info?.outOfStock) return { esgotado: true };
+      return { platform: "amazon", ref: asin, url: `https://www.amazon.com.br/dp/${asin}`, affiliate_url: `https://www.amazon.com.br/dp/${asin}?tag=${ctx.cfg.amazonTag}`, image: info?.image || null, officialTitle: info?.title || null, amazon: info };
     }
     if (p2 === "shopee") {
       const m = url.match(/\/product\/(\d+)\/(\d+)/) || url.match(/-i\.(\d+)\.(\d+)/) || url.match(/shopee\.com\.br\/[^/?]+\/(\d+)\/(\d+)/);
@@ -264,22 +291,31 @@ async function runLeitor(ctx) {
         if (kind === "produto") {
           if (!nicheOk(p.text, ctx.kw)) { res.fora_nicho++; continue; }
           const link = await productLink(ctx, p.links);
+          if (link && link.esgotado) { res.esgotado++; continue; }
           if (!link) {
             res.sem_link++;
             const l0 = p.links.find((l) => platformOf(l));
             if (l0 && (res.debug = res.debug || []).length < 6) { const r0 = await resolve(ctx, l0); res.debug.push(`${ch}/${p.id} ${l0} -> ${r0.url.slice(0, 140)}`); }
             continue;
           }
-          const { cur, orig } = pricesOf(p.text);
+          let { cur, orig } = pricesOf(p.text);
           const codes = extractCodes(p.text);
+          const promo = { ...promoFlags(p.text) };
+          if (link.amazon) {
+            // preço que vale é o do anúncio agora (o canal costuma já descontar o programe e poupe)
+            if (link.amazon.price) { cur = link.amazon.price; orig = link.amazon.original && link.amazon.original > cur ? link.amazon.original : null; }
+            for (const [k, v] of Object.entries(link.amazon.promo)) if (v !== undefined) promo[k] = v;
+            promo.checked_at = new Date().toISOString();
+          }
           res.enviados.push({
             source: "telegram", source_channel: "@" + ch, kind: "produto", perfil: "ofertas-maternas",
             source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
             platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
             title: titleOf(p.text) || link.officialTitle || null, price_current: cur, price_original: orig,
             image_url: link.image || p.photo, coupon_code: codes[0] || null,
-            extra_text: codes.length ? `🏷️ Use o cupom: *${codes.join(" / ")}*` : null,
-            coupon_meta: { post: `https://t.me/${ch}/${p.id}`, foto: link.image ? "loja" : "telegram" },
+            extra_text: null,
+            coupon_meta: { post: `https://t.me/${ch}/${p.id}`, foto: link.image ? "loja" : "telegram", codes: codes.length ? codes : undefined },
+            promo_meta: Object.keys(promo).length ? promo : null,
           });
         } else {
           if (CUPOM_FORA.test(p.text) && !BABY.test(p.text)) { res.fora_nicho++; continue; }
