@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { parseOrError } from "@/lib/schemas";
+import { createHash } from "crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,12 @@ const IngestSchema = z.object({
   coupon_meta: z.record(z.string(), z.unknown()).nullable().optional(),
   source_channel: z.string().max(120).nullable().optional(),
 });
+
+// Código curto estável: letra da plataforma + 6 chars base36 do hash (mesma entrada → mesmo slug).
+function shortSlug(prefix: string, key: string): string {
+  const n = parseInt(createHash("sha1").update(key).digest("hex").slice(0, 10), 16);
+  return prefix + n.toString(36).padStart(6, "0").slice(-6);
+}
 
 function authorized(request: Request): boolean {
   const provided = request.headers.get("x-ingest-secret");
@@ -117,7 +124,7 @@ export async function POST(request: Request) {
       null;
     if (asin) {
       try {
-        const slug = "amz" + asin;
+        const slug = shortSlug("a", asin); // ex.: a8k2j3x (antes amz<ASIN>, longo)
         const reg = await fetch("https://manualdorecemnascido.com.br/_utmapi/register", {
           method: "POST",
           headers: {
@@ -131,6 +138,27 @@ export async function POST(request: Request) {
       } catch {
         /* mantém a URL completa */
       }
+    }
+  }
+
+  // ── Telegram: todo link (ML, Shopee, cupom) também sai no domínio da marca ─
+  // <short_domain>/l/t<hash> → 302 pro NOSSO link de afiliado (meli.la, s.shopee, vitrine ML).
+  // Slug = hash da URL (mesma URL → mesmo slug). Oculto no utm-builder. Best-effort.
+  if (p.source === "telegram" && process.env.UTM_WORKER_SECRET && !affiliateUrl.includes(`${shortDomain}/l/`)) {
+    try {
+      const slug = shortSlug(p.kind === "cupom" ? "c" : p.platform === "shopee" ? "s" : "m", affiliateUrl);
+      const reg = await fetch("https://manualdorecemnascido.com.br/_utmapi/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Worker-Secret": process.env.UTM_WORKER_SECRET,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        },
+        body: JSON.stringify({ slug, url: affiliateUrl, description: "telegram ingest", hidden: true }),
+      });
+      if (reg.ok) affiliateUrl = `https://${shortDomain}/l/${slug}`;
+    } catch {
+      /* mantém o link original */
     }
   }
 
