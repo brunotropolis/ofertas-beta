@@ -50,6 +50,9 @@ export interface CaptionOffer {
   cupom_dia?: { code: string; regra: string } | null; // cupom geral do dia que vale pro preço (lib/cupom-do-dia)
 }
 
+// aviso de urgência sempre que o post leva cupom (gatilho do grupo)
+export const AVISO_CUPOM = "⚠️ _Cupons podem encerrar a qualquer momento!_";
+
 const LOJA: Record<string, string> = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
 
 export function moneyBRL(v: number): string {
@@ -154,6 +157,7 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   if (ins.length) parts.push(ins.join("\n"));
   const fr = freteLine(offer);
   if (fr) parts.push(fr);
+  if (cl || offer.promo_meta?.cupom_anuncio) parts.push(AVISO_CUPOM);
   if (offer.extra_text?.trim() && !isLegacyCouponExtra(offer.extra_text)) parts.push(offer.extra_text.trim());
   parts.push(`Compre aqui 👇\n${offer.affiliate_url || offer.url}`);
   return parts.join("\n\n");
@@ -175,6 +179,7 @@ export function buildCouponCaption(offer: CaptionOffer): string {
     if (codes.length) parts.push(codes.map((c) => `🎟️ *${c}*`).join("\n"));
     if (regras.length) parts.push(regras.join("\n"));
   }
+  parts.push(AVISO_CUPOM);
   parts.push(`Resgate aqui 👇\n${offer.affiliate_url || offer.url}`);
   return parts.join("\n\n");
 }
