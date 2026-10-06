@@ -82,11 +82,23 @@ export async function POST(request: Request) {
   if (p.source_ref) {
     const { data: dup } = await db
       .from("offers")
-      .select("id")
+      .select("id, status, promo_meta")
       .eq("source", p.source)
       .eq("source_ref", p.source_ref)
       .maybeSingle();
-    if (dup) return NextResponse.json({ deduped: true, offer_id: dup.id });
+    if (dup) {
+      // coletor trouxe o mesmo produto de novo: refresca preço e gatilhos enquanto não foi publicado
+      if (p.source === "auto" && (dup.status === "draft" || dup.status === "queued")) {
+        const patch: Record<string, unknown> = {};
+        if (p.price_current != null) patch.price_current = p.price_current;
+        if (p.price_original !== undefined) patch.price_original = p.price_original ?? null;
+        if (p.discount_pct != null) patch.discount_pct = p.discount_pct;
+        if (p.promo_meta) patch.promo_meta = { ...(dup.promo_meta || {}), ...p.promo_meta };
+        if (Object.keys(patch).length) await db.from("offers").update(patch).eq("id", dup.id);
+        return NextResponse.json({ deduped: true, refreshed: Object.keys(patch).length > 0, offer_id: dup.id });
+      }
+      return NextResponse.json({ deduped: true, offer_id: dup.id });
+    }
   } else {
     const since = new Date(Date.now() - 24 * 3600_000).toISOString();
     const { data: dup } = await db
