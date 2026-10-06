@@ -16,6 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
+import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
@@ -51,6 +52,7 @@ interface Offer {
   coupon_meta?: { codes?: string[]; loja?: string; regra?: string } | null;
   promo_meta?: PromoMeta | null;
   platform?: string | null;
+  cupom_dia?: { code: string; regra: string } | null;
 }
 interface QueueItem {
   id: string;
@@ -296,7 +298,13 @@ export async function publishQueueItemForCampaign(
     throw new Error("nenhum telefone ativo (não-admin) na campanha");
   }
 
-  const caption = await buildCaption(offer as Offer, campaign, viaWaha ? "maternity" : "geek");
+  // cupom geral do dia (capturado do Telegram) que vale pro preço — só produto sem cupom próprio
+  const o = offer as Offer;
+  if (viaWaha && o.kind !== "cupom" && !o.coupon_code && !o.coupon_meta?.codes?.length) {
+    const c = melhorCupom(await loadCuponsDoDia(db), o.platform, o.price_current, o.promo_meta);
+    if (c) o.cupom_dia = { code: c.code, regra: c.regra };
+  }
+  const caption = await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
   let successes = 0;
   let failures = 0;
 

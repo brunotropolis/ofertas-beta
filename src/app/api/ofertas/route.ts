@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { OfferCreateSchema, parseOrError } from "@/lib/schemas";
+import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -28,7 +29,15 @@ export async function GET(request: Request) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  // preview: anexa o cupom do dia que o post vai usar (mesma regra do dispatcher)
+  const cupons = await loadCuponsDoDia(db).catch(() => []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const withCupom = ((data ?? []) as any[]).map((o) => {
+    if (o.kind === "cupom" || o.coupon_code || o.coupon_meta?.codes?.length) return o;
+    const c = melhorCupom(cupons, o.platform, o.price_current, o.promo_meta);
+    return c ? { ...o, cupom_dia: { code: c.code, regra: c.regra } } : o;
+  });
+  return NextResponse.json(withCupom);
 }
 
 export async function POST(request: Request) {

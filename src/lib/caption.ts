@@ -23,6 +23,14 @@ export interface PromoMeta {
   programe_poupe?: boolean;
   confira_pagamento?: boolean;
   adicione_n?: number | null;
+  // coletores ML/Shopee (gatilhos de compra do próprio anúncio)
+  rating?: number | null; // 4.9
+  vendidos?: string | null; // "+100mil" / "+800"
+  loja_oficial?: boolean;
+  cupom_anuncio?: string | null; // ML: "20% OFF com Cupom"
+  frete_gratis?: boolean;
+  chega_amanha?: boolean;
+  full?: boolean;
 }
 
 export interface CaptionOffer {
@@ -38,6 +46,8 @@ export interface CaptionOffer {
   coupon_meta?: { codes?: string[]; loja?: string; regra?: string } | null;
   promo_meta?: PromoMeta | null;
   platform?: string | null;
+  discount_pct?: number | null;
+  cupom_dia?: { code: string; regra: string } | null; // cupom geral do dia que vale pro preço (lib/cupom-do-dia)
 }
 
 const LOJA: Record<string, string> = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
@@ -74,7 +84,9 @@ function unitLine(offer: CaptionOffer): string | null {
 function priceBlock(offer: CaptionOffer): string {
   const a = offer.price_current;
   if (a == null) return "";
-  const lines = [`💰 Por *${moneyBRL(a)}*`];
+  const o0 = offer.price_original;
+  const pct = offer.discount_pct || (o0 && o0 > a ? Math.round((1 - a / o0) * 100) : 0);
+  const lines = [`💰 Por *${moneyBRL(a)}*${pct >= 5 ? ` (${pct}% OFF)` : ""}`];
   const u = unitLine(offer);
   if (u) lines.push(u);
   const o = offer.price_original;
@@ -84,6 +96,7 @@ function priceBlock(offer: CaptionOffer): string {
 
 function couponLine(offer: CaptionOffer): string | null {
   const codes = offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : offer.coupon_code ? [offer.coupon_code] : [];
+  if (!codes.length && offer.cupom_dia) return `🏷️Utilize o cupom: *${offer.cupom_dia.code}*\n_(${offer.cupom_dia.regra})_`;
   if (!codes.length) return null;
   return `🏷️Utilize o cupom: ${codes.map((c) => `*${c}*`).join(" ou ")}`;
 }
@@ -92,14 +105,28 @@ function instructionLines(offer: CaptionOffer): string[] {
   const p = offer.promo_meta || {};
   const out: string[] = [];
   if (p.programe_poupe) out.push(`✔️Selecione a opção "programe e poupe"`);
+  if (p.cupom_anuncio) out.push(`✔️Ative o cupom de ${p.cupom_anuncio.replace(/\s*com cupom/i, "")} no anúncio`);
   if (p.vendido_por) out.push(`✔️Selecione item vendido por ${p.vendido_por}.`);
   if (p.adicione_n && p.adicione_n > 1) out.push(`✔️Adicione ${p.adicione_n} ou mais unidades`);
   if (p.programe_poupe || p.confira_pagamento) out.push(`✔️Confira o desconto na tela de pagamento`);
   return out;
 }
 
+function provaSocial(offer: CaptionOffer): string | null {
+  const p = offer.promo_meta || {};
+  const bits: string[] = [];
+  if (p.rating && p.rating >= 4) bits.push(`⭐ ${String(p.rating).replace(".", ",")}`);
+  if (p.vendidos) bits.push(`${p.vendidos} vendidos`);
+  if (p.loja_oficial) bits.push("Loja oficial");
+  return bits.length ? bits.join(" · ") : null;
+}
+
 function freteLine(offer: CaptionOffer): string | null {
-  if (offer.platform !== "amazon") return null;
+  if (offer.platform !== "amazon") {
+    const p = offer.promo_meta || {};
+    const bits = [p.frete_gratis && "Frete grátis", p.chega_amanha && "Chega amanhã", p.full && "FULL"].filter(Boolean);
+    return bits.length ? `🚚 ${bits.join(" · ")}` : null;
+  }
   return offer.promo_meta?.amazon_seller === false
     ? `🚚 Frete c/ condição especial Amazon PRIME`
     : `🚚 Frete Grátis c/ Amazon PRIME`;
@@ -118,6 +145,8 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   if (offer.title) parts.push(`*${offer.title.trim()}*`);
   const pb = priceBlock(offer);
   if (pb) parts.push(pb);
+  const ps = provaSocial(offer);
+  if (ps) parts.push(ps);
   if (offer.promo_meta?.prime_exclusive) parts.push(`_Exclusivo para Membros Prime_`);
   const cl = couponLine(offer);
   if (cl) parts.push(cl);
