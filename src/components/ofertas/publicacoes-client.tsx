@@ -37,7 +37,7 @@ const SOURCES = [
   { key: "all",      label: "Todas" },
   { key: "manual",   label: "Manual" },
   { key: "telegram", label: "Telegram" },
-  { key: "whatsapp", label: "WhatsApp" },
+  // { key: "whatsapp", label: "WhatsApp" }, // oculto por enquanto (Bruno 08/Out)
   { key: "auto",     label: "Auto" },
 ] as const;
 
