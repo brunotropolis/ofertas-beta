@@ -9,8 +9,8 @@
  *   3. Se já bateu o teto do dia (auto_daily_cap) → não enfileira.
  *   4. Se já tem 1 item automático pendente na fila → espera o dispatcher drenar
  *      (o timer da campanha é quem espaça os posts).
- *   5. Senão, pega a oferta DRAFT mais nova do perfil (com imagem + link de
- *      afiliado) e enfileira nessa campanha. O dispatcher posta no próximo tick
+ *   5. Senão, escolhe pelas METAS do dia (escolherOfertas: fralda 35%, Amazon 45%,
+ *      @promocaozinha primeiro, coletores de reserva) e enfileira nessa campanha. O dispatcher posta no próximo tick
  *      que estiver "due" pelo timer.
  *
  * Manual e automático dividem a mesma fila e o mesmo timer — é um único fluxo de
@@ -54,6 +54,77 @@ function brtDayStartUtcIso(): string {
 function brtHour(): number {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCHours();
+}
+
+// ── Metas do mix automático (decisão Bruno 08/Out: Amazon e fralda = melhor comissão) ──
+const META_FRALDA = 0.35;
+const META_AMAZON = 0.45;
+const CANAL_REF = "@promocaozinha"; // canal do Telegram mais parecido com o grupo real
+const CANAL_FRESCO_MS = 6 * 3600_000; // item do canal vale se chegou nas últimas 6h (canal parado → cai nos coletores)
+const isFralda = (t: string | null) => /fralda/i.test(t || "");
+const chaveProduto = (t: string | null) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 40);
+
+interface Cand { id: string; title: string | null; platform: string | null; source: string }
+
+/**
+ * Escolhe as próximas ofertas do automático puxando o mix pra meta do dia:
+ *   fralda abaixo de 35% → fralda; Amazon abaixo de 45% → Amazon; senão o mais novo dos coletores.
+ *   Pra fralda/Amazon, prefere o @promocaozinha (fresco, últimas 6h); sem item dele, usa os coletores.
+ *   Nunca repete o mesmo produto no mesmo dia.
+ */
+async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: string): Promise<Cand[]> {
+  // o que o automático já pôs hoje (publicado + na fila)
+  const { data: hoje } = await db
+    .from("publication_queue")
+    .select("offer:offers(title, platform)")
+    .is("created_by", null)
+    .contains("campaign_ids", [c.id])
+    .gte("created_at", dayStart)
+    .limit(500);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null }[];
+  let total = feitos.length;
+  let fraldas = feitos.filter((o) => isFralda(o.title)).length;
+  let amazons = feitos.filter((o) => o.platform === "amazon").length;
+  const usados = new Set(feitos.map((o) => chaveProduto(o.title)));
+
+  const base = () => db.from("offers").select("id, title, platform, source").eq("perfil_id", c.perfil_id!).eq("status", "draft")
+    .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null);
+  const [{ data: canal }, { data: coletores }] = await Promise.all([
+    base().eq("source", "telegram").eq("source_channel", CANAL_REF)
+      .gte("created_at", new Date(Date.now() - CANAL_FRESCO_MS).toISOString())
+      .order("created_at", { ascending: false }).limit(150),
+    base().eq("source", "auto")
+      .gte("created_at", new Date(Date.now() - 48 * 3600_000).toISOString())
+      .order("created_at", { ascending: false }).limit(300),
+  ]);
+  // do canal só entram fralda e Amazon (o resto do canal segue na curadoria manual)
+  const poolCanal = ((canal ?? []) as Cand[]).filter((o) => o.platform === "amazon" || isFralda(o.title));
+  const poolCol = (coletores ?? []) as Cand[];
+
+  const escolhidos: Cand[] = [];
+  const pega = (pred: (o: Cand) => boolean): Cand | null => {
+    for (const pool of [poolCanal, poolCol]) {
+      const i = pool.findIndex((o) => pred(o) && !usados.has(chaveProduto(o.title)));
+      if (i >= 0) return pool.splice(i, 1)[0];
+    }
+    return null;
+  };
+  for (let k = 0; k < n; k++) {
+    const t = Math.max(total, 1);
+    let o: Cand | null = null;
+    if (fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
+    if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
+    if (!o) {
+      const i = poolCol.findIndex((x) => !usados.has(chaveProduto(x.title)));
+      o = i >= 0 ? poolCol.splice(i, 1)[0] : pega(() => true);
+    }
+    if (!o) break;
+    escolhidos.push(o);
+    usados.add(chaveProduto(o.title));
+    total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++;
+  }
+  return escolhidos;
 }
 
 export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
@@ -114,18 +185,9 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       continue;
     }
 
-    // Ofertas DRAFT mais novas do perfil, prontas (imagem + afiliado).
-    const { data: offers } = await db
-      .from("offers")
-      .select("id")
-      .eq("perfil_id", c.perfil_id)
-      .eq("status", "draft")
-      .eq("source", "auto") // só coletores; Telegram/manual passam pela curadoria (decisão Bruno 02/Out)
-      .not("image_url", "is", null)
-      .not("affiliate_url", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(toEnqueue);
-    if (!offers?.length) {
+    // Escolha com metas (Amazon e fralda = melhor comissão) — ver escolherOfertas().
+    const offers = await escolherOfertas(db, c, toEnqueue, dayStart);
+    if (!offers.length) {
       result.skipped.push({ campaign: c.name, reason: "sem draft pronto no perfil" });
       continue;
     }
