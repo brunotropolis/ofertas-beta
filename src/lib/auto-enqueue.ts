@@ -64,7 +64,21 @@ const CANAL_FRESCO_MS = 6 * 3600_000; // item do canal vale se chegou nas últim
 const isFralda = (t: string | null) => /fralda/i.test(t || "");
 const chaveProduto = (t: string | null) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 40);
 
-interface Cand { id: string; title: string | null; platform: string | null; source: string }
+interface Cand {
+  id: string; title: string | null; platform: string | null; source: string;
+  kind?: string | null; discount_pct?: number | null; price_current?: number | null; price_original?: number | null;
+}
+
+// ── Data dupla (10/10, 11/11…): dia de mais venda (ML 2–3,5x nas duplas 7/7, 8/8, 9/9). Decisão Bruno 10/Out:
+// puxa de TODOS os canais do Telegram (os que postam primeiro de manhã), maior desconto primeiro, + cupons de loja.
+const META_CUPOM_DUPLA = 0.25;
+function ehDataDupla(): boolean {
+  const brt = new Date(Date.now() - 3 * 3600_000);
+  return brt.getUTCDate() === brt.getUTCMonth() + 1;
+}
+const desconto = (o: Cand) =>
+  o.discount_pct || (o.price_original && o.price_current && o.price_original > o.price_current
+    ? Math.round(100 * (1 - o.price_current / o.price_original)) : 0);
 
 /**
  * Escolhe as próximas ofertas do automático puxando o mix pra meta do dia:
@@ -76,31 +90,44 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   // o que o automático já pôs hoje (publicado + na fila)
   const { data: hoje } = await db
     .from("publication_queue")
-    .select("offer:offers(title, platform)")
+    .select("offer:offers(title, platform, kind)")
     .is("created_by", null)
     .contains("campaign_ids", [c.id])
     .gte("created_at", dayStart)
     .limit(500);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null }[];
+  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null; kind?: string | null }[];
   let total = feitos.length;
   let fraldas = feitos.filter((o) => isFralda(o.title)).length;
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   const usados = new Set(feitos.map((o) => chaveProduto(o.title)));
 
-  const base = () => db.from("offers").select("id, title, platform, source").eq("perfil_id", c.perfil_id!).eq("status", "draft")
+  const dupla = ehDataDupla();
+  const campos = "id, title, platform, source, kind, discount_pct, price_current, price_original";
+  const base = () => db.from("offers").select(campos).eq("perfil_id", c.perfil_id!).eq("status", "draft")
     .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null);
-  const [{ data: canal }, { data: coletores }] = await Promise.all([
-    base().eq("source", "telegram").eq("source_channel", CANAL_REF)
-      .gte("created_at", new Date(Date.now() - CANAL_FRESCO_MS).toISOString())
-      .order("created_at", { ascending: false }).limit(150),
+  const fresco = new Date(Date.now() - CANAL_FRESCO_MS).toISOString();
+  let qCanal = base().eq("source", "telegram").gte("created_at", fresco);
+  if (!dupla) qCanal = qCanal.eq("source_channel", CANAL_REF);
+  const [{ data: canal }, { data: coletores }, { data: cupons }] = await Promise.all([
+    qCanal.order("created_at", { ascending: false }).limit(300),
     base().eq("source", "auto")
       .gte("created_at", new Date(Date.now() - 48 * 3600_000).toISOString())
       .order("created_at", { ascending: false }).limit(300),
+    dupla
+      ? db.from("offers").select(campos).eq("perfil_id", c.perfil_id!).eq("status", "draft").eq("kind", "cupom")
+          .eq("source", "telegram").not("affiliate_url", "is", null).gte("created_at", fresco)
+          .order("created_at", { ascending: false }).limit(100)
+      : Promise.resolve({ data: [] }),
   ]);
-  // do canal só entram fralda e Amazon (o resto do canal segue na curadoria manual)
-  const poolCanal = ((canal ?? []) as Cand[]).filter((o) => o.platform === "amazon" || isFralda(o.title));
+  // dia normal: do canal só entram fralda e Amazon (o resto segue na curadoria manual).
+  // data dupla: todo produto fresco do Telegram entra, maior desconto primeiro.
+  const poolCanal = dupla
+    ? ((canal ?? []) as Cand[]).sort((a, b) => desconto(b) - desconto(a))
+    : ((canal ?? []) as Cand[]).filter((o) => o.platform === "amazon" || isFralda(o.title));
   const poolCol = (coletores ?? []) as Cand[];
+  const poolCupom = (cupons ?? []) as Cand[];
+  let nCupons = feitos.filter((o) => o.kind === "cupom").length;
 
   const escolhidos: Cand[] = [];
   const pega = (pred: (o: Cand) => boolean): Cand | null => {
@@ -113,11 +140,18 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   for (let k = 0; k < n; k++) {
     const t = Math.max(total, 1);
     let o: Cand | null = null;
-    if (fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
+    if (dupla && nCupons / t < META_CUPOM_DUPLA) {
+      const i = poolCupom.findIndex((x) => !usados.has(chaveProduto(x.title)));
+      if (i >= 0) { o = poolCupom.splice(i, 1)[0]; nCupons++; }
+    }
+    if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
     if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
     if (!o) {
-      const i = poolCol.findIndex((x) => !usados.has(chaveProduto(x.title)));
-      o = i >= 0 ? poolCol.splice(i, 1)[0] : pega(() => true);
+      if (dupla) o = pega(() => true); // canal (maior desconto) antes dos coletores
+      else {
+        const i = poolCol.findIndex((x) => !usados.has(chaveProduto(x.title)));
+        o = i >= 0 ? poolCol.splice(i, 1)[0] : pega(() => true);
+      }
     }
     if (!o) break;
     escolhidos.push(o);
