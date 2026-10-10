@@ -62,11 +62,17 @@ const META_AMAZON = 0.45;
 const CANAL_REF = "@promocaozinha"; // canal do Telegram mais parecido com o grupo real
 const CANAL_FRESCO_MS = 6 * 3600_000; // item do canal vale se chegou nas últimas 6h (canal parado → cai nos coletores)
 const isFralda = (t: string | null) => /fralda/i.test(t || "");
+/** código do produto na loja (ASIN / item Shopee / MLB) — o mesmo produto vem com nome diferente do Telegram e do coletor */
+const idProduto = (url: string | null | undefined): string | null => {
+  const u = url || "";
+  const m = u.match(/\/dp\/([A-Z0-9]{10})/) || u.match(/shopee\.com\.br\/(?:product\/\d+\/|.*-i\.\d+\.)(\d+)/) || u.match(/(MLBU?-?\d{6,})/i);
+  return m ? m[1].replace("-", "").toUpperCase() : null;
+};
 const chaveProduto = (t: string | null) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 40);
 
 interface Cand {
   id: string; title: string | null; platform: string | null; source: string;
-  kind?: string | null; discount_pct?: number | null; price_current?: number | null; price_original?: number | null;
+  kind?: string | null; url?: string | null; discount_pct?: number | null; price_current?: number | null; price_original?: number | null;
 }
 
 // ── Data dupla (10/10, 11/11…): dia de mais venda (ML 2–3,5x nas duplas 7/7, 8/8, 9/9). Decisão Bruno 10/Out:
@@ -91,20 +97,22 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   // o que o automático já pôs hoje (publicado + na fila)
   const { data: hoje } = await db
     .from("publication_queue")
-    .select("offer:offers(title, platform, kind, source)")
+    .select("offer:offers(title, platform, kind, source, url)")
     .is("created_by", null)
     .contains("campaign_ids", [c.id])
     .gte("created_at", dayStart)
     .limit(500);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null; kind?: string | null; source?: string | null }[];
+  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null; kind?: string | null; source?: string | null; url?: string | null }[];
   let total = feitos.length;
   let fraldas = feitos.filter((o) => isFralda(o.title)).length;
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   const usados = new Set(feitos.map((o) => chaveProduto(o.title)));
+  const idsUsados = new Set(feitos.map((o) => idProduto(o.url)).filter(Boolean) as string[]);
+  const jaFoi = (o: Cand) => usados.has(chaveProduto(o.title)) || (!!idProduto(o.url) && idsUsados.has(idProduto(o.url)!));
 
   const dupla = ehDataDupla();
-  const campos = "id, title, platform, source, kind, discount_pct, price_current, price_original";
+  const campos = "id, title, platform, source, kind, url, discount_pct, price_current, price_original";
   const base = () => db.from("offers").select(campos).eq("perfil_id", c.perfil_id!).eq("status", "draft")
     .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null);
   const fresco = new Date(Date.now() - CANAL_FRESCO_MS).toISOString();
@@ -138,7 +146,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     // data dupla: alterna Telegram e coletores (quem tem menos posts hoje vai primeiro)
     const ordem = dupla && nAuto < nTele ? [poolCol, poolCanal] : [poolCanal, poolCol];
     for (const pool of ordem) {
-      const i = pool.findIndex((o) => pred(o) && !usados.has(chaveProduto(o.title)));
+      const i = pool.findIndex((o) => pred(o) && !jaFoi(o));
       if (i >= 0) return pool.splice(i, 1)[0];
     }
     return null;
@@ -147,7 +155,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const t = Math.max(total, 1);
     let o: Cand | null = null;
     if (dupla && nCupons / t < META_CUPOM_DUPLA) {
-      const i = poolCupom.findIndex((x) => !usados.has(chaveProduto(x.title)));
+      const i = poolCupom.findIndex((x) => !jaFoi(x));
       if (i >= 0) { o = poolCupom.splice(i, 1)[0]; nCupons++; }
     }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
@@ -155,13 +163,15 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (!o) {
       if (dupla) o = pega(() => true); // canal (maior desconto) antes dos coletores
       else {
-        const i = poolCol.findIndex((x) => !usados.has(chaveProduto(x.title)));
+        const i = poolCol.findIndex((x) => !jaFoi(x));
         o = i >= 0 ? poolCol.splice(i, 1)[0] : pega(() => true);
       }
     }
     if (!o) break;
     escolhidos.push(o);
     usados.add(chaveProduto(o.title));
+    const pid = idProduto(o.url);
+    if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++;
   }
