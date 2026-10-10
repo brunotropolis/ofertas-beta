@@ -33,6 +33,10 @@ function joinUrl(loc, base) {
   return base.replace(/[^/]*([?#].*)?$/, "") + loc;
 }
 function money(s) { if (!s) return null; const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) && n > 0 ? n : null; }
+// tira assinatura/divulgação de outros canais do texto (t.me/xxx, @canal) — 10/Out (t.me/sddescontos ia pra legenda)
+function semCanal(t) { return t.replace(/(?:https?://)?(?:t|telegram).me/S+/gi, "").replace(/(^|s)@[A-Za-z0-9_]{4,}/g, "$1").replace(/[ 	]+
+/g, "
+").trim(); }
 function brtStamp(ms) { return new Date(ms - 3 * 3600_000).toISOString().slice(0, 10).replace(/-/g, ""); }
 
 // ── 1. Ler o canal (página pública) ────────────────────────────────────────
@@ -47,7 +51,7 @@ function parseChannel(html, channel) {
     if (!tx) continue;
     const links = [...tx[1].matchAll(/href="(https?:\/\/[^"]+)"/g)].map((m) => decodeHtml(m[1]));
     const photo = (blk.match(/tgme_widget_message_photo_wrap[^>]*background-image:url\('([^']+)'\)/) || [])[1] || null;
-    out.push({ channel, id: +pid, time: tm ? Date.parse(tm) : Date.now(), text: decodeHtml(tx[1]).trim(), links, photo });
+    out.push({ channel, id: +pid, time: tm ? Date.parse(tm) : Date.now(), text: semCanal(decodeHtml(tx[1])), links, photo });
   }
   return out;
 }

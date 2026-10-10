@@ -55,6 +55,15 @@ export const AVISO_CUPOM = "⚠️ _Cupons podem encerrar a qualquer momento!_";
 
 const LOJA: Record<string, string> = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
 
+// trava final: nenhum link/@ de canal do Telegram sai nos nossos grupos (10/Out — t.me/sddescontos quase foi pra legenda)
+function semLinkDeCanal(t: string): string {
+  return t
+    .replace(/(?:https?:\/\/)?(?:t|telegram)\.me\/\S+/gi, "")
+    .replace(/(^|\s)@[A-Za-z0-9_]{4,}/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function moneyBRL(v: number): string {
   return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -162,7 +171,7 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   if (cl || offer.promo_meta?.cupom_anuncio) parts.push(AVISO_CUPOM);
   if (offer.extra_text?.trim() && !isLegacyCouponExtra(offer.extra_text)) parts.push(offer.extra_text.trim());
   parts.push(`Compre aqui 👇\n${offer.affiliate_url || offer.url}`);
-  return parts.join("\n\n");
+  return semLinkDeCanal(parts.join("\n\n"));
 }
 
 /** Post de CUPOM (sem IA), no formato do grupo. */
@@ -183,7 +192,7 @@ export function buildCouponCaption(offer: CaptionOffer): string {
   }
   parts.push(AVISO_CUPOM);
   parts.push(`Resgate aqui 👇\n${offer.affiliate_url || offer.url}`);
-  return parts.join("\n\n");
+  return semLinkDeCanal(parts.join("\n\n"));
 }
 
 /**
