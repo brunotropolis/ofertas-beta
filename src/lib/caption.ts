@@ -118,7 +118,7 @@ function instructionLines(offer: CaptionOffer): string[] {
 function provaSocial(offer: CaptionOffer): string | null {
   const p = offer.promo_meta || {};
   const bits: string[] = [];
-  if (p.rating && p.rating >= 4) bits.push(`⭐ ${String(p.rating).replace(".", ",")}`);
+  // nota (⭐) fora da legenda — pedido do Bruno 10/Out
   if (p.vendidos) bits.push(`${p.vendidos} vendidos`);
   if (p.loja_oficial) bits.push("Loja oficial");
   return bits.length ? bits.join(" · ") : null;
