@@ -35,6 +35,8 @@ interface Campaign {
 interface PerfilWaha {
   waha_url: string;
   waha_session: string;
+  /** outros servidores WAHA do perfil (perfis.waha_urls) — revezam por post com o waha_url */
+  waha_urls: string[];
 }
 interface Offer {
   id: string;
@@ -218,13 +220,51 @@ async function resolvePerfilWaha(db: DB, perfilId: string | null | undefined): P
   if (!perfilId) return null;
   const { data } = await db
     .from("perfis")
-    .select("waha_url, waha_session")
+    .select("waha_url, waha_session, waha_urls")
     .eq("id", perfilId)
     .maybeSingle();
   if (data?.waha_url && data?.waha_session) {
-    return { waha_url: data.waha_url as string, waha_session: data.waha_session as string };
+    return {
+      waha_url: data.waha_url as string,
+      waha_session: data.waha_session as string,
+      waha_urls: ((data.waha_urls as string[] | null) ?? []).filter(Boolean),
+    };
   }
   return null;
+}
+
+const wahaTag = (url: string) => `waha:${new URL(url).host.split(".")[0]}`;
+
+/**
+ * Revezamento por post: escolhe o servidor seguinte ao que fez o último envio com sucesso da campanha
+ * (phone_used = "waha:<host>"). Pula servidor cuja sessão não está WORKING; se nenhum estiver, fica com o principal.
+ */
+async function pickWaha(db: DB, perfil: PerfilWaha, campaignId: string): Promise<PerfilWaha> {
+  const urls = [perfil.waha_url, ...perfil.waha_urls.filter((u) => u !== perfil.waha_url)];
+  if (urls.length === 1) return perfil;
+  const { data } = await db
+    .from("publication_log")
+    .select("phone_used")
+    .eq("campaign_id", campaignId)
+    .eq("status", "success")
+    .like("phone_used", "waha:%")
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const last = urls.findIndex((u) => wahaTag(u) === data?.phone_used);
+  for (let k = 1; k <= urls.length; k++) {
+    const url = urls[(last + k + urls.length) % urls.length];
+    try {
+      const r = await fetch(`${url}/api/sessions/${perfil.waha_session}`, {
+        headers: { "X-Api-Key": WAHA_KEY ?? "" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok && (await r.json())?.status === "WORKING") return { ...perfil, waha_url: url };
+    } catch {
+      /* servidor fora: tenta o próximo */
+    }
+  }
+  return perfil;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,7 +319,8 @@ export async function publishQueueItemForCampaign(
   queueItem: QueueItem,
   campaign: Campaign
 ): Promise<{ successes: number; failures: number }> {
-  const perfilWaha = await resolvePerfilWaha(db, campaign.perfil_id);
+  const perfilBase = await resolvePerfilWaha(db, campaign.perfil_id);
+  const perfilWaha = perfilBase ? await pickWaha(db, perfilBase, campaign.id) : null;
   const viaWaha = !!perfilWaha;
 
   const [{ data: offer }, { data: phones }, { data: groups }] = await Promise.all([
@@ -321,7 +362,7 @@ export async function publishQueueItemForCampaign(
         campaign_id: campaign.id,
         group_jid: group.group_jid,
         group_name: group.group_name,
-        phone_used: viaWaha ? `waha:${perfilWaha!.waha_session}` : phone!.phone_number,
+        phone_used: viaWaha ? wahaTag(perfilWaha!.waha_url) : phone!.phone_number,
         status: "success",
       });
       successes++;
@@ -331,7 +372,7 @@ export async function publishQueueItemForCampaign(
         campaign_id: campaign.id,
         group_jid: group.group_jid,
         group_name: group.group_name,
-        phone_used: viaWaha ? `waha:${perfilWaha!.waha_session}` : phone?.phone_number ?? "",
+        phone_used: viaWaha ? wahaTag(perfilWaha!.waha_url) : phone?.phone_number ?? "",
         status: "error",
         error_message: err instanceof Error ? err.message : String(err),
       });
