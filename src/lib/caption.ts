@@ -88,7 +88,8 @@ function priceBlock(offer: CaptionOffer): string {
   const a = offer.price_current;
   if (a == null) return "";
   const o0 = offer.price_original;
-  const pct = offer.discount_pct || (o0 && o0 > a ? Math.round((1 - a / o0) * 100) : 0);
+  // % sempre dos preços mostrados (o % guardado podia ficar velho ou vir de outra base)
+  const pct = o0 && o0 > a ? Math.round((1 - a / o0) * 100) : 0;
   const lines = [`💰 Por *${moneyBRL(a)}*${pct >= 5 ? ` (${pct}% OFF)` : ""}`];
   const u = unitLine(offer);
   if (u) lines.push(u);

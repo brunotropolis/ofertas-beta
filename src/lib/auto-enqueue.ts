@@ -84,8 +84,8 @@ function ehDataDupla(): boolean {
   return brt.getUTCDate() === brt.getUTCMonth() + 1;
 }
 const desconto = (o: Cand) =>
-  o.discount_pct || (o.price_original && o.price_current && o.price_original > o.price_current
-    ? Math.round(100 * (1 - o.price_current / o.price_original)) : 0);
+  o.price_original && o.price_current && o.price_original > o.price_current
+    ? Math.round(100 * (1 - o.price_current / o.price_original)) : 0;
 
 /**
  * Escolhe as próximas ofertas do automático puxando o mix pra meta do dia:

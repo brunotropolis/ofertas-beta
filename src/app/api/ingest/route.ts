@@ -77,6 +77,14 @@ export async function POST(request: Request) {
   const parsed = parseOrError(IngestSchema, raw);
   if (!parsed.ok) return NextResponse.json(parsed.error, { status: 400 });
   const p = parsed.data;
+  // Shopee: o "% OFF" (priceDiscountRate) é sobre o preço cheio da loja, não sobre o preço da variação mais cara
+  // que o coletor mandava como price_original (dava "72% OFF" com "Custa" quase igual ao preço). 10/Out.
+  if (p.platform === "shopee" && p.discount_pct && p.price_current && p.discount_pct < 95) {
+    const cheio = Math.round((p.price_current / (1 - p.discount_pct / 100)) * 100) / 100;
+    if (!p.price_original || Math.abs(Math.round((1 - p.price_current / p.price_original) * 100) - p.discount_pct) > 3) {
+      p.price_original = cheio;
+    }
+  }
 
   // ── Dedup ──────────────────────────────────────────────────────────────
   if (p.source_ref) {
