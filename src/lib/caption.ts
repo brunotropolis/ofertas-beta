@@ -90,11 +90,12 @@ function priceBlock(offer: CaptionOffer): string {
   const o0 = offer.price_original;
   // % sempre dos preços mostrados (o % guardado podia ficar velho ou vir de outra base)
   const pct = o0 && o0 > a ? Math.round((1 - a / o0) * 100) : 0;
-  const lines = [`💰 Por *${moneyBRL(a)}*${pct >= 5 ? ` (${pct}% OFF)` : ""}`];
+  // trava: acima de 80% quase sempre é preço "de" errado/inflado → mostra só o preço (Bruno 10/Out)
+  const confiavel = pct > 0 && pct <= 80;
+  const lines = [`💰 Por *${moneyBRL(a)}*${confiavel && pct >= 5 ? ` (${pct}% OFF)` : ""}`];
   const u = unitLine(offer);
   if (u) lines.push(u);
-  const o = offer.price_original;
-  if (o != null && o > a) lines.push(`> Custa ${moneyBRL(o)}`);
+  if (confiavel) lines.push(`> Custa ${moneyBRL(o0!)}`);
   return lines.join("\n");
 }
 

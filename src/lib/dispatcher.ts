@@ -94,7 +94,8 @@ function priceLine(offer: Offer): string {
   const a = offer.price_current;
   if (a == null) return offer.title?.slice(0, 120) || "Oferta";
   const o = offer.price_original;
-  return o != null && o > a ? `💰 ${moneyBRL(a)} (de ${moneyBRL(o)})` : `💰 ${moneyBRL(a)}`;
+  // mesma trava da legenda: "de" com mais de 80% de desconto = dado ruim, não mostra
+  return o != null && o > a && a / o >= 0.2 ? `💰 ${moneyBRL(a)} (de ${moneyBRL(o)})` : `💰 ${moneyBRL(a)}`;
 }
 
 // Chama a Claude Haiku com um prompt (ex: ai_prompt da campanha ou fallback geek).
