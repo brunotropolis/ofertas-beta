@@ -312,7 +312,7 @@ async function runLeitor(ctx) {
             source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
             platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
             title: titleOf(p.text) || link.officialTitle || null, price_current: cur, price_original: orig,
-            image_url: link.image || p.photo, coupon_code: codes[0] || null,
+            image_url: link.image || null, coupon_code: codes[0] || null, // nunca a foto do post (tem a marca do canal) — 10/Out
             extra_text: null,
             coupon_meta: { post: `https://t.me/${ch}/${p.id}`, foto: link.image ? "loja" : "telegram", codes: codes.length ? codes : undefined },
             promo_meta: Object.keys(promo).length ? promo : null,
@@ -330,7 +330,7 @@ async function runLeitor(ctx) {
             source_ref: `tgcupom_${loja}_${[...codes].sort().join("-")}_${brtStamp(p.time)}`,
             platform: loja === "amazon" ? "amazon" : loja, url: affiliate_url, affiliate_url,
             title: `Cupom ${LOJA_NOME[loja]}${regra1 ? ": " + regra1 : ""}`.slice(0, 200),
-            image_url: p.photo, coupon_code: codes[0],
+            image_url: null, coupon_code: codes[0], // cupom: sem a foto do canal (marca deles) — 10/Out
             extra_text: regra || null,
             coupon_meta: { codes, loja, regra, post: `https://t.me/${ch}/${p.id}` },
           });

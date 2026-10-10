@@ -197,7 +197,8 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
       ? `🎟️ ${(offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : [offer.coupon_code]).filter(Boolean).join(" · ")}`
       : priceLine(offer),
   };
-  if (offer.image_url) preview.image = { url: offer.image_url };
+  // nunca a imagem de post do Telegram (telesco.pe) — vem com a marca do canal de origem (10/Out)
+  if (offer.image_url && !/telesco.pe|telegram.org/i.test(offer.image_url)) preview.image = { url: offer.image_url };
 
   const res = await fetch(`${perfil.waha_url}/api/send/link-custom-preview`, {
     method: "POST",
