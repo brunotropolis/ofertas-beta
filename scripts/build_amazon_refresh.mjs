@@ -63,8 +63,17 @@ for (const asin of asins) {
       amazon_seller: l.merchantInfo && l.merchantInfo.name ? /amazon/i.test(l.merchantInfo.name) : null } });
   }
 }
-const r = out.length ? await h.httpRequest({ url: BASE, method: 'POST', headers: { 'x-ingest-secret': SECRET, 'content-type': 'application/json' }, body: JSON.stringify({ itens: out }), json: false }) : '{}';
-return [{ json: { conferidos: itens.length, asins: asins.length, resposta: typeof r === 'string' ? JSON.parse(r) : r } }];
+// grava em lotes: 1 POST com centenas de itens passava dos 100s da Cloudflare (524)
+const resposta = { removidos: 0, atualizados: 0, lotes_com_erro: 0 };
+for (let i = 0; i < out.length; i += 40) {
+  try {
+    const r = await h.httpRequest({ url: BASE, method: 'POST', headers: { 'x-ingest-secret': SECRET, 'content-type': 'application/json' }, body: JSON.stringify({ itens: out.slice(i, i + 40) }), json: false });
+    const j = typeof r === 'string' ? JSON.parse(r) : r;
+    resposta.removidos += j.removidos || 0; resposta.atualizados += j.atualizados || 0;
+  } catch (e) { resposta.lotes_com_erro++; }
+}
+if (resposta.lotes_com_erro && !resposta.atualizados && !resposta.removidos) throw new Error('todos os lotes falharam');
+return [{ json: { conferidos: itens.length, asins: asins.length, resposta } }];
 `;
 
 const nodes = [

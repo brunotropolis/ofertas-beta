@@ -80,15 +80,23 @@ export async function POST(request: Request) {
     const { data } = await d.from("offers").delete().in("id", esg).in("status", ["draft", "queued"]).select("id");
     removidos = data?.length ?? 0;
   }
-  for (const i of parsed.data.itens.filter((x) => !x.esgotado)) {
-    const { data: cur } = await d.from("offers").select("promo_meta").eq("id", i.id).maybeSingle();
-    const patch: Record<string, unknown> = {
-      promo_meta: { ...(cur?.promo_meta || {}), ...(i.promo || {}), checked_at: new Date().toISOString() },
-    };
-    if (i.price_current != null) patch.price_current = i.price_current;
-    if (i.price_original !== undefined) patch.price_original = i.price_original;
-    const { error } = await d.from("offers").update(patch).eq("id", i.id).in("status", ["draft", "queued"]);
-    if (!error) atualizados++;
+  const vivos = parsed.data.itens.filter((x) => !x.esgotado);
+  // promo_meta atual de todos de uma vez + updates em paralelo (um por um estourava os 100s da Cloudflare)
+  const { data: atuais } = vivos.length
+    ? await d.from("offers").select("id, promo_meta").in("id", vivos.map((i) => i.id))
+    : { data: [] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const metaPorId = new Map(((atuais ?? []) as any[]).map((o) => [o.id, o.promo_meta]));
+  for (let k = 0; k < vivos.length; k += 10) {
+    const res = await Promise.all(vivos.slice(k, k + 10).map((i) => {
+      const patch: Record<string, unknown> = {
+        promo_meta: { ...(metaPorId.get(i.id) || {}), ...(i.promo || {}), checked_at: new Date().toISOString() },
+      };
+      if (i.price_current != null) patch.price_current = i.price_current;
+      if (i.price_original !== undefined) patch.price_original = i.price_original;
+      return d.from("offers").update(patch).eq("id", i.id).in("status", ["draft", "queued"]);
+    }));
+    atualizados += res.filter((r: { error: unknown }) => !r.error).length;
   }
   return NextResponse.json({ removidos, atualizados });
 }
