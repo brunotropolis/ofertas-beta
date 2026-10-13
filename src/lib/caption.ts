@@ -130,7 +130,7 @@ function provaSocial(offer: CaptionOffer): string | null {
   const p = offer.promo_meta || {};
   const bits: string[] = [];
   // nota (⭐) fora da legenda — pedido do Bruno 10/Out
-  if (p.vendidos) bits.push(`${p.vendidos} vendidos`);
+  // quantidade de vendidos fora da legenda — pedido do Bruno 12/Out
   if (p.loja_oficial) bits.push("Loja oficial");
   return bits.length ? bits.join(" · ") : null;
 }
