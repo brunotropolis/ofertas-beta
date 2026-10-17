@@ -34,9 +34,7 @@ function joinUrl(loc, base) {
 }
 function money(s) { if (!s) return null; const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) && n > 0 ? n : null; }
 // tira assinatura/divulgação de outros canais do texto (t.me/xxx, @canal) — 10/Out (t.me/sddescontos ia pra legenda)
-function semCanal(t) { return t.replace(/(?:https?://)?(?:t|telegram).me/S+/gi, "").replace(/(^|s)@[A-Za-z0-9_]{4,}/g, "$1").replace(/[ 	]+
-/g, "
-").trim(); }
+function semCanal(t) { return t.replace(/(?:https?:\/\/)?(?:t|telegram)\.me\/\S+/gi, "").replace(/(^|\s)@[A-Za-z0-9_]{4,}/g, "$1").replace(/[ \t]+\n/g, "\n").trim(); }
 function brtStamp(ms) { return new Date(ms - 3 * 3600_000).toISOString().slice(0, 10).replace(/-/g, ""); }
 
 // ── 1. Ler o canal (página pública) ────────────────────────────────────────
