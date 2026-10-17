@@ -37,8 +37,9 @@ export async function middleware(request: NextRequest) {
   // chegarem endpoints chamados por sistemas externos (Telegram, Greenn, etc).
   // /api/ingest e /api/cron têm auth própria por secret (x-ingest-secret / x-cron-secret).
   // /redefinir-senha só funciona com o token de uso único do link de recuperação (gerado pelo admin).
+  // /api/vendas/import: robô de vendas do ML (n8n) — auth própria x-import-secret = CRON_SECRET.
   // /esqueci-senha + /api/auth/esqueci: pedido de link (só envia pra admin/operator; resposta sempre igual).
-  const PUBLIC_PATHS = ["/login", "/redefinir-senha", "/esqueci-senha", "/api/auth/esqueci", "/api/cron", "/api/ingest", "/api/keywords/collector"];
+  const PUBLIC_PATHS = ["/login", "/redefinir-senha", "/esqueci-senha", "/api/auth/esqueci", "/api/cron", "/api/ingest", "/api/keywords/collector", "/api/vendas/import"];
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );

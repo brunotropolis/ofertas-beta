@@ -65,9 +65,11 @@ const perDay = dates.size > 1;
 const out = rows.map((r) => {
   const asin = (r[iAsin] || "").trim() || "na";
   const title = (r[iTitle] || "").trim();
-  const name = title === "others" ? "Outros produtos (Amazon)" : title || asin;
+  // linha dos produtos ocultos (baixo volume): formato antigo title="others"; novo (Out/2026) ASIN="Other" + title/categoria "-"
+  const isOutros = /^others?$/i.test(title) || /^others?$/i.test(asin);
+  const name = isOutros ? "Outros produtos (Amazon)" : (title && title !== "-" ? title : asin);
   const cat = (r[iCat] || "").trim();
-  const category = !cat || cat === "others" ? "Outras" : cat;
+  const category = isOutros || !cat || cat === "-" || /^others?$/i.test(cat) ? "Outras" : cat;
   const day = (r[iDate] || "").trim();
   return {
     external_id: perDay ? `${storeId}:${asin}:${day}` : `${storeId}:${asin}:${pStart}:${pEnd}`,
