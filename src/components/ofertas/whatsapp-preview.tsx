@@ -58,6 +58,8 @@ export default function WhatsAppPreview({
                 {image_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
+                    loading="lazy"
+                    decoding="async"
                     src={image_url}
                     alt={title}
                     className="w-[72px] h-[72px] object-cover shrink-0"

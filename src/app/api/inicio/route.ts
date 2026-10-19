@@ -35,46 +35,23 @@ export async function GET(request: Request) {
   const campList = (campaigns ?? []) as Any[];
   const campIds = campList.map((c) => c.id);
 
-  // ── Envios (publication_log = 1 linha por grupo) ─────────────────────────
-  let logs: Any[] = [];
+  // ── Envios: somados no banco (função inicio_resumo — antes lia 30 mil+ linhas de log, ~7s) ──
+  const perDay = new Map(days.map((d) => [d, { day: d, posts: 0, envios: 0, erros: 0 }]));
+  const perPlatform: Record<string, number> = {};
+  let posts = 0, envios = 0, erros = 0, lastSent: string | null = null;
   if (campIds.length) {
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await db
-        .from("publication_log")
-        .select("queue_id, campaign_id, group_name, status, sent_at, queue:publication_queue(offer:offers(platform))")
-        .in("campaign_id", campIds)
-        .gte("sent_at", since)
-        .order("sent_at", { ascending: true })
-        .range(from, from + 999);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      logs = logs.concat(data ?? []);
-      if (!data || data.length < 1000) break;
+    const { data: resumo, error } = await db.rpc("inicio_resumo", { p_campaigns: campIds, p_since: since });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    for (const r of (resumo ?? []) as Any[]) {
+      const d = perDay.get(r.dia);
+      const n = Number(r.posts), e = Number(r.envios), er = Number(r.erros);
+      posts += n; envios += e; erros += er;
+      if (d) { d.posts += n; d.envios += e; d.erros += er; }
+      if (n) perPlatform[r.plataforma] = (perPlatform[r.plataforma] ?? 0) + n;
+      if (r.ultimo && (!lastSent || r.ultimo > lastSent)) lastSent = r.ultimo;
     }
   }
-
-  const perDay = new Map(days.map((d) => [d, { day: d, posts: new Set<string>(), envios: 0, erros: 0 }]));
-  const perPlatform: Record<string, Set<string>> = {};
   const perGroup: Record<string, number> = {};
-  const posts = new Set<string>();
-  let envios = 0, erros = 0, lastSent: string | null = null;
-
-  for (const l of logs) {
-    const d = perDay.get(brtDay(l.sent_at));
-    const key = l.queue_id ?? `${l.sent_at}`;
-    if (l.status === "success") {
-      envios++;
-      posts.add(key);
-      lastSent = l.sent_at;
-      if (d) { d.envios++; d.posts.add(key); }
-      const plat = l.queue?.offer?.platform ?? "outro";
-      (perPlatform[plat] ??= new Set()).add(key);
-      const g = l.group_name ?? "grupo";
-      perGroup[g] = (perGroup[g] ?? 0) + 1;
-    } else {
-      erros++;
-      if (d) d.erros++;
-    }
-  }
 
   // ── Ofertas coletadas (entrada) ───────────────────────────────────────────
   let offQ = db.from("offers").select("platform, source, created_at").gte("created_at", since).limit(5000);
@@ -128,16 +105,16 @@ export async function GET(request: Request) {
     period: { since, days },
     campaigns: campList,
     kpis: {
-      posts: posts.size,
+      posts,
       envios,
       erros,
       taxa: envios + erros ? envios / (envios + erros) : null,
-      mediaDia: posts.size / 7,
+      mediaDia: posts / 7,
       lastSent,
       coletadas: Object.values(coletadas).reduce((a, b) => a + b, 0),
     },
-    perDay: [...perDay.values()].map((d) => ({ day: d.day, posts: d.posts.size, envios: d.envios, erros: d.erros })),
-    perPlatform: Object.fromEntries(Object.entries(perPlatform).map(([k, v]) => [k, v.size])),
+    perDay: [...perDay.values()],
+    perPlatform,
     perGroup,
     coletadas,
     agendados,

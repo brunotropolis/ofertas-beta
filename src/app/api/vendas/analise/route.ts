@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { fetchConversions } from "@/lib/shopee-sales";
 import { normalize } from "@/lib/normalize";
 import { windowAmazonRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
+import { comCache } from "@/lib/cache-curto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,15 @@ const isNoiseAd = (raw: string) => {
   return false;
 };
 
+// cache de 10 min (Shopee ao vivo + soma de vendas — não muda a cada segundo); ?fresh=1 força
 export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return comCache(request, "vendas-analise", 10 * 60_000, () => gerar(request));
+}
+
+async function gerar(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

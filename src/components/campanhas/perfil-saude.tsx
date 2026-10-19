@@ -45,7 +45,7 @@ export default function PerfilSaude({ perfilId, perfilNome, onNumeros }: { perfi
   useEffect(() => {
     let alive = true;
     setData(null);
-    fetch(`/api/perfis/${perfilId}/saude`, { cache: "no-store" })
+    fetch(`/api/perfis/${perfilId}/saude${tick > 0 ? "?fresh=1" : ""}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (alive && d) { setData(d); onNumeros?.(d.numeros); } })
       .catch(() => {});

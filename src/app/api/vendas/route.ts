@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { fetchConversions, aggregate, type SalesAggregate } from "@/lib/shopee-sales";
 import { aggregateRows, windowAmazonRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
 import { normalize } from "@/lib/normalize";
+import { comCache } from "@/lib/cache-curto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,7 +85,15 @@ function diffUnits(cur: Map<string, number>, prev: Map<string, number>, basis: s
 //   resultados de afiliado das 3 fontes + variação + anúncios×produto + produtos/oportunidades.
 //   Shopee: ao vivo (API oficial). ML/Amazon: lidos da tabela affiliate_sales (via coletor /vendas-sync).
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// cache de 10 min (Shopee ao vivo + soma de vendas — não muda a cada segundo); ?fresh=1 força
 export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return comCache(request, "vendas", 10 * 60_000, () => gerar(request));
+}
+
+async function gerar(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

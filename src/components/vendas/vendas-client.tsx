@@ -536,7 +536,7 @@ export default function VendasClient() {
                       <div key={i} className="flex items-center gap-3 bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-2.5">
                         {p.image ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={p.image} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 bg-zinc-900" onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+                          <img loading="lazy" decoding="async" src={p.image} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 bg-zinc-900" onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
                         ) : (
                           <div className="w-11 h-11 rounded-lg bg-zinc-900 shrink-0 grid place-items-center"><Package className="w-5 h-5 text-zinc-700" /></div>
                         )}

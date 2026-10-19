@@ -91,14 +91,15 @@ export default function GroupsTab({ campaignId, initialGroups, initialPhones, nu
           <span className="text-white font-medium">{enabledCount}</span> de{" "}
           <span className="text-white font-medium">{groups.length}</span> grupos habilitados
         </p>
-        <button
+        {/* sincronizar = telefones Evolution (sistema antigo); campanha do perfil usa os números WAHA */}
+        {numeros.length === 0 && <button
           onClick={handleSyncAll}
           disabled={syncing}
           className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900/70 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-full transition-colors disabled:opacity-50"
         >
           <RefreshCw className={cn("w-3.5 h-3.5", syncing && "animate-spin")} />
           {syncing ? "Sincronizando..." : "Sincronizar grupos"}
-        </button>
+        </button>}
       </div>
 
       {groups.length === 0 ? (

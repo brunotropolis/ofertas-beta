@@ -91,7 +91,7 @@ export default function FilaClient() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [feedback, setFeedback] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const dragging = useRef(false);
-  const { perfilId } = usePerfil();
+  const { perfilId, loading: perfilLoading } = usePerfil();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -116,11 +116,12 @@ export default function FilaClient() {
   }
 
   useEffect(() => {
+    if (perfilLoading) return; // espera o perfil (senão busca 2x: sem filtro e com perfil)
     load();
     const t = setInterval(() => load(true), 15000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perfilId]);
+  }, [perfilId, perfilLoading]);
 
   async function handlePublish(item: QueueItem) {
     setPublishing(item.id);
@@ -238,9 +239,9 @@ export default function FilaClient() {
           onDragEnd={handleDragEnd}
           onDragCancel={() => { dragging.current = false; }}
         >
-          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={items.filter((i) => i.status !== "error").map((i) => i.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-3">
-              {items.map((item) => (
+              {items.filter((i) => i.status !== "error").map((item) => (
                 <SortableRow
                   key={item.id}
                   item={item}
@@ -254,6 +255,30 @@ export default function FilaClient() {
               ))}
             </div>
           </SortableContext>
+          {/* itens com erro não saem sozinhos: ficam recolhidos no fim (publicar de novo ou excluir) */}
+          {items.some((i) => i.status === "error") && (
+            <details className="mt-5 group">
+              <summary className="cursor-pointer select-none text-xs text-red-300/80 hover:text-red-300 px-1 mb-3 list-none flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Com erro ({items.filter((i) => i.status === "error").length}) — clique pra ver
+              </summary>
+              <SortableContext items={items.filter((i) => i.status === "error").map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3 opacity-80">
+                  {items.filter((i) => i.status === "error").map((item) => (
+                    <SortableRow
+                      key={item.id}
+                      item={item}
+                      publishing={publishing === item.id}
+                      deleting={deleting === item.id}
+                      feedback={feedback?.id === item.id ? feedback : null}
+                      campaignName={campaignName}
+                      onPublish={handlePublish}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </details>
+          )}
         </DndContext>
       )}
     </div>
@@ -337,6 +362,8 @@ function SortableRow({
         {item.offer?.image_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
+            loading="lazy"
+            decoding="async"
             src={item.offer.image_url}
             alt=""
             className="w-16 h-16 rounded-xl object-cover shrink-0 bg-zinc-900"

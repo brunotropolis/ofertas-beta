@@ -57,7 +57,7 @@ export default function PublicacoesClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [enqueueFor, setEnqueueFor] = useState<Offer | null>(null);
   const [editing, setEditing] = useState<Offer | null>(null);
-  const { perfilId } = usePerfil();
+  const { perfilId, loading: perfilLoading } = usePerfil();
 
   async function load(silent = false) {
     silent ? setRefreshing(true) : setLoading(true);
@@ -82,7 +82,8 @@ export default function PublicacoesClient() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source, kind, perfilId]);
+  // espera o perfil carregar (senão busca tudo sem filtro e depois de novo com o perfil = 2x)
+  useEffect(() => { if (!perfilLoading) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source, kind, perfilId, perfilLoading]);
 
   async function handleDiscard(o: Offer) {
     if (!confirm("Descartar essa oferta?")) return;
@@ -227,7 +228,7 @@ function OfferCard({
       <div className="relative">
         {offer.image_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={offer.image_url} alt="" className="w-full aspect-square object-cover bg-zinc-900" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <img loading="lazy" decoding="async" src={offer.image_url} alt="" className="w-full aspect-square object-cover bg-zinc-900" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <div className="w-full aspect-square bg-zinc-900/80 flex items-center justify-center"><Tag className="w-8 h-8 text-zinc-700" /></div>
         )}
@@ -437,7 +438,7 @@ function EditModal({
             <div className="mt-1 rounded-xl bg-zinc-950/70 border border-zinc-800/70 p-3">
               {offer.image_url && (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={offer.image_url} alt="" className="w-full h-32 object-cover rounded-lg mb-2 bg-zinc-900" />
+                <img loading="lazy" decoding="async" src={offer.image_url} alt="" className="w-full h-32 object-cover rounded-lg mb-2 bg-zinc-900" />
               )}
               <p className="text-[12px] leading-relaxed text-zinc-200 whitespace-pre-wrap break-words">{preview.text}</p>
             </div>

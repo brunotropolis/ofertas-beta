@@ -188,7 +188,7 @@ export default function PhonesTab({ campaignId, initialPhones }: Props) {
             {qrData.qr ? (
               qrData.qr.startsWith("data:") ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={qrData.qr} alt="QR Code" className="w-52 h-52 rounded-xl bg-white p-2" />
+                <img loading="lazy" decoding="async" src={qrData.qr} alt="QR Code" className="w-52 h-52 rounded-xl bg-white p-2" />
               ) : (
                 <div className="bg-white p-3 rounded-xl text-center">
                   <p className="text-black text-xs font-mono break-all max-w-xs">{qrData.qr.slice(0, 150)}…</p>
