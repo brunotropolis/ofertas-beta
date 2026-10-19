@@ -70,7 +70,16 @@ interface Group {
   id: string;
   group_jid: string;
   group_name: string;
+  /** servidor WAHA fixo do grupo (divisão dos grupos entre os números); null = qualquer um */
+  waha_url?: string | null;
 }
+
+// Intervalo entre um envio e o próximo (aleatório, ms). Com os grupos divididos entre os números e
+// intercalados, cada número espera ~3x isso entre os seus próprios envios.
+const GAP_MIN_MS = 1500;
+const GAP_MAX_MS = 3000;
+// Aviso de "rate-overlimit" vai pro WhatsApp do Bruno (só avisa, não pausa — decisão 19/Out)
+const ALERTA_CHAT = "554184302127@c.us";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers de legenda
@@ -269,6 +278,67 @@ async function pickWaha(db: DB, perfil: PerfilWaha, campaignId: string): Promise
   return perfil;
 }
 
+/** Servidores WAHA do perfil com sessão WORKING agora → número conectado (url → "5541..."). */
+async function wahaSaudaveis(perfil: PerfilWaha): Promise<Map<string, string>> {
+  const urls = [perfil.waha_url, ...perfil.waha_urls.filter((u) => u !== perfil.waha_url)];
+  const out = new Map<string, string>();
+  await Promise.all(urls.map(async (url) => {
+    try {
+      const r = await fetch(`${url}/api/sessions/${perfil.waha_session}`, {
+        headers: { "X-Api-Key": WAHA_KEY ?? "" },
+        signal: AbortSignal.timeout(5000),
+      });
+      const s = r.ok ? await r.json() : null;
+      if (s?.status === "WORKING") out.set(url, String(s.me?.id ?? "").split("@")[0]);
+    } catch {
+      /* fora do ar */
+    }
+  }));
+  // mantém a ordem do perfil (principal primeiro)
+  return new Map(urls.filter((u) => out.has(u)).map((u) => [u, out.get(u)!]));
+}
+
+/**
+ * Avisa o Bruno no WhatsApp quando um número levou "rate-overlimit" neste post.
+ * Só avisa (não pausa). No máximo 1 aviso por número por hora: se já houve rate-overlimit
+ * desse número na hora anterior ao post, não repete.
+ */
+async function avisarRateLimit(
+  db: DB, perfil: PerfilWaha, saudaveis: Map<string, string>, limitados: Map<string, number>,
+  campaignId: string, inicioPost: string,
+) {
+  const desde = new Date(Date.parse(inicioPost) - 60 * 60_000).toISOString();
+  const linhas: string[] = [];
+  for (const [url, n] of limitados) {
+    const { count } = await db
+      .from("publication_log")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId)
+      .eq("phone_used", wahaTag(url))
+      .eq("status", "error")
+      .ilike("error_message", "%rate-overlimit%")
+      .gte("sent_at", desde)
+      .lt("sent_at", inicioPost);
+    if ((count ?? 0) > 0) continue;
+    const num = saudaveis.get(url) || wahaTag(url);
+    linhas.push(`• número final ${num.slice(-4)} (${wahaTag(url).replace("waha:", "")}): ${n} grupo(s) recusados`);
+  }
+  if (!linhas.length) return;
+  const via = [...saudaveis.keys()].find((u) => !limitados.has(u)) ?? [...saudaveis.keys()][0];
+  if (!via) return;
+  const hora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+  const text = `⚠️ *Ofertas Maternas: rate-overlimit* (${hora})\n\nO WhatsApp limitou envio em:\n${linhas.join("\n")}\n\nOs disparos seguem normais (sem pausa automática). Se repetir, vale diminuir o ritmo desse número.`;
+  try {
+    await fetch(`${via}/api/sendText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": WAHA_KEY },
+      body: JSON.stringify({ session: perfil.waha_session, chatId: ALERTA_CHAT, text }),
+    });
+  } catch {
+    /* aviso é best-effort */
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Timer / seleção de fila
 // ─────────────────────────────────────────────────────────────────────────────
@@ -324,12 +394,14 @@ export async function publishQueueItemForCampaign(
   const perfilBase = await resolvePerfilWaha(db, campaign.perfil_id);
   const perfilWaha = perfilBase ? await pickWaha(db, perfilBase, campaign.id) : null;
   const viaWaha = !!perfilWaha;
+  // servidores WAHA saudáveis agora (url → número) — cada grupo sai pelo seu número fixo
+  const saudaveis = perfilBase ? await wahaSaudaveis(perfilBase) : new Map<string, string>();
 
   const [{ data: offer }, { data: phones }, { data: groups }] = await Promise.all([
     db.from("offers").select("*").eq("id", queueItem.offer_id).maybeSingle(),
     db.from("campaign_phones").select("id, phone_number, evolution_instance_id")
       .eq("campaign_id", campaign.id).eq("is_active", true).eq("is_admin", false),
-    db.from("campaign_groups").select("id, group_jid, group_name")
+    db.from("campaign_groups").select("id, group_jid, group_name, waha_url")
       .eq("campaign_id", campaign.id).eq("is_enabled", true),
   ]);
 
@@ -351,11 +423,35 @@ export async function publishQueueItemForCampaign(
   let successes = 0;
   let failures = 0;
 
-  for (const group of groupList) {
+  // WAHA: cada grupo sai pelo seu número fixo (campaign_groups.waha_url); se o número dele estiver fora,
+  // vai pelo próximo saudável. A ordem intercala os números pra cada um respirar entre os próprios envios.
+  const vivos = [...saudaveis.keys()];
+  const servidorDe = (g: Group, i: number) =>
+    g.waha_url && saudaveis.has(g.waha_url) ? g.waha_url : vivos.length ? vivos[i % vivos.length] : perfilWaha?.waha_url ?? "";
+  const ordem: { group: Group; url: string }[] = [];
+  if (viaWaha) {
+    const filas = new Map<string, Group[]>();
+    groupList.forEach((g, i) => {
+      const u = servidorDe(g, i);
+      if (!filas.has(u)) filas.set(u, []);
+      filas.get(u)!.push(g);
+    });
+    const listas = [...filas.entries()];
+    for (let k = 0; listas.some(([, l]) => k < l.length); k++) {
+      for (const [u, l] of listas) if (k < l.length) ordem.push({ group: l[k], url: u });
+    }
+  } else {
+    for (const g of groupList) ordem.push({ group: g, url: "" });
+  }
+  const rateLimitados = new Map<string, number>(); // url → nº de grupos com rate-overlimit neste post
+  const inicioPost = new Date().toISOString();
+
+  for (const { group, url } of ordem) {
     const phone = phoneList.length ? phoneList[Math.floor(Math.random() * phoneList.length)] : null;
+    const usado = viaWaha ? wahaTag(url) : phone?.phone_number ?? "";
     try {
       if (viaWaha) {
-        await sendCardWaha(perfilWaha!, group.group_jid, caption, offer as Offer);
+        await sendCardWaha({ ...perfilWaha!, waha_url: url }, group.group_jid, caption, offer as Offer);
       } else {
         await sendTextEvolution(phone!.evolution_instance_id, group.group_jid, caption);
       }
@@ -364,24 +460,28 @@ export async function publishQueueItemForCampaign(
         campaign_id: campaign.id,
         group_jid: group.group_jid,
         group_name: group.group_name,
-        phone_used: viaWaha ? wahaTag(perfilWaha!.waha_url) : phone!.phone_number,
+        phone_used: usado,
         status: "success",
       });
       successes++;
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (viaWaha && /rate-overlimit/i.test(msg)) rateLimitados.set(url, (rateLimitados.get(url) ?? 0) + 1);
       await db.from("publication_log").insert({
         queue_id: queueItem.id,
         campaign_id: campaign.id,
         group_jid: group.group_jid,
         group_name: group.group_name,
-        phone_used: viaWaha ? wahaTag(perfilWaha!.waha_url) : phone?.phone_number ?? "",
+        phone_used: usado,
         status: "error",
-        error_message: err instanceof Error ? err.message : String(err),
+        error_message: msg,
       });
       failures++;
     }
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, GAP_MIN_MS + Math.random() * (GAP_MAX_MS - GAP_MIN_MS)));
   }
+
+  if (rateLimitados.size) await avisarRateLimit(db, perfilWaha!, saudaveis, rateLimitados, campaign.id, inicioPost);
 
   await maybeMarkQueueDone(db, queueItem);
   return { successes, failures };
