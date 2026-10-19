@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { usePerfil } from "@/lib/profile-context";
 import CampaignModal, { type CampaignFormData } from "./campaign-modal";
 import CampaignDetailClient from "./campaign-detail-client";
+import PerfilSaude, { type Numero } from "./perfil-saude";
 import type { Database } from "@/lib/types/database";
 
 type CampaignRow = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -30,6 +31,7 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [numeros, setNumeros] = useState<Numero[]>([]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visibleCampaigns = perfilId
@@ -136,6 +138,8 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
         </button>
       </div>
 
+      {perfilId && <PerfilSaude perfilId={perfilId} perfilNome={perfil?.nome ?? null} onNumeros={setNumeros} />}
+
       {visibleCampaigns.length === 0 ? (
         <EmptyCard
           icon={<Megaphone className="w-8 h-8 text-zinc-600" strokeWidth={1.5} />}
@@ -145,7 +149,8 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
       ) : (
         <>
           {visibleCampaigns.length > 1 && (
-            <div className="flex gap-2 flex-wrap mb-6">
+            <div className="flex gap-2 flex-wrap mb-6 items-center">
+              <span className="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">Campanhas</span>
               {visibleCampaigns.map((c) => (
                 <button
                   key={c.id}
@@ -172,6 +177,7 @@ export default function CampanhasClient({ initialCampaigns }: Props) {
               initialGroups={detail.groups}
               perfilId={perfilId}
               perfilNome={perfil?.nome ?? null}
+              numeros={numeros}
               onChanged={(u) => setCampaigns((prev) => prev.map((c) => (c.id === u.id ? { ...c, ...u } : c)))}
               onDelete={() => handleDelete(detail.campaign.id)}
             />

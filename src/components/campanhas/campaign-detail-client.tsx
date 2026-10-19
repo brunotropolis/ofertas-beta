@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Phone, Users, Store, Tag } from "lucide-react";
+import { Phone, Users, Store, Database as Fonte } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PhonesTab from "./phones-tab";
 import GroupsTab from "./groups-tab";
 import PlatformsTab from "./platforms-tab";
-import KeywordsTab from "./keywords-tab";
 import CampaignSettings from "./campaign-settings";
+import type { Numero } from "./perfil-saude";
 import type { Database } from "@/lib/types/database";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -20,6 +20,7 @@ interface Props {
   initialGroups: CampaignGroup[];
   perfilId: string | null;
   perfilNome: string | null;
+  numeros?: Numero[];
   onChanged?: (c: Campaign) => void;
   onDelete?: () => void;
 }
@@ -28,12 +29,19 @@ const TABS = [
   { id: "phones", label: "Telefones", icon: Phone },
   { id: "groups", label: "Grupos", icon: Users },
   { id: "platforms", label: "Plataformas", icon: Store },
-  { id: "keywords", label: "Palavras-chave", icon: Tag },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
-export default function CampaignDetailClient({ campaign: initial, initialPhones, initialGroups, perfilId, perfilNome, onChanged, onDelete }: Props) {
+// De onde vem o que a campanha posta (campaigns.categoria — lib/auto-categorias.ts)
+const FONTE: Record<string, string> = {
+  geral: "Mix do perfil: @promocaozinha + coletores (Shopee, ML, Amazon pelas palavras-chave), metas de fralda 35% e Amazon 45%.",
+  fraldas: "Fraldas em promoção do Fralda Barata: menor preço do mês, desconto ≥15% ou bem abaixo do preço por fralda do tamanho.",
+  cupons: "Cupons do Telegram (últimas 3h) com o nosso link, sem repetir código no dia e sem os marcados como esgotados.",
+  enxoval: "Produtos de enxoval que os coletores e o Telegram trazem, filtrados por palavra (body, manta, kit berço, banheira…).",
+};
+
+export default function CampaignDetailClient({ campaign: initial, initialPhones, initialGroups, perfilId, numeros = [], onChanged, onDelete }: Props) {
   const [campaign, setCampaign] = useState(initial);
   const [phones, setPhones] = useState(initialPhones);
   const [activeTab, setActiveTab] = useState<TabId>("phones");
@@ -74,7 +82,19 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
 
       <CampaignSettings campaign={campaign} onSaved={handleSaved} onDelete={onDelete} />
 
-      {/* Tabs */}
+      {perfilId && numeros.length > 0 ? (
+        <>
+          <div className="flex items-start gap-2 text-[12px] text-zinc-400 mb-4 px-1">
+            <Fonte className="w-3.5 h-3.5 mt-0.5 text-orange-400 shrink-0" strokeWidth={1.75} />
+            <span><b className="text-zinc-200">Fonte das ofertas:</b> {FONTE[(campaign as unknown as { categoria?: string }).categoria ?? "geral"]}</span>
+          </div>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-white mb-3">
+            <Users className="w-4 h-4 text-orange-400" strokeWidth={1.75} /> Grupos da campanha
+          </h3>
+          <GroupsTab campaignId={campaign.id} initialGroups={initialGroups} initialPhones={phones} numeros={numeros} />
+        </>
+      ) : (<>
+      {/* Tabs (campanha sem perfil/WAHA: telefones Evolution, grupos, plataformas por campanha) */}
       <div className="flex gap-1 mb-6 bg-zinc-900/50 border border-zinc-800/70 rounded-full p-1 w-fit">
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -107,9 +127,7 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
       {activeTab === "platforms" && (
         <PlatformsTab campaignId={campaign.id} />
       )}
-      {activeTab === "keywords" && (
-        <KeywordsTab perfilId={perfilId} perfilNome={perfilNome} />
-      )}
+      </>)}
 
     </div>
   );

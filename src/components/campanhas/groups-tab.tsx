@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Users, Search, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
+import { Luz, type Numero } from "./perfil-saude";
 
 type CampaignGroup = Database["public"]["Tables"]["campaign_groups"]["Row"];
 type CampaignPhone = Database["public"]["Tables"]["campaign_phones"]["Row"];
@@ -12,9 +13,12 @@ interface Props {
   campaignId: string;
   initialGroups: CampaignGroup[];
   initialPhones: CampaignPhone[];
+  /** números do perfil (WAHA) — mostra qual número atende cada grupo */
+  numeros?: Numero[];
 }
 
-export default function GroupsTab({ campaignId, initialGroups, initialPhones }: Props) {
+export default function GroupsTab({ campaignId, initialGroups, initialPhones, numeros = [] }: Props) {
+  const numDe = (g: CampaignGroup) => numeros.find((n) => n.url === (g as unknown as { waha_url?: string | null }).waha_url);
   const [groups, setGroups] = useState(initialGroups);
   const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -157,6 +161,14 @@ export default function GroupsTab({ campaignId, initialGroups, initialPhones }: 
                       {group.group_jid.split("@")[0]}
                     </span>
                   </div>
+                  {numeros.length > 0 && (() => {
+                    const n = numDe(group);
+                    return (
+                      <span className="flex items-center gap-1.5 text-[11px] text-zinc-400 shrink-0 ml-auto" title={n ? `${n.nome} — ${n.motivo}` : "sem número fixo: vai pelo que estiver livre"}>
+                        {n ? <><Luz luz={n.luz} className="h-2 w-2" /> final {n.numero.slice(-4)}</> : <span className="text-zinc-600">qualquer número</span>}
+                      </span>
+                    );
+                  })()}
                   <button
                     onClick={() => handleToggle(group)}
                     disabled={toggling === group.id}
