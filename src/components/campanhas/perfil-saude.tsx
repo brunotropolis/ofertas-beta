@@ -11,7 +11,7 @@ type Any = any;
 export type Numero = {
   url: string; tag: string; ordem: number; numero: string; nome: string; status: string;
   luz: "verde" | "amarelo" | "vermelho"; motivo: string; grupos: number;
-  envios_hoje: number; erros_24h: number; rate_24h: number; ultimo_envio: string | null;
+  envios_hoje: number; erros_24h: number; rate_24h: number; ultimo_rate: string | null; ultimo_envio: string | null;
 };
 
 const LUZ: Record<string, { dot: string; ring: string; label: string }> = {
@@ -94,7 +94,10 @@ export default function PerfilSaude({ perfilId, perfilNome, onNumeros }: { perfi
                   <Mini v={n.envios_hoje} l="envios hoje" />
                   <Mini v={n.erros_24h} l="erros 24h" alerta={n.erros_24h > 0} />
                 </div>
-                <p className="text-[10.5px] text-zinc-600 mt-2">último envio {ago(n.ultimo_envio)}</p>
+                <p className="text-[10.5px] text-zinc-600 mt-2">
+                  último envio {ago(n.ultimo_envio)}
+                  {n.rate_24h > 0 && <> · último limite do WhatsApp {ago(n.ultimo_rate)} ({n.rate_24h}x em 24h)</>}
+                </p>
               </div>
             ))}
           </div>
