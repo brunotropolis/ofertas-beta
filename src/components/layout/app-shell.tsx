@@ -120,7 +120,10 @@ function SidebarDesktop({ pathname }: { pathname: string }) {
       style={{ background: "linear-gradient(180deg, #2b1207 0%, #1a0c05 70%, #150904 100%)" }}
     >
       <div className="px-5 py-6 border-b border-orange-900/30">
-        <Logo />
+        {/* logo leva pro Início do projeto selecionado (o /inicio lê o perfil escolhido) */}
+        <Link href="/inicio" title="Início do projeto" className="inline-block rounded-lg hover:opacity-90 transition-opacity">
+          <Logo />
+        </Link>
       </div>
       <ProjectPicker />
       <nav className="flex-1 px-3 py-4 overflow-y-auto scroll-thin">
@@ -172,7 +175,9 @@ function DrawerMobile({
         }}
       >
         <div className="flex items-center justify-between px-5 py-5 border-b border-orange-900/30">
-          <Logo />
+          <Link href="/inicio" onClick={onClose} title="Início do projeto" className="inline-block rounded-lg">
+            <Logo />
+          </Link>
           <button onClick={onClose} className="p-2 text-orange-200/70 hover:text-white rounded-lg icon-only" aria-label="Fechar menu">
             <X className="w-5 h-5" strokeWidth={1.75} />
           </button>
