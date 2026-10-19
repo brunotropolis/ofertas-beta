@@ -77,13 +77,19 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
       source: "fraldabarata", source_ref: p.id, perfil_id: c.perfil_id, kind: "produto",
       platform: p.marketplace, url: p.link_afiliado, affiliate_url: p.link_afiliado,
       title: p.titulo, price_current: p.preco, price_original: p.preco_original, discount_pct: p.desconto_pct,
-      image_url: p.imagem_url, status: "draft",
+      // status "published": é espelho interno do Fralda Barata — não aparece em Publicações nem entra no mix
+      // do Ofertas Maternas (que só pega draft de auto/telegram); a campanha de fraldas ignora status
+      image_url: p.imagem_url, status: "published",
       promo_meta: { unit_price: Number(p.preco_por_fralda), rating: p.rating ?? null, loja_oficial: !!p.oficial, menor_30d: noMinimo(p) },
     };
     const { data: existe } = await db.from("offers").select("id").eq("source", "fraldabarata").eq("source_ref", p.id).maybeSingle();
     let id = existe?.id as string | undefined;
     if (id) await db.from("offers").update(oferta).eq("id", id);
-    else id = ((await db.from("offers").insert(oferta).select("id").single()).data as Any)?.id;
+    else {
+      const ins = await db.from("offers").insert(oferta).select("id").single();
+      if (ins.error) throw new Error(`fralda barata → offers: ${ins.error.message}`);
+      id = (ins.data as Any)?.id;
+    }
     if (id) ids.push(id);
   }
   return ids;
@@ -107,7 +113,7 @@ export function codigoValido(c: string): boolean {
 async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Promise<string[]> {
   const desde = new Date(Date.now() - 3 * 3600_000).toISOString();
   const { data } = await db.from("offers")
-    .select("id, title, coupon_code, coupon_meta, created_at")
+    .select("id, title, extra_text, coupon_code, coupon_meta, created_at")
     .eq("perfil_id", c.perfil_id!).eq("kind", "cupom").eq("source", "telegram")
     .not("affiliate_url", "is", null).gte("created_at", desde)
     .order("created_at", { ascending: false }).limit(200);
@@ -115,12 +121,20 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
   const usados = new Set<string>();
   for (const o of feitos) for (const k of (o.coupon_meta?.codes?.length ? o.coupon_meta.codes : [o.coupon_code])) if (k) usados.add(String(k).toUpperCase());
 
+  // post de "ESGOTADO/ENCERRADO" não é cupom: não posta e mata o código pro resto do dia
+  const MORTO = /esgotad|encerrad|acabou|expirad|n[aã]o (est[aá] )?funciona/i;
+  const codigosDe = (o: Any): string[] => (o.coupon_meta?.codes?.length ? o.coupon_meta.codes : o.coupon_code ? [o.coupon_code] : []).map((k: string) => String(k).toUpperCase());
+  const lista = (data ?? []) as Any[];
+  const mortos = new Set<string>();
+  for (const o of lista) if (MORTO.test(`${o.title} ${o.extra_text} ${o.coupon_meta?.regra ?? ""}`)) codigosDe(o).forEach((k) => mortos.add(k));
+
   const ids: string[] = [];
-  for (const o of (data ?? []) as Any[]) {
+  for (const o of lista) {
     if (ids.length >= n) break;
+    if (MORTO.test(`${o.title} ${o.extra_text} ${o.coupon_meta?.regra ?? ""}`)) continue;
     const brutos: string[] = o.coupon_meta?.codes?.length ? o.coupon_meta.codes : o.coupon_code ? [o.coupon_code] : [];
     const bons = [...new Set(brutos.map((k) => String(k).toUpperCase()).filter(codigoValido))];
-    if (!bons.length || bons.some((k) => usados.has(k))) continue;
+    if (!bons.length || bons.some((k) => usados.has(k) || mortos.has(k))) continue;
     // limpa os códigos-palavra da oferta (a legenda mostra só os bons)
     if (bons.length !== brutos.length) {
       await db.from("offers").update({ coupon_code: bons[0], coupon_meta: { ...(o.coupon_meta || {}), codes: bons } }).eq("id", o.id);
