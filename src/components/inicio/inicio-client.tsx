@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Send, CheckCircle2, PackageSearch, Wallet, Clock, CalendarClock, ArrowRight, Zap, RefreshCw } from "lucide-react";
+import { Send, CheckCircle2, PackageSearch, Wallet, Clock, CalendarClock, ArrowRight, Zap, RefreshCw, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePerfil } from "@/lib/profile-context";
 
@@ -154,7 +154,7 @@ export default function InicioClient() {
           {data && Object.keys(data.perGroup).length > 0 && (
             <div className="mt-5 pt-4 border-t border-zinc-800/70">
               <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Envios por grupo</p>
-              {Object.entries(data.perGroup as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([g, n]) => (
+              {Object.entries(data.perGroup as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([g, n]) => (
                 <div key={g} className="flex justify-between text-xs py-0.5">
                   <span className="text-zinc-300 truncate pr-2">{g}</span><span className="text-zinc-400">{n}</span>
                 </div>
@@ -163,6 +163,9 @@ export default function InicioClient() {
           )}
         </section>
       </div>
+
+      {/* Grupos: pessoas, entradas/saídas, top 10 */}
+      <Grupos g={data?.grupos} loading={!data} />
 
       {/* Fila + Agendados */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -278,6 +281,85 @@ function Kpi({ tone, icon: Icon, label, value, hint }: { tone: string; icon: Rea
       </div>
       <p className="text-3xl font-display font-semibold text-white tracking-tightest">{value}</p>
       <p className="text-[11.5px] text-zinc-400 mt-1 min-h-[1rem]">{hint}</p>
+    </div>
+  );
+}
+
+const num = (n: number) => n.toLocaleString("pt-BR");
+
+function Grupos({ g, loading }: { g: Any; loading: boolean }) {
+  const atual = g?.atual;
+  const dias: Any[] = g?.dias ?? [];
+  const sum = (k: "entraram" | "sairam", n: number) => dias.slice(-n).reduce((a, d) => a + (d[k] ?? 0), 0);
+  const maxMov = Math.max(1, ...dias.map((d) => Math.max(d.entraram ?? 0, d.sairam ?? 0)));
+  const saldo7 = sum("entraram", 7) - sum("sairam", 7);
+  return (
+    <section className="glass rounded-2xl p-5 mb-6 border-l-2 border-l-pink-500/70">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <Users className="w-4 h-4 text-pink-400" strokeWidth={1.75} /> Grupos
+        </h3>
+        <span className="text-[11px] text-zinc-500">{atual ? `retrato ${ago(atual.atualizado_em)} · atualiza de hora em hora` : ""}</span>
+      </div>
+      {loading ? <Skeleton h={180} /> : !atual ? (
+        <p className="text-sm text-zinc-500">Ainda sem retrato dos grupos. O primeiro sai na próxima hora cheia (8h–20h).</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+              <Mini label="Pessoas" value={num(atual.pessoas_unicas)} hint={`${num(atual.vagas)} vagas em ${atual.grupos} grupos`} />
+              <Mini label="Entraram hoje" value={`+${num(atual.entraram)}`} tone="text-emerald-300" hint={`${num(sum("entraram", 7))} em 7 dias`} />
+              <Mini label="Saíram hoje" value={`−${num(atual.sairam)}`} tone="text-red-300" hint={`${num(sum("sairam", 7))} em 7 dias`} />
+              <Mini label="Saldo 7 dias" value={`${saldo7 >= 0 ? "+" : "−"}${num(Math.abs(saldo7))}`} tone={saldo7 >= 0 ? "text-emerald-300" : "text-red-300"} hint="entradas − saídas" />
+            </div>
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Entradas e saídas por dia</p>
+            <div className="flex items-end gap-1.5 h-[120px]">
+              {dias.map((d) => {
+                const l = dayLabel(d.day ?? d.dia);
+                return (
+                  <div key={d.dia} className="flex-1 flex flex-col items-center justify-end gap-1 min-w-0" title={`${l.dm}: +${d.entraram} / −${d.sairam}`}>
+                    <div className="w-full flex items-end justify-center gap-0.5 h-[80px]">
+                      <div className="w-1/2 max-w-[14px] rounded-t bg-emerald-400/80" style={{ height: Math.max(2, (d.entraram / maxMov) * 80) }} />
+                      <div className="w-1/2 max-w-[14px] rounded-t bg-red-400/80" style={{ height: Math.max(2, (d.sairam / maxMov) * 80) }} />
+                    </div>
+                    <span className="text-[10px] text-zinc-500">{l.dm}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10.5px] text-zinc-600 mt-2">
+              <span className="text-emerald-400">■</span> entraram · <span className="text-red-400">■</span> saíram. Contagem começou em 19/10; entra/sai de madrugada aparece no retrato das 8h.
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Top 10 grupos</p>
+            <ol className="space-y-1">
+              {(g.top as Any[]).map((t, i) => (
+                <li key={t.group_name + i} className="flex items-center gap-2 text-xs py-0.5">
+                  <span className="w-4 text-zinc-600 tabular-nums">{i + 1}</span>
+                  <span className="text-zinc-300 truncate flex-1">{t.group_name}</span>
+                  <span className="text-white font-semibold tabular-nums">{num(t.membros)}</span>
+                  {(t.entraram > 0 || t.sairam > 0) && (
+                    <span className="text-[10px] tabular-nums text-zinc-500">
+                      <span className="text-emerald-400">+{t.entraram}</span>/<span className="text-red-400">−{t.sairam}</span>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Mini({ label, value, hint, tone = "text-white" }: { label: string; value: string; hint: string; tone?: string }) {
+  return (
+    <div className="rounded-xl bg-zinc-900/60 border border-zinc-800/70 p-3">
+      <p className="text-[10.5px] uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className={cn("text-xl font-display font-semibold tabular-nums", tone)}>{value}</p>
+      <p className="text-[10.5px] text-zinc-500 truncate">{hint}</p>
     </div>
   );
 }

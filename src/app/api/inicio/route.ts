@@ -97,7 +97,34 @@ export async function GET(request: Request) {
     (s) => !perfil || (s.campaign_ids ?? []).some((c: string) => campIds.includes(c))
   );
 
+  // ── Grupos: pessoas, entradas/saídas por dia, top 10 (alimentado por /api/cron/grupos) ──
+  let grupos: Any = null;
+  if (perfil) {
+    const desde14 = new Date(Date.now() - BRT_MS - 13 * 86400_000).toISOString().slice(0, 10);
+    const { data: resumo } = await db
+      .from("grupos_resumo_diario")
+      .select("dia, grupos, vagas, pessoas_unicas, entraram, sairam, atualizado_em")
+      .eq("perfil_id", perfil)
+      .gte("dia", desde14)
+      .order("dia", { ascending: true });
+    const lista = (resumo ?? []) as Any[];
+    const ultimo = lista[lista.length - 1];
+    let top: Any[] = [];
+    if (ultimo) {
+      const { data: tg } = await db
+        .from("grupos_diario")
+        .select("group_name, membros, entraram, sairam")
+        .eq("perfil_id", perfil)
+        .eq("dia", ultimo.dia)
+        .order("membros", { ascending: false })
+        .limit(10);
+      top = tg ?? [];
+    }
+    grupos = { atual: ultimo ?? null, dias: lista, top };
+  }
+
   return NextResponse.json({
+    grupos,
     period: { since, days },
     campaigns: campList,
     kpis: {
