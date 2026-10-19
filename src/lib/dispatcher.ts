@@ -504,7 +504,12 @@ async function maybeMarkQueueDone(db: DB, item: QueueItem) {
       .from("publication_queue")
       .update({ status: "published", published_at: new Date().toISOString() })
       .eq("id", item.id);
-    await db.from("offers").update({ status: "published" }).eq("id", item.offer_id);
+    // só a campanha geral "gasta" a oferta; campanha de categoria (fraldas/cupons/enxoval) posta
+    // a mesma oferta sem tirar ela do Ofertas Maternas (19/Out)
+    const { data: cats } = await db.from("campaigns").select("categoria").in("id", item.campaign_ids);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const temGeral = !cats?.length || (cats as any[]).some((c) => (c.categoria ?? "geral") === "geral");
+    if (temGeral) await db.from("offers").update({ status: "published" }).eq("id", item.offer_id);
   }
 }
 

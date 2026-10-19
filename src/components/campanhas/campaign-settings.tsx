@@ -14,6 +14,7 @@ type AutoFields = {
   auto_window_start: number;
   auto_window_end: number;
   auto_buffer: number;
+  categoria: string;
 };
 
 export type CampaignSettingsData = {
@@ -25,6 +26,14 @@ export type CampaignSettingsData = {
 } & AutoFields;
 
 const TIMER_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+
+// O que o automático escolhe pra campanha (lib/auto-categorias.ts)
+const CATEGORIAS: { v: string; label: string; hint: string }[] = [
+  { v: "geral", label: "Geral", hint: "Mix do Ofertas Maternas: metas de fralda e Amazon, @promocaozinha + coletores." },
+  { v: "fraldas", label: "Fraldas", hint: "Fraldas em promoção do Fralda Barata (menor preço do mês ou bem abaixo do preço por fralda do tamanho)." },
+  { v: "cupons", label: "Cupons", hint: "Cupons do Telegram com o nosso link, das últimas 3h, sem repetir código no dia." },
+  { v: "enxoval", label: "Enxoval", hint: "Produtos de enxoval por palavra-chave (body, manta, kit berço, banheira…), sem repetir em 7 dias." },
+];
 
 function fromCampaign(c: Campaign): CampaignSettingsData {
   const a = c as unknown as Partial<AutoFields>;
@@ -39,6 +48,7 @@ function fromCampaign(c: Campaign): CampaignSettingsData {
     auto_window_start: a.auto_window_start ?? 8,
     auto_window_end: a.auto_window_end ?? 21,
     auto_buffer: a.auto_buffer ?? 6,
+    categoria: a.categoria ?? "geral",
   };
 }
 
@@ -157,6 +167,14 @@ export default function CampaignSettings({
             <p className="flex items-center gap-2 text-sm font-semibold text-orange-300">
               <Zap className="w-4 h-4" strokeWidth={1.75} /> Postagem automática
             </p>
+            <Field label="O que essa campanha posta">
+              <div className="flex gap-1.5 flex-wrap">
+                {CATEGORIAS.map((c) => (
+                  <Chip key={c.v} active={form.categoria === c.v} onClick={() => set("categoria", c.v)}>{c.label}</Chip>
+                ))}
+              </div>
+              <p className="text-[11px] text-zinc-500 mt-1.5">{CATEGORIAS.find((c) => c.v === form.categoria)?.hint}</p>
+            </Field>
             <ToggleRow
               label="Enfileirar ofertas sozinho"
               hint="Pega a oferta mais nova coletada do perfil (com foto e link) e põe na fila."

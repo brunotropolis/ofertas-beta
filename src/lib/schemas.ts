@@ -52,6 +52,7 @@ export const CampaignCreateSchema = z.object({
   auto_window_start: z.number().int().min(0).max(23).optional(),
   auto_window_end: z.number().int().min(1).max(24).optional(),
   auto_buffer: z.number().int().min(0).max(50).optional(),
+  categoria: z.enum(["geral", "fraldas", "cupons", "enxoval"]).optional(),
 });
 
 export const CampaignUpdateSchema = CampaignCreateSchema.partial();

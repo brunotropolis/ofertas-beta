@@ -18,6 +18,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -30,6 +31,7 @@ interface AutoCampaign {
   auto_window_start: number;
   auto_window_end: number;
   auto_buffer: number;
+  categoria?: Categoria | null;
 }
 
 export interface AutoEnqueueResult {
@@ -183,7 +185,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
 
   const { data: campaigns } = await db
     .from("campaigns")
-    .select("id, name, perfil_id, auto_daily_cap, auto_window_start, auto_window_end, auto_buffer")
+    .select("id, name, perfil_id, auto_daily_cap, auto_window_start, auto_window_end, auto_buffer, categoria")
     .eq("is_active", true)
     .eq("auto_enqueue", true);
 
@@ -236,10 +238,14 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       continue;
     }
 
-    // Escolha com metas (Amazon e fralda = melhor comissão) — ver escolherOfertas().
-    const offers = await escolherOfertas(db, c, toEnqueue, dayStart);
+    // Campanha de categoria (fraldas/cupons/enxoval) escolhe pela regra dela — ver lib/auto-categorias.ts.
+    // Geral: metas do mix (Amazon e fralda = melhor comissão) — ver escolherOfertas().
+    const categoria = (c.categoria ?? "geral") as Categoria;
+    const offers = categoria === "geral"
+      ? await escolherOfertas(db, c, toEnqueue, dayStart)
+      : (await escolherPorCategoria(db, categoria, c, toEnqueue, dayStart)).map((id) => ({ id }));
     if (!offers.length) {
-      result.skipped.push({ campaign: c.name, reason: "sem draft pronto no perfil" });
+      result.skipped.push({ campaign: c.name, reason: categoria === "geral" ? "sem draft pronto no perfil" : `sem oferta de ${categoria} agora` });
       continue;
     }
 
@@ -265,7 +271,8 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
         result.skipped.push({ campaign: c.name, reason: `insert falhou: ${error.message}` });
         break;
       }
-      await db.from("offers").update({ status: "queued" }).eq("id", offer.id);
+      // categoria não tira a oferta do pool do Ofertas Maternas (geral só pega status=draft)
+      if (categoria === "geral") await db.from("offers").update({ status: "queued" }).eq("id", offer.id);
       result.enqueued++;
     }
   }

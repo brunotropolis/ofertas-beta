@@ -31,6 +31,8 @@ export interface PromoMeta {
   frete_gratis?: boolean;
   chega_amanha?: boolean;
   full?: boolean;
+  // Fralda Barata: preço de hoje é o menor dos últimos 30 dias
+  menor_30d?: boolean;
 }
 
 export interface CaptionOffer {
@@ -158,7 +160,7 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   parts.push(isFralda(offer.title) ? "OFERTAS DE FRALDAS 🚼" : creative || "🌟 OFERTA DO DIA 🌟");
   if (offer.title) parts.push(`*${offer.title.trim()}*`);
   const pb = priceBlock(offer);
-  if (pb) parts.push(pb);
+  if (pb) parts.push(offer.promo_meta?.menor_30d ? `${pb}\n📉 _Menor preço dos últimos 30 dias_` : pb);
   const ps = provaSocial(offer);
   if (ps) parts.push(ps);
   if (offer.promo_meta?.prime_exclusive) parts.push(`_Exclusivo para Membros Prime_`);
