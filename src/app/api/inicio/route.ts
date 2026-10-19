@@ -35,42 +35,43 @@ export async function GET(request: Request) {
   const campList = (campaigns ?? []) as Any[];
   const campIds = campList.map((c) => c.id);
 
-  // ── Envios: somados no banco (função inicio_resumo — antes lia 30 mil+ linhas de log, ~7s) ──
+  // ── Envios, coletadas e agendados em paralelo ─────────────────────────────
+  // envios: somados no banco (função inicio_resumo — antes lia 30 mil+ linhas de log, ~7s)
+  // coletadas: contagem por plataforma (antes baixava as linhas e o banco corta em 1.000 → mostrava "1000")
+  const contaColetadas = (plat: string) => {
+    let q = db.from("offers").select("id", { count: "exact", head: true }).gte("created_at", since).eq("platform", plat).neq("source", "fraldabarata");
+    if (perfil) q = q.eq("perfil_id", perfil);
+    return q;
+  };
+  const PLATS = ["amazon", "shopee", "ml"];
+  const [resumoR, schedR, ...colR] = await Promise.all([
+    campIds.length ? db.rpc("inicio_resumo", { p_campaigns: campIds, p_since: since }) : Promise.resolve({ data: [], error: null }),
+    db.from("scheduled_posts")
+      .select("id, title, link, campaign_ids, scheduled_at, repeat_type, repeat_limit, repeat_count, status")
+      .in("status", ["pending", "publishing"])
+      .order("scheduled_at", { ascending: true })
+      .limit(50),
+    ...PLATS.map(contaColetadas),
+  ]);
+  if (resumoR.error) return NextResponse.json({ error: resumoR.error.message }, { status: 500 });
+
   const perDay = new Map(days.map((d) => [d, { day: d, posts: 0, envios: 0, erros: 0 }]));
   const perPlatform: Record<string, number> = {};
   let posts = 0, envios = 0, erros = 0, lastSent: string | null = null;
-  if (campIds.length) {
-    const { data: resumo, error } = await db.rpc("inicio_resumo", { p_campaigns: campIds, p_since: since });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    for (const r of (resumo ?? []) as Any[]) {
-      const d = perDay.get(r.dia);
-      const n = Number(r.posts), e = Number(r.envios), er = Number(r.erros);
-      posts += n; envios += e; erros += er;
-      if (d) { d.posts += n; d.envios += e; d.erros += er; }
-      if (n) perPlatform[r.plataforma] = (perPlatform[r.plataforma] ?? 0) + n;
-      if (r.ultimo && (!lastSent || r.ultimo > lastSent)) lastSent = r.ultimo;
-    }
+  for (const r of (resumoR.data ?? []) as Any[]) {
+    const d = perDay.get(r.dia);
+    const n = Number(r.posts), e = Number(r.envios), er = Number(r.erros);
+    posts += n; envios += e; erros += er;
+    if (d) { d.posts += n; d.envios += e; d.erros += er; }
+    if (n) perPlatform[r.plataforma] = (perPlatform[r.plataforma] ?? 0) + n;
+    if (r.ultimo && (!lastSent || r.ultimo > lastSent)) lastSent = r.ultimo;
   }
   const perGroup: Record<string, number> = {};
 
-  // ── Ofertas coletadas (entrada) ───────────────────────────────────────────
-  let offQ = db.from("offers").select("platform, source, created_at").gte("created_at", since).limit(5000);
-  if (perfil) offQ = offQ.eq("perfil_id", perfil);
-  const { data: offers } = await offQ;
   const coletadas: Record<string, number> = {};
-  for (const o of (offers ?? []) as Any[]) {
-    const k = o.platform ?? "outro";
-    coletadas[k] = (coletadas[k] ?? 0) + 1;
-  }
+  PLATS.forEach((pl, i) => { const n = (colR[i] as Any).count ?? 0; if (n) coletadas[pl] = n; });
 
-  // ── Agendamentos pendentes ────────────────────────────────────────────────
-  const { data: sched } = await db
-    .from("scheduled_posts")
-    .select("id, title, link, campaign_ids, scheduled_at, repeat_type, repeat_limit, repeat_count, status")
-    .in("status", ["pending", "publishing"])
-    .order("scheduled_at", { ascending: true })
-    .limit(50);
-  const agendados = ((sched ?? []) as Any[]).filter(
+  const agendados = ((schedR.data ?? []) as Any[]).filter(
     (s) => !perfil || (s.campaign_ids ?? []).some((c: string) => campIds.includes(c))
   );
 
