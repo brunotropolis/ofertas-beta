@@ -150,7 +150,7 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
 const ENXOVAL = /enxoval|\bbod(y|ies)\b|macac[aã]o|mij[aã]o|cueiro|\bmanta\b|toalha (de banho|com capuz|fralda)|fralda de pano|kit ber[cç]o|protetor de ber[cç]o|len[cç]ol (de |para )?ber[cç]o|sa[ií]da (de )?maternidade|bolsa maternidade|\btouca\b|luvinha|pag[aã]o|kit (de )?higiene|banheira|trocador|fraldário|\bninho\b|mosquiteiro|saco de dormir|beb[eê] conforto|\bber[cç]o\b|carrinho de beb[eê]|travesseiro anti ?refluxo|kit (rec[eé]m|beb[eê])/i;
 const ROUPA = /conjunto|roupa|roupinha|pijama|meias?\b|sapatinho|kit (de )?roupa/i;
 const DE_BEBE = /beb[eê]|\brn\b|rec[eé]m|maternidade|0 ?a ?3 meses|\bmeses\b/i;
-const FORA = /\b([2-9]|1[0-6]) anos\b|adulto|gestante|\bpet\b|cachorro|\bgato\b|boneca|brinquedo|fraldas? descart|pampers|huggies|turma da m[oô]nica|babysec|mamypoko|personal/i;
+const FORA = /\b([2-9]|1[0-6]) anos\b|adulto|gestante|\bpet\b|cachorro|\bgato\b|boneca|brinquedo|fraldas? descart|pampers|huggies|turma da m[oô]nica|babysec|mamypoko|personal|sab[aã]o|amaciante|detergente|lava[- ]?roupa|para roupas|tira ?manchas|shampoo|condicionador|len[cç]os? umedecid/i;
 export const ehEnxoval = (t: string | null) => {
   const s = t || "";
   if (FORA.test(s)) return false;
