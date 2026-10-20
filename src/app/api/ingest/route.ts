@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { parseOrError } from "@/lib/schemas";
 import { createHash } from "crypto";
+import { codigoValido } from "@/lib/auto-categorias";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -183,6 +184,17 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── Cupom: limpa "códigos" que são palavra da frase do canal (ESGOTANDO, NESSE, NCIO…)
+  //    e usa a arte da loja como foto (cupom não tem produto → card e post ficavam sem imagem) ──
+  if (p.kind === "cupom") {
+    const meta = (p.coupon_meta ?? {}) as { codes?: string[]; loja?: string };
+    const brutos = (meta.codes?.length ? meta.codes : p.coupon_code ? [p.coupon_code] : []).map((c) => String(c).toUpperCase());
+    const bons = [...new Set(brutos.filter(codigoValido))];
+    p.coupon_meta = { ...meta, codes: bons };
+    p.coupon_code = bons[0] ?? null;
+    if (!p.image_url) p.image_url = imagemCupom(meta.loja || p.platform);
+  }
+
   // ── Cria oferta ─────────────────────────────────────────────────────────
   const willQueue = !!p.campaign_ids?.length;
   const { data: offer, error: offerErr } = await db
@@ -236,4 +248,10 @@ export async function POST(request: Request) {
 
 export async function GET() {
   return NextResponse.json({ error: "use POST com header x-ingest-secret" }, { status: 405 });
+}
+
+/** arte de cupom por loja (public/cupons/*.png) — foto do card e do post de cupom */
+function imagemCupom(loja: string | null | undefined): string {
+  const k = loja === "shopee" || loja === "amazon" ? loja : "ml";
+  return `https://app.buscadorgeek.com.br/cupons/${k}.png`;
 }
