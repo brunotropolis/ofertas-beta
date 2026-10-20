@@ -110,7 +110,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
     const naJanela = minBrt >= ini && minBrt < fim;
     const [{ data: ult }, { data: fila }, { count: hoje }] = await Promise.all([
       db.from("publication_log").select("sent_at").eq("campaign_id", c.id).eq("status", "success").order("sent_at", { ascending: false }).limit(1).maybeSingle(),
-      db.from("publication_queue").select("status, created_at").contains("campaign_ids", [c.id]).in("status", ["pending", "publishing"]).order("created_at", { ascending: true }).limit(20),
+      db.from("publication_queue").select("id, status, created_at").contains("campaign_ids", [c.id]).in("status", ["pending", "publishing"]).order("created_at", { ascending: true }).limit(20),
       db.from("publication_queue").select("id", { count: "exact", head: true }).contains("campaign_ids", [c.id]).eq("status", "published").is("created_by", null).gte("published_at", inicioHoje),
     ]);
     const timer = c.timer_minutes ?? 15;
@@ -119,14 +119,20 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
     const refMs = Math.max(ultMs, aberturaMs);
     const semPostMin = (agora - refMs) / 60000;
     const itens = (fila ?? []) as Any[];
-    const presoMin = itens.filter((i) => i.status === "publishing").map((i) => (agora - Date.parse(i.created_at)) / 60000);
+    // "enviando" travado = o ÚLTIMO envio desse post foi há mais de 25 min (20/Out: antes media desde que
+    // entrou na fila → fraldas, que espera 30 min na fila, parecia travada no instante em que começava a sair).
+    // Sem nenhum envio ainda: só conta como travado se já esperou o intervalo inteiro + 25 min.
+    const presoMin = await Promise.all(itens.filter((i) => i.status === "publishing").map(async (i) => {
+      const { data: u } = await db.from("publication_log").select("sent_at").eq("queue_id", i.id).order("sent_at", { ascending: false }).limit(1).maybeSingle();
+      return u?.sent_at ? (agora - Date.parse(u.sent_at)) / 60000 : (agora - Date.parse(i.created_at)) / 60000 - timer;
+    }));
     const esperandoMin = itens.filter((i) => i.status === "pending").map((i) => (agora - Date.parse(i.created_at)) / 60000);
     const tetoOk = (hoje ?? 0) >= (c.auto_daily_cap ?? 9999);
     const geral = (c.categoria ?? "geral") === "geral";
     let luz: Luz = "verde", motivo = "Postando normalmente";
     if (!naJanela) motivo = `Fora do horário (${ini / 60}h–${fim / 60}h)`;
     else if (tetoOk) motivo = "Teto do dia atingido";
-    else if (presoMin.some((m) => m > 25 && ultMs < agora - 25 * 60_000)) { luz = "vermelho"; motivo = "Post travado em 'enviando'"; }
+    else if (presoMin.some((m) => m > 25)) { luz = "vermelho"; motivo = "Post travado em 'enviando'"; }
     else if (geral && semPostMin > (ultMs < aberturaMs ? 25 : Math.max(timer * 2, 30) + 10)) { luz = "vermelho"; motivo = `Nenhum post há ${Math.round(semPostMin)} min`; }
     else if (!geral && esperandoMin.some((m) => m > timer + 30) && semPostMin > timer + 30) { luz = "vermelho"; motivo = `Oferta esperando na fila há ${Math.round(Math.max(...esperandoMin))} min sem sair`; }
     else if (!geral && !itens.length && semPostMin > timer * 3) motivo = "Sem oferta nova dessa categoria agora";

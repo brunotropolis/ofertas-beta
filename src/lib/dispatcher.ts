@@ -535,7 +535,9 @@ async function destravarPresos(db: DB) {
   for (const q of (presos ?? []) as { id: string; created_at: string }[]) {
     const { data: ult } = await db.from("publication_log").select("sent_at").eq("queue_id", q.id)
       .order("sent_at", { ascending: false }).limit(1).maybeSingle();
-    const ref = Date.parse((ult?.sent_at as string | undefined) ?? q.created_at);
+    // com envio: conta desde o último envio. Sem nenhum envio: created_at é quando ENTROU NA FILA
+    // (pode ter esperado o intervalo inteiro antes de começar) → só mexe depois de 90 min.
+    const ref = ult?.sent_at ? Date.parse(ult.sent_at as string) : Date.parse(q.created_at) + 70 * 60_000;
     if (Date.now() - ref < 20 * 60_000) continue; // ainda pode estar enviando
     const { count: ok } = await db.from("publication_log").select("id", { count: "exact", head: true })
       .eq("queue_id", q.id).eq("status", "success");
