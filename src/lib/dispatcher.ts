@@ -524,6 +524,27 @@ export interface TickResult {
   errors: string[];
 }
 
+/**
+ * Item preso em "publishing" (o processo morreu no meio do envio — ex.: deploy durante o post, 19/Out)
+ * trava a fila da campanha pra sempre. Sem envio novo há 20 min:
+ *   - se chegou em algum grupo → "published" (reenviar duplicaria nos que já receberam)
+ *   - se não chegou em nenhum → volta pra "pending"
+ */
+async function destravarPresos(db: DB) {
+  const { data: presos } = await db.from("publication_queue").select("id, created_at").eq("status", "publishing").limit(20);
+  for (const q of (presos ?? []) as { id: string; created_at: string }[]) {
+    const { data: ult } = await db.from("publication_log").select("sent_at").eq("queue_id", q.id)
+      .order("sent_at", { ascending: false }).limit(1).maybeSingle();
+    const ref = Date.parse((ult?.sent_at as string | undefined) ?? q.created_at);
+    if (Date.now() - ref < 20 * 60_000) continue; // ainda pode estar enviando
+    const { count: ok } = await db.from("publication_log").select("id", { count: "exact", head: true })
+      .eq("queue_id", q.id).eq("status", "success");
+    await db.from("publication_queue")
+      .update(ok ? { status: "published", published_at: new Date().toISOString() } : { status: "pending" })
+      .eq("id", q.id).eq("status", "publishing");
+  }
+}
+
 export async function tickAll(db: DB): Promise<TickResult> {
   const result: TickResult = { campaigns_checked: 0, campaigns_due: 0, publications: 0, errors: [] };
 
@@ -534,6 +555,8 @@ export async function tickAll(db: DB): Promise<TickResult> {
 
   const camps = (campaigns ?? []) as Campaign[];
   result.campaigns_checked = camps.length;
+
+  await destravarPresos(db);
 
   for (const campaign of camps) {
     try {
