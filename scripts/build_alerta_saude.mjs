@@ -1,4 +1,4 @@
-// Monta/atualiza o workflow n8n "OFERTAS | Alerta Saúde" — a cada 10 min, chama POST /api/cron/saude do painel
+// Monta/atualiza o workflow n8n "OFERTAS | Alerta Saúde" — a cada 5 min, chama POST /api/cron/saude do painel
 // e manda WhatsApp pro Bruno (via WHAPI, número 1658 — independente dos números que disparam) quando:
 //   • um número de disparo fica VERMELHO (desconectado/fora do ar) — e quando volta;
 //   • uma plataforma (coletor Amazon/Shopee/ML) fica VERMELHA — e quando volta;
@@ -54,7 +54,10 @@ if (r.statusCode >= 300) {
     for (const x of p.plataformas || []) {
       muda('plat:' + p.perfil + ':' + x.plataforma, x.luz === 'vermelho', x.nome + ' (' + p.perfil + '): ' + x.motivo, x.nome + ' (' + p.perfil + ') voltou a trazer ofertas');
     }
-    if (p.disparo) muda('disp:' + p.perfil, p.disparo.luz === 'vermelho', p.perfil + ': ' + p.disparo.motivo, p.perfil + ': disparos voltaram a sair');
+    // por campanha (20/Out): o agregado escondia a Maternas parada enquanto Fraldas/Cupons postavam
+    for (const c of p.campanhas || []) {
+      muda('camp:' + c.id, c.luz === 'vermelho', c.nome + ': ' + c.motivo, c.nome + ': voltou a postar');
+    }
   }
 }
 
@@ -71,10 +74,10 @@ return [{ json: { alertas: linhas, enviado, estado: st.estado } }];
 `;
 
 const nodes = [
-  { parameters: { rule: { interval: [{ field: "cronExpression", expression: "*/10 * * * *" }] } }, name: "a cada 10 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
+  { parameters: { rule: { interval: [{ field: "cronExpression", expression: "*/5 * * * *" }] } }, name: "a cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
   { parameters: { jsCode }, name: "CHECAR + AVISAR", type: "n8n-nodes-base.code", typeVersion: 2, position: [240, 0] },
 ];
-const connections = { "a cada 10 min": { main: [[{ node: "CHECAR + AVISAR", type: "main", index: 0 }]] } };
+const connections = { "a cada 5 min": { main: [[{ node: "CHECAR + AVISAR", type: "main", index: 0 }]] } };
 if (process.env.PRINT_CODE) { fs.writeFileSync(process.env.PRINT_CODE, jsCode); process.exit(0); }
 const body = { name: NAME, nodes, connections, settings: { executionOrder: "v1", timezone: "America/Sao_Paulo" } };
 

@@ -104,6 +104,26 @@ export default function PerfilSaude({ perfilId, perfilNome, onNumeros }: { perfi
         )}
       </section>
 
+      {/* Disparo por campanha */}
+      {data?.campanhas?.length > 0 && (
+        <section className="glass rounded-2xl p-4 border-l-2 border-l-orange-500/60">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {(data.campanhas as Any[]).map((c) => (
+              <div key={c.id} className={cn("rounded-lg bg-zinc-900/60 border px-3 py-2", LUZ[c.luz]?.ring)} title={c.motivo}>
+                <div className="flex items-center gap-2">
+                  <Luz luz={c.luz} className="h-2 w-2" />
+                  <span className="text-[12px] text-white font-medium truncate">{c.nome}</span>
+                  <span className="ml-auto text-[10.5px] text-zinc-500 tabular-nums shrink-0">{c.posts_hoje} hoje</span>
+                </div>
+                <p className={cn("text-[10.5px] mt-0.5 truncate", c.luz === "vermelho" ? "text-red-300" : "text-zinc-500")}>
+                  {c.motivo} · último {ago(c.ultimo_envio)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Plataformas */}
       <section className="glass rounded-2xl p-5 border-l-2 border-l-sky-500/60">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white mb-4">

@@ -94,19 +94,50 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
   }));
 
 
-  // ── Disparo (algum post saindo?) ────────────────────────────────────────
-  const { data: ultEnvio } = campIds.length
-    ? await db.from("publication_log").select("sent_at").in("campaign_id", campIds).eq("status", "success").order("sent_at", { ascending: false }).limit(1).maybeSingle()
-    : { data: null };
-  const { count: ativas } = await db.from("campaigns").select("id", { count: "exact", head: true }).eq("perfil_id", id).eq("is_active", true);
+  // ── Disparo POR CAMPANHA (20/Out: o agregado escondia a Maternas parada enquanto Fraldas/Cupons postavam) ──
+  //   geral (Maternas): sem post há mais de max(2×intervalo, 30)+10 min dentro da janela → vermelho;
+  //                     começo do dia: nada até 25 min depois de abrir a janela → vermelho.
+  //   categoria (fraldas/cupons/enxoval): pode faltar oferta de verdade → só vermelho se tem item na fila
+  //                     esperando há mais que intervalo+30 min (o disparo é que travou).
+  //   qualquer uma: item preso em "enviando" há mais de 25 min → vermelho.
+  const { data: campsAtivas } = await db.from("campaigns")
+    .select("id, name, categoria, timer_minutes, auto_daily_cap, auto_window_start, auto_window_end")
+    .eq("perfil_id", id).eq("is_active", true);
   const minBrt = hBrt * 60 + new Date(agora - BRT_MS).getUTCMinutes();
-  const naJanela = minBrt >= 8 * 60 + 30 && minBrt < 20 * 60;
-  const semEnvioMin = ultEnvio?.sent_at ? (agora - Date.parse(ultEnvio.sent_at)) / 60000 : Infinity;
+  const inicioDiaUtc = Date.parse(`${hojeBrt}T00:00:00Z`) + BRT_MS;
+  const campanhas = await Promise.all(((campsAtivas ?? []) as Any[]).map(async (c) => {
+    const ini = (c.auto_window_start ?? 8) * 60, fim = (c.auto_window_end ?? 20) * 60;
+    const naJanela = minBrt >= ini && minBrt < fim;
+    const [{ data: ult }, { data: fila }, { count: hoje }] = await Promise.all([
+      db.from("publication_log").select("sent_at").eq("campaign_id", c.id).eq("status", "success").order("sent_at", { ascending: false }).limit(1).maybeSingle(),
+      db.from("publication_queue").select("status, created_at").contains("campaign_ids", [c.id]).in("status", ["pending", "publishing"]).order("created_at", { ascending: true }).limit(20),
+      db.from("publication_queue").select("id", { count: "exact", head: true }).contains("campaign_ids", [c.id]).eq("status", "published").is("created_by", null).gte("published_at", inicioHoje),
+    ]);
+    const timer = c.timer_minutes ?? 15;
+    const ultMs = ult?.sent_at ? Date.parse(ult.sent_at) : 0;
+    const aberturaMs = inicioDiaUtc + ini * 60_000;
+    const refMs = Math.max(ultMs, aberturaMs);
+    const semPostMin = (agora - refMs) / 60000;
+    const itens = (fila ?? []) as Any[];
+    const presoMin = itens.filter((i) => i.status === "publishing").map((i) => (agora - Date.parse(i.created_at)) / 60000);
+    const esperandoMin = itens.filter((i) => i.status === "pending").map((i) => (agora - Date.parse(i.created_at)) / 60000);
+    const tetoOk = (hoje ?? 0) >= (c.auto_daily_cap ?? 9999);
+    const geral = (c.categoria ?? "geral") === "geral";
+    let luz: Luz = "verde", motivo = "Postando normalmente";
+    if (!naJanela) motivo = `Fora do horário (${ini / 60}h–${fim / 60}h)`;
+    else if (tetoOk) motivo = "Teto do dia atingido";
+    else if (presoMin.some((m) => m > 25 && ultMs < agora - 25 * 60_000)) { luz = "vermelho"; motivo = "Post travado em 'enviando'"; }
+    else if (geral && semPostMin > (ultMs < aberturaMs ? 25 : Math.max(timer * 2, 30) + 10)) { luz = "vermelho"; motivo = `Nenhum post há ${Math.round(semPostMin)} min`; }
+    else if (!geral && esperandoMin.some((m) => m > timer + 30) && semPostMin > timer + 30) { luz = "vermelho"; motivo = `Oferta esperando na fila há ${Math.round(Math.max(...esperandoMin))} min sem sair`; }
+    else if (!geral && !itens.length && semPostMin > timer * 3) motivo = "Sem oferta nova dessa categoria agora";
+    return { id: c.id, nome: c.name, categoria: c.categoria ?? "geral", luz, motivo, ultimo_envio: ult?.sent_at ?? null, posts_hoje: hoje ?? 0 };
+  }));
+  const pior = campanhas.find((c) => c.luz === "vermelho");
   const disparo = {
-    luz: (!ativas || !naJanela || semEnvioMin <= 60 ? "verde" : "vermelho") as Luz,
-    ultimo_envio: ultEnvio?.sent_at ?? null,
-    motivo: !ativas ? "Nenhuma campanha ativa" : !naJanela ? "Fora da janela de disparo (8h–20h)" : semEnvioMin <= 60 ? "Disparos saindo normalmente" : `Nenhum post saiu há ${Math.round(semEnvioMin)} min`,
+    luz: (pior ? "vermelho" : "verde") as Luz,
+    ultimo_envio: campanhas.map((c) => c.ultimo_envio).filter(Boolean).sort().pop() ?? null,
+    motivo: pior ? `${pior.nome}: ${pior.motivo}` : campanhas.length ? "Disparos saindo normalmente" : "Nenhuma campanha ativa",
   };
 
-  return { numeros, plataformas, disparo };
+  return { numeros, plataformas, disparo, campanhas };
 }
