@@ -285,65 +285,108 @@ async function runLeitor(ctx) {
     if (posts.length) state.last[ch] = Math.max(last || 0, ...posts.map((p) => p.id));
     res.novos += fresh.length;
 
-    for (const p of fresh) {
-      if (ESGOTADO.test(p.text)) { res.esgotado++; continue; }
-      const kind = classify(p);
-      if (kind === "ruido") { res.ruido++; continue; }
-      try {
-        if (kind === "produto") {
-          if (!nicheOk(p.text, ctx.kw)) { res.fora_nicho++; continue; }
-          const link = await productLink(ctx, p.links);
-          if (link && link.esgotado) { res.esgotado++; continue; }
-          if (!link) {
-            res.sem_link++;
-            const l0 = p.links.find((l) => platformOf(l));
-            if (l0 && (res.debug = res.debug || []).length < 6) { const r0 = await resolve(ctx, l0); res.debug.push(`${ch}/${p.id} ${l0} -> ${r0.url.slice(0, 140)}`); }
-            continue;
-          }
-          let { cur, orig } = pricesOf(p.text);
-          const codes = extractCodes(p.text);
-          const promo = { ...promoFlags(p.text) };
-          if (link.amazon) {
-            // preço que vale é o do anúncio agora (o canal costuma já descontar o programe e poupe)
-            if (link.amazon.price) { cur = link.amazon.price; orig = link.amazon.original && link.amazon.original > cur ? link.amazon.original : null; }
-            for (const [k, v] of Object.entries(link.amazon.promo)) if (v !== undefined) promo[k] = v;
-            promo.checked_at = new Date().toISOString();
-          }
-          res.enviados.push({
-            source: "telegram", source_channel: "@" + ch, kind: "produto", perfil: "ofertas-maternas",
-            source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
-            platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
-            title: titleOf(p.text) || link.officialTitle || null, price_current: cur, price_original: orig,
-            image_url: link.image || null, coupon_code: codes[0] || null, // nunca a foto do post (tem a marca do canal) — 10/Out
-            extra_text: null,
-            coupon_meta: { post: `https://t.me/${ch}/${p.id}`, foto: link.image ? "loja" : "telegram", codes: codes.length ? codes : undefined },
-            promo_meta: Object.keys(promo).length ? promo : null,
-          });
-        } else {
-          if (CUPOM_FORA.test(p.text) && !BABY.test(p.text)) { res.fora_nicho++; continue; }
-          const codes = extractCodes(p.text);
-          if (!codes.length) { res.sem_link++; continue; }
-          const { loja, affiliate_url } = await couponLink(ctx, p);
-          if (!loja || !affiliate_url) { res.sem_link++; continue; }
-          const regra = p.text.split("\n").map((l) => l.trim()).filter((l) => /off|desconto|acima|limite|m[ií]nimo|%/i.test(l) && !/https?:/.test(l)).slice(0, 4).join("\n");
-          const regra1 = (regra.split("\n")[0] || "").replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}🎟📍✅🔥💥]/gu, "").trim();
-          res.enviados.push({
-            source: "telegram", source_channel: "@" + ch, kind: "cupom", perfil: "ofertas-maternas",
-            source_ref: `tgcupom_${loja}_${[...codes].sort().join("-")}_${brtStamp(p.time)}`,
-            platform: loja === "amazon" ? "amazon" : loja, url: affiliate_url, affiliate_url,
-            title: `Cupom ${LOJA_NOME[loja]}${regra1 ? ": " + regra1 : ""}`.slice(0, 200),
-            image_url: null, coupon_code: codes[0], // cupom: sem a foto do canal (marca deles) — 10/Out
-            extra_text: regra || null,
-            coupon_meta: { codes, loja, regra, post: `https://t.me/${ch}/${p.id}` },
-          });
-        }
-      } catch (e) {
-        res.erros.push(`${ch}/${p.id}: ${e.message}`);
-        if (e.message === "ML_UNAUTHORIZED") res.ml_unauthorized = true;
-      }
-    }
+    await processarPosts(ctx, res, fresh, { source: "telegram", canal: "@" + ch, postUrl: (p) => `https://t.me/${ch}/${p.id}` });
   }
   return res;
 }
 
-if (typeof module !== "undefined") module.exports = { runLeitor, parseChannel, classify, extractCodes, titleOf, pricesOf };
+/**
+ * Trata posts já lidos (de qualquer origem): classifica, filtra nicho, troca o link pelo nosso e
+ * empilha em res.enviados pro /api/ingest. origem = { source, canal, postUrl(p) }.
+ * Usado pelo Telegram (runLeitor) e pelo WhatsApp do Bruno (runLeitorWhatsApp — só leitura).
+ */
+async function processarPosts(ctx, res, fresh, origem) {
+  for (const p of fresh) {
+    if (ESGOTADO.test(p.text)) { res.esgotado++; continue; }
+    const kind = classify(p);
+    if (kind === "ruido") { res.ruido++; continue; }
+    try {
+      if (kind === "produto") {
+        if (!nicheOk(p.text, ctx.kw)) { res.fora_nicho++; continue; }
+        const link = await productLink(ctx, p.links);
+        if (link && link.esgotado) { res.esgotado++; continue; }
+        if (!link) {
+          res.sem_link++;
+          const l0 = p.links.find((l) => platformOf(l));
+          if (l0 && (res.debug = res.debug || []).length < 6) { const r0 = await resolve(ctx, l0); res.debug.push(`${origem.canal}/${p.id} ${l0} -> ${r0.url.slice(0, 140)}`); }
+          continue;
+        }
+        let { cur, orig } = pricesOf(p.text);
+        const codes = extractCodes(p.text);
+        const promo = { ...promoFlags(p.text) };
+        if (link.amazon) {
+          // preço que vale é o do anúncio agora (o canal costuma já descontar o programe e poupe)
+          if (link.amazon.price) { cur = link.amazon.price; orig = link.amazon.original && link.amazon.original > cur ? link.amazon.original : null; }
+          for (const [k, v] of Object.entries(link.amazon.promo)) if (v !== undefined) promo[k] = v;
+          promo.checked_at = new Date().toISOString();
+        }
+        res.enviados.push({
+          source: origem.source, source_channel: origem.canal, kind: "produto", perfil: "ofertas-maternas",
+          source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
+          platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
+          title: titleOf(p.text) || link.officialTitle || null, price_current: cur, price_original: orig,
+          image_url: link.image || null, coupon_code: codes[0] || null, // nunca a foto do post (tem a marca do canal) — 10/Out
+          extra_text: null,
+          coupon_meta: { post: origem.postUrl(p), foto: link.image ? "loja" : "telegram", codes: codes.length ? codes : undefined },
+          promo_meta: Object.keys(promo).length ? promo : null,
+        });
+      } else {
+        if (CUPOM_FORA.test(p.text) && !BABY.test(p.text)) { res.fora_nicho++; continue; }
+        const codes = extractCodes(p.text);
+        if (!codes.length) { res.sem_link++; continue; }
+        const { loja, affiliate_url } = await couponLink(ctx, p);
+        if (!loja || !affiliate_url) { res.sem_link++; continue; }
+        const regra = p.text.split("\n").map((l) => l.trim()).filter((l) => /off|desconto|acima|limite|m[ií]nimo|%/i.test(l) && !/https?:/.test(l)).slice(0, 4).join("\n");
+        const regra1 = (regra.split("\n")[0] || "").replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}🎟📍✅🔥💥]/gu, "").trim();
+        res.enviados.push({
+          source: origem.source, source_channel: origem.canal, kind: "cupom", perfil: "ofertas-maternas",
+          source_ref: `tgcupom_${loja}_${[...codes].sort().join("-")}_${brtStamp(p.time)}`,
+          platform: loja === "amazon" ? "amazon" : loja, url: affiliate_url, affiliate_url,
+          title: `Cupom ${LOJA_NOME[loja]}${regra1 ? ": " + regra1 : ""}`.slice(0, 200),
+          image_url: null, coupon_code: codes[0], // cupom: sem a foto do canal (marca deles) — 10/Out
+          extra_text: regra || null,
+          coupon_meta: { codes, loja, regra, post: origem.postUrl(p) },
+        });
+      }
+    } catch (e) {
+      res.erros.push(`${origem.canal}/${p.id}: ${e.message}`);
+      if (e.message === "ML_UNAUTHORIZED") res.ml_unauthorized = true;
+    }
+  }
+}
+
+// ── 6. WhatsApp (número pessoal do Bruno, SÓ LEITURA) ─────────────────────
+// Lê apenas os chats da lista (cfg.whatsapp.fontes) pela WAHA "waha-leitura". Nenhuma outra conversa é lida;
+// esta sessão nunca envia nada (não está em perfis.waha_urls e não há chamada de envio aqui).
+const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
+async function runLeitorWhatsApp(ctx) {
+  const { cfg, state } = ctx;
+  state.wa = state.wa || {};
+  const now = Date.now();
+  const res = { lidos: 0, novos: 0, ruido: 0, fora_nicho: 0, sem_link: 0, esgotado: 0, enviados: [], erros: [], esgotados: [] };
+  const W = cfg.whatsapp;
+  for (const f of W.fontes) {
+    let msgs;
+    try {
+      const url = f.id.endsWith("@newsletter")
+        ? `${W.url}/api/${W.session}/channels/${encodeURIComponent(f.id)}/messages/preview?limit=30&downloadMedia=false`
+        : `${W.url}/api/${W.session}/chats/${encodeURIComponent(f.id)}/messages?limit=30&downloadMedia=false`;
+      const r = await ctx.http({ url, headers: { "X-Api-Key": W.key } });
+      if (r.status >= 300) throw new Error(`WAHA ${r.status}`);
+      const j = JSON.parse(r.body || "[]");
+      msgs = (Array.isArray(j) ? j : []).map((x) => x.message || x);
+    } catch (e) { res.erros.push(`${f.nome}: ${e.message}`); continue; }
+    const posts = msgs
+      .filter((m) => !m.fromMe && (m.body || "").trim())
+      .map((m) => ({ channel: f.nome, id: Number(m.timestamp) || 0, time: (Number(m.timestamp) || 0) * 1000, text: String(m.body).trim(), links: [...String(m.body).matchAll(URL_RE)].map((x) => x[0]), photo: null }));
+    res.lidos += posts.length;
+    const last = state.wa[f.id];
+    const fresh = posts.filter((p) => (last ? p.id > last : now - p.time < cfg.firstRunHours * 3600_000));
+    if (posts.length) state.wa[f.id] = Math.max(last || 0, ...posts.map((p) => p.id));
+    res.novos += fresh.length;
+    await processarPosts(ctx, res, fresh, { source: "whatsapp", canal: f.nome, postUrl: () => null });
+  }
+  return res;
+}
+
+if (typeof module !== "undefined") module.exports = { runLeitor, runLeitorWhatsApp, processarPosts, parseChannel, classify, extractCodes, titleOf, pricesOf };

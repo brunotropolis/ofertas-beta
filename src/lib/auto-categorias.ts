@@ -96,7 +96,7 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
 }
 
 // ── CUPONS ─────────────────────────────────────────────────────────────────
-const PALAVRAS = new Set(["UNICOS", "CUPONS", "OFERTA", "OFERTAS", "CORREE", "VOLTOU", "APROVEITA", "PROMOCAO", "MERCADO", "SHOPEE", "AMAZON", "GRATIS", "LIMITE", "LIBERADO", "LIBERADOS", "LIBERADA", "PREPARA", "ATIVOS", "CHEGOU", "ESGOTADO", "ESGOTANDO", "CORRENDO", "CORRAM", "RAPIDO", "URGENTE"]);
+const PALAVRAS = new Set(["UNICOS", "CUPONS", "OFERTA", "OFERTAS", "CORREE", "VOLTOU", "APROVEITA", "PROMOCAO", "MERCADO", "SHOPEE", "AMAZON", "GRATIS", "LIMITE", "LIBERADO", "LIBERADOS", "LIBERADA", "PREPARA", "ATIVOS", "CHEGOU", "ESGOTADO", "ESGOTANDO", "CORRENDO", "CORRAM", "RAPIDO", "URGENTE", "DESBLOQUEADO", "DESBLOQUEADOS", "DESBLOQUEADA", "LIBERADAS", "ATIVADO", "ATIVADOS", "DISPONIVEL", "DISPONIVEIS", "VALIDOS", "NOVIDADE", "NOVIDADES", "ATENCAO", "AVISO"]);
 /**
  * Tira "códigos" que são palavra da frase do canal ("ÚNICOS QUE AINDA TEM" → NICOS, AINDA; "CORREEEE", "LIBERADO").
  * Com número (40OFF1910) vale; só letras precisa de 6+ letras, não ser palavra comum e não terminar em letra repetida (OBAAA).

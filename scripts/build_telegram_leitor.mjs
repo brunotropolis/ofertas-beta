@@ -1,5 +1,7 @@
 // Monta/atualiza o workflow n8n "OFERTAS MATERNAS | Telegram Leitor" a partir de scripts/telegram-leitor.core.js.
-// Uso: node scripts/build_telegram_leitor.mjs   (lê D:\CLAUDE\.env.meta; segredo do ingest vem do coletor Shopee maternas)
+// Uso: node scripts/build_telegram_leitor.mjs [--activate]   (lê D:\CLAUDE\.env.meta; segredo do ingest vem do coletor Shopee maternas)
+// MODO=whatsapp → monta o "OFERTAS MATERNAS | WhatsApp Leitor": mesmo core, lendo SÓ os chats de WHATSAPP_FONTES
+//   pelo número pessoal do Bruno na WAHA waha-leitura (só leitura — nunca envia).
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -17,7 +19,13 @@ const api = async (method, p, body) => {
   return t ? JSON.parse(t) : {};
 };
 
-const NAME = "OFERTAS MATERNAS | Telegram Leitor";
+const WA = process.env.MODO === "whatsapp";
+const NAME = WA ? "OFERTAS MATERNAS | WhatsApp Leitor" : "OFERTAS MATERNAS | Telegram Leitor";
+// chats do WhatsApp pessoal do Bruno que o leitor pode ler (o resto do WhatsApp dele nunca é lido) — 19/Out
+const WHATSAPP_FONTES = [
+  { id: "120363429739898910@newsletter", nome: "WA: Crescendo com o Meli" },
+  { id: "120363404397839295@g.us", nome: "WA: Amazon Associados Gerenciados" },
+];
 const CHANNELS = ["grupo_promocoes", "amigacompra", "promocaozinha", "cuponsm", "afiliadosshopeebroficial", "cuponsdasho", "fadadoscupons"];
 
 // segredo do ingest = o mesmo dos coletores maternas
@@ -56,7 +64,7 @@ try {
   if (k && Array.isArray(k.keywords)) kw = k.keywords;
 } catch (e) {}
 const state = $getWorkflowStaticData('global');
-const res = await runLeitor({
+const res = await ${WA ? 'runLeitorWhatsApp' : 'runLeitor'}({
   http, sha256: sha256utf8, state, kw,
   cfg: {
     channels: ${JSON.stringify(CHANNELS)},
@@ -64,6 +72,7 @@ const res = await runLeitor({
     ml: { cookie: ${JSON.stringify(mlCookie)}, csrf: 'Mqp1xO_51aAxfOR-BiDjSQnt', tag: 'manualmanual20230331072922', social: 'https://www.mercadolivre.com.br/social/manualdorecemnascido' },
     amazon: { accessKey: $env.AMAZON_ACCESS_KEY, secretKey: $env.AMAZON_SECRET_KEY, partnerTag: $env.AMAZON_PARTNER_TAG || 'manualdorec0c-20' },
     amazonTag: 'manualdorec0c-20', firstRunHours: 6,
+    whatsapp: { url: 'https://waha-leitura.xktssy.easypanel.host', session: 'default', key: ${JSON.stringify(env.WAHA_OFERTAS_API_KEY)}, fontes: ${JSON.stringify(WHATSAPP_FONTES)} },
   },
 });
 let ok = 0, dedup = 0; const falhas = [];
@@ -92,7 +101,7 @@ if (process.env.PRINT_CODE) { fs.writeFileSync(process.env.PRINT_CODE, jsCode); 
 
 const nodes = [
   // só 8h–20h BRT (decisão Bruno 02/Out: nada de madrugada)
-  { parameters: { rule: { interval: [{ field: "cronExpression", expression: "*/5 8-19 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
+  { parameters: { rule: { interval: [{ field: "cronExpression", expression: WA ? "*/10 8-19 * * *" : "*/5 8-19 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
   { parameters: { jsCode }, name: "LER CANAIS + INGEST", type: "n8n-nodes-base.code", typeVersion: 2, position: [240, 0] },
 ];
 const connections = { "A cada 5 min": { main: [[{ node: "LER CANAIS + INGEST", type: "main", index: 0 }]] } };
