@@ -101,7 +101,55 @@ export async function GET(request: Request) {
     grupos = { atual: ultimo ?? null, dias: lista, top };
   }
 
+  // ── Cliques nos links (encurtador → link_cliques; sem robô de prévia) ──
+  let cliques: Any = null;
+  {
+    const { data: cr } = await db.rpc("cliques_resumo", { p_since: since });
+    const linhas = (cr ?? []) as Any[];
+    if (linhas.length) {
+      const hojeIni = new Date(Date.parse(`${todayBrt}T00:00:00Z`) + BRT_MS).toISOString();
+      const porGrupo = new Map<string, number>(), porSlug = new Map<string, number>();
+      let total = 0, hoje = 0;
+      for (const l of linhas) {
+        const n = Number(l.cliques); total += n;
+        if (l.ultimo >= hojeIni) hoje += n; // aproximação: grupo/slug com clique hoje
+        if (l.grupo) porGrupo.set(l.grupo, (porGrupo.get(l.grupo) ?? 0) + n);
+        porSlug.set(l.slug, (porSlug.get(l.slug) ?? 0) + n);
+      }
+      // membros do último retrato pra calcular cliques por mil
+      const membrosPorNum = new Map<string, number>();
+      if (perfil) {
+        const { data: ult } = await db.from("grupos_diario").select("dia").eq("perfil_id", perfil).order("dia", { ascending: false }).limit(1).maybeSingle();
+        if (ult) {
+          const { data: ret } = await db.from("grupos_diario").select("group_name, membros").eq("perfil_id", perfil).eq("dia", ult.dia);
+          for (const r of (ret ?? []) as Any[]) {
+            const m = String(r.group_name || "").match(/^As Ofertas Maternas\s*#\s*(\d+)/i);
+            if (m) membrosPorNum.set(m[1], r.membros);
+          }
+        }
+      }
+      const gruposCl = [...porGrupo.entries()].map(([g, n]) => {
+        const membros = membrosPorNum.get(g) ?? null;
+        return { grupo: g, nome: /^\d+$/.test(g) ? `As Ofertas Maternas #${g}` : g, cliques: n, membros, por_mil: membros ? Math.round((n / membros) * 1000) : null };
+      }).sort((a, b) => b.cliques - a.cliques);
+      const topSlugs = [...porSlug.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const titulos = new Map<string, string>();
+      for (const [slug] of topSlugs) {
+        const { data: of } = await db.from("offers").select("title, platform").like("affiliate_url", `%/l/${slug}`).limit(1).maybeSingle();
+        if (of) titulos.set(slug, `${of.title ?? slug}`);
+      }
+      cliques = {
+        total, hoje,
+        grupos_com_clique: gruposCl.length,
+        top_grupos: gruposCl.slice(0, 10),
+        piores_grupos: gruposCl.filter((g) => g.por_mil != null).sort((a, b) => (a.por_mil ?? 0) - (b.por_mil ?? 0)).slice(0, 5),
+        top_produtos: topSlugs.map(([slug, n]) => ({ slug, titulo: titulos.get(slug) ?? slug, cliques: n })),
+      };
+    }
+  }
+
   return NextResponse.json({
+    cliques,
     grupos,
     period: { since, days },
     campaigns: campList,

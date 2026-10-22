@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Send, CheckCircle2, PackageSearch, Wallet, Clock, CalendarClock, ArrowRight, Zap, RefreshCw, Users } from "lucide-react";
+import { Send, CheckCircle2, PackageSearch, Wallet, Clock, CalendarClock, ArrowRight, Zap, RefreshCw, Users, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePerfil } from "@/lib/profile-context";
 
@@ -153,6 +153,9 @@ export default function InicioClient() {
           )}
         </section>
       </div>
+
+      {/* Cliques nos links por grupo */}
+      <Cliques c={data?.cliques} loading={!data} />
 
       {/* Grupos: pessoas, entradas/saídas, top 10 */}
       <Grupos g={data?.grupos} loading={!data} />
@@ -334,6 +337,62 @@ function Grupos({ g, loading }: { g: Any; loading: boolean }) {
                       <span className="text-emerald-400">+{t.entraram}</span>/<span className="text-red-400">−{t.sairam}</span>
                     </span>
                   )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Cliques({ c, loading }: { c: Any; loading: boolean }) {
+  return (
+    <section className="glass rounded-2xl p-5 mb-6 border-l-2 border-l-amber-500/70">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <MousePointerClick className="w-4 h-4 text-amber-400" strokeWidth={1.75} /> Cliques nos links · 7 dias
+        </h3>
+        <span className="text-[11px] text-zinc-500">conta só gente (sem a prévia do WhatsApp) · desde 22/10</span>
+      </div>
+      {loading ? <Skeleton h={140} /> : !c ? (
+        <p className="text-sm text-zinc-500">Ainda sem clique registrado. Os posts novos já saem com o link marcado por grupo.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <Mini label="Cliques" value={num(c.total)} hint={`${c.grupos_com_clique} grupos com clique`} />
+              <Mini label="Hoje" value={num(c.hoje)} tone="text-amber-300" hint="aproximado" />
+            </div>
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Menos cliques por mil membros</p>
+            <ol className="space-y-1">
+              {(c.piores_grupos as Any[]).map((g) => (
+                <li key={g.grupo} className="flex justify-between text-xs"><span className="text-zinc-300 truncate">{g.nome}</span><span className="text-red-300 tabular-nums">{g.por_mil}/mil</span></li>
+              ))}
+            </ol>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Grupos que mais clicam</p>
+            <ol className="space-y-1">
+              {(c.top_grupos as Any[]).map((g, i) => (
+                <li key={g.grupo} className="flex items-center gap-2 text-xs">
+                  <span className="w-4 text-zinc-600 tabular-nums">{i + 1}</span>
+                  <span className="text-zinc-300 truncate flex-1">{g.nome}</span>
+                  <span className="text-white font-semibold tabular-nums">{num(g.cliques)}</span>
+                  {g.por_mil != null && <span className="text-[10px] text-zinc-500 tabular-nums w-14 text-right">{g.por_mil}/mil</span>}
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">Produtos mais clicados</p>
+            <ol className="space-y-1">
+              {(c.top_produtos as Any[]).map((p, i) => (
+                <li key={p.slug} className="flex items-center gap-2 text-xs">
+                  <span className="w-4 text-zinc-600 tabular-nums">{i + 1}</span>
+                  <span className="text-zinc-300 truncate flex-1" title={p.titulo}>{p.titulo}</span>
+                  <span className="text-white font-semibold tabular-nums">{num(p.cliques)}</span>
                 </li>
               ))}
             </ol>
