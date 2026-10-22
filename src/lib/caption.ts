@@ -156,9 +156,14 @@ const isLegacyCouponExtra = (s: string) => /^🏷️\s*Use o cupom/i.test(s.trim
  * Fralda usa o cabeçalho do grupo no lugar das linhas da IA.
  */
 export function buildMaternityCaption(offer: CaptionOffer, creative: string | null): string {
+  // 22/Out (Bruno: "retornar o que estava funcionando"): no formato da operação manual, o post ABRE com o
+  // produto e o preço; da IA fica só a frase de benefício (2ª linha) logo abaixo do nome. Era: frase de
+  // gancho da IA em cima + nome depois.
   const parts: string[] = [];
-  parts.push(isFralda(offer.title) ? "OFERTAS DE FRALDAS 🚼" : creative || "🌟 OFERTA DO DIA 🌟");
+  if (isFralda(offer.title)) parts.push("OFERTAS DE FRALDAS 🚼");
   if (offer.title) parts.push(`*${offer.title.trim()}*`);
+  const linhasIa = (creative || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!isFralda(offer.title) && linhasIa.length >= 2) parts.push(linhasIa.slice(1).join(" "));
   const pb = priceBlock(offer);
   if (pb) parts.push(offer.promo_meta?.menor_30d ? `${pb}\n📉 _Menor preço dos últimos 30 dias_` : pb);
   const ps = provaSocial(offer);

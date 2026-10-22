@@ -32,6 +32,7 @@ interface Campaign {
   timer_minutes: number;
   ai_prompt?: string | null;
   perfil_id?: string | null;
+  categoria?: string | null;
 }
 interface PerfilWaha {
   waha_url: string;
@@ -355,7 +356,11 @@ async function campaignIsDue(db: DB, campaign: Campaign): Promise<boolean> {
     .maybeSingle();
   if (!data?.sent_at) return true;
   const elapsedMin = (Date.now() - new Date(data.sent_at as string).getTime()) / 60_000;
-  return elapsedMin >= campaign.timer_minutes;
+  // 22/Out: a operação manual concentrava posts das 8h às 11h (cupons especiais de manhã) →
+  // na campanha geral, de manhã o intervalo cai pra 2 min (o resto do dia segue o da campanha)
+  const hBrt = new Date(Date.now() - 3 * 3600_000).getUTCHours();
+  const manha = (campaign.categoria ?? "geral") === "geral" && hBrt >= 8 && hBrt < 11;
+  return elapsedMin >= (manha ? Math.min(campaign.timer_minutes, 2) : campaign.timer_minutes);
 }
 
 async function pickNextForCampaign(db: DB, campaignId: string): Promise<QueueItem | null> {
@@ -562,7 +567,7 @@ export async function tickAll(db: DB): Promise<TickResult> {
 
   const { data: campaigns } = await db
     .from("campaigns")
-    .select("id, name, timer_minutes, ai_prompt, perfil_id")
+    .select("id, name, timer_minutes, ai_prompt, perfil_id, categoria")
     .eq("is_active", true);
 
   const camps = (campaigns ?? []) as Campaign[];
