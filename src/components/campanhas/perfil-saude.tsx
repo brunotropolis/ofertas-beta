@@ -12,6 +12,7 @@ export type Numero = {
   url: string; tag: string; ordem: number; numero: string; nome: string; status: string;
   luz: "verde" | "amarelo" | "vermelho"; motivo: string; grupos: number;
   envios_hoje: number; erros_24h: number; rate_24h: number; ultimo_rate: string | null; ultimo_envio: string | null;
+  score?: number; score_motivos?: string[]; saidas_por_mil?: number | null;
 };
 
 const LUZ: Record<string, { dot: string; ring: string; label: string }> = {
@@ -88,6 +89,18 @@ export default function PerfilSaude({ perfilId, perfilNome, onNumeros }: { perfi
                     : "text-red-300 border-red-500/30 bg-red-500/10")}>{LUZ[n.luz]?.label}</span>
                 </div>
                 <p className="text-[11.5px] text-zinc-400 mt-1 truncate">{n.nome || "—"} · {n.numero ? `+${n.numero}` : "sem número"}</p>
+                {n.score != null && (
+                  <div className="mt-2 flex items-center gap-2" title={(n.score_motivos ?? []).join(" · ") || "sem desconto"}>
+                    <span className={cn("text-[11px] font-semibold tabular-nums px-1.5 py-px rounded border",
+                      n.score >= 80 ? "text-emerald-300 border-emerald-500/30 bg-emerald-500/10"
+                      : n.score >= 60 ? "text-amber-300 border-amber-500/30 bg-amber-500/10"
+                      : "text-red-300 border-red-500/30 bg-red-500/10")}>score {n.score}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                      <div className={cn("h-full rounded-full", n.score >= 80 ? "bg-emerald-400" : n.score >= 60 ? "bg-amber-400" : "bg-red-500")} style={{ width: `${n.score}%` }} />
+                    </div>
+                  </div>
+                )}
+                {!!n.score_motivos?.length && <p className="text-[10.5px] text-zinc-500 mt-1 truncate">{n.score_motivos.join(" · ")}</p>}
                 <p className={cn("text-[11.5px] mt-2", n.luz === "verde" ? "text-zinc-500" : n.luz === "amarelo" ? "text-amber-300" : "text-red-300")}>{n.motivo}</p>
                 <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-zinc-800/70 text-center">
                   <Mini v={n.grupos} l="grupos" />

@@ -50,6 +50,7 @@ if (r.statusCode >= 300) {
     for (const n of p.numeros || []) {
       const fim = (n.numero || '').slice(-4) || n.tag;
       muda('num:' + n.url, n.luz === 'vermelho', 'Número final ' + fim + ' (' + p.perfil + ') caiu: ' + n.motivo, 'Número final ' + fim + ' (' + p.perfil + ') voltou e está conectado');
+      if (n.score != null && n.luz !== 'vermelho') muda('score:' + n.url, n.score < 60, 'Número final ' + fim + ': score caiu pra ' + n.score + ' (' + (n.score_motivos || []).join(', ') + ')', 'Número final ' + fim + ': score voltou pra ' + n.score);
     }
     for (const x of p.plataformas || []) {
       muda('plat:' + p.perfil + ':' + x.plataforma, x.luz === 'vermelho', x.nome + ' (' + p.perfil + '): ' + x.motivo, x.nome + ' (' + p.perfil + ') voltou a trazer ofertas');

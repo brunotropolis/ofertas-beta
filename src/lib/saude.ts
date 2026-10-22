@@ -38,22 +38,41 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
     ? await db.from("campaign_groups").select("waha_url").in("campaign_id", campIds).eq("is_enabled", true)
     : { data: [] };
 
+  // saídas de hoje nos grupos fixos de cada número (retrato de hora em hora → grupos_diario)
+  const { data: gcs } = campIds.length
+    ? await db.from("campaign_groups").select("group_jid, waha_url").in("campaign_id", campIds).eq("is_enabled", true)
+    : { data: [] };
+  const { data: hojeGr } = await db.from("grupos_diario").select("group_jid, membros, sairam").eq("dia", hojeBrt);
+  const grHoje = new Map(((hojeGr ?? []) as Any[]).map((g) => [g.group_jid, g]));
+  const saidasDe = (url: string) => {
+    let membros = 0, sairam = 0;
+    for (const g of (gcs ?? []) as Any[]) {
+      if (g.waha_url !== url) continue;
+      const h = grHoje.get(g.group_jid);
+      if (h) { membros += h.membros ?? 0; sairam += h.sairam ?? 0; }
+    }
+    return { membros, sairam };
+  };
+
   const numeros = await Promise.all(urls.map(async (url, i) => {
     let status = "FORA DO AR", numero = "", nome = "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let capping: any = null, timelock: any = null;
     try {
       const r = await fetch(`${url}/api/sessions/${perfil.waha_session || "default"}`, { headers: { "X-Api-Key": WAHA_KEY }, cache: "no-store", signal: AbortSignal.timeout(6000) });
-      if (r.ok) { const s = await r.json(); status = s.status; numero = String(s.me?.id ?? "").split("@")[0]; nome = s.me?.pushName ?? ""; }
+      if (r.ok) { const s = await r.json(); status = s.status; numero = String(s.me?.id ?? "").split("@")[0]; nome = s.me?.pushName ?? ""; capping = s.me?.messageCapping ?? null; timelock = s.me?.reachoutTimelock ?? null; }
     } catch { /* fora do ar */ }
     const t = tag(url);
     const conta = async (q: Any) => (await q).count ?? 0;
     const base = () => db.from("publication_log").select("id", { count: "exact", head: true }).eq("phone_used", t);
-    const [enviosHoje, erros24, ok6, erros6, rate6, rate24] = await Promise.all([
+    const [enviosHoje, erros24, ok6, erros6, rate6, rate24, ok24] = await Promise.all([
       conta(base().eq("status", "success").gte("sent_at", inicioHoje)),
       conta(base().eq("status", "error").gte("sent_at", desde24)),
       conta(base().eq("status", "success").gte("sent_at", desde6)),
       conta(base().eq("status", "error").gte("sent_at", desde6)),
       conta(base().eq("status", "error").ilike("error_message", "%rate-overlimit%").gte("sent_at", desde6)),
       conta(base().eq("status", "error").ilike("error_message", "%rate-overlimit%").gte("sent_at", desde24)),
+      conta(base().eq("status", "success").gte("sent_at", desde24)),
     ]);
     const { data: ult } = await db.from("publication_log").select("sent_at").eq("phone_used", t).eq("status", "success").order("sent_at", { ascending: false }).limit(1).maybeSingle();
     const { data: ultRate } = rate24 ? await db.from("publication_log").select("sent_at").eq("phone_used", t).eq("status", "error").ilike("error_message", "%rate-overlimit%").order("sent_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
@@ -66,6 +85,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
       url, tag: t, ordem: i + 1, numero, nome, status, luz, motivo,
       grupos: ((grupos ?? []) as Any[]).filter((g) => g.waha_url === url).length,
       envios_hoje: enviosHoje, erros_24h: erros24, rate_24h: rate24, ultimo_rate: ultRate?.sent_at ?? null, ultimo_envio: ult?.sent_at ?? null,
+      ...scoreNumero({ status, capping, timelock, rate24, ok24, erros24, ...saidasDe(url) }),
     };
   }));
 
@@ -146,4 +166,26 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
   };
 
   return { numeros, plataformas, disparo, campanhas };
+}
+
+/**
+ * Score do número (0–100, 22/Out). Não existe nota oficial do WhatsApp pra número não oficial; isto junta os sinais
+ * que temos: desconectado = 0; restrição/limite informados pelo WhatsApp (−40/−30); rate-overlimit em 24h (−10 cada,
+ * até −30); taxa de erro 24h (até −20); saída de gente dos grupos dele hoje acima de 5 por mil membros (até −30).
+ * ≥80 bom · 60–79 atenção · <60 ruim.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function scoreNumero(x: { status: string; capping: any; timelock: any; rate24: number; ok24: number; erros24: number; membros: number; sairam: number }) {
+  const motivos: string[] = [];
+  if (x.status !== "WORKING") return { score: 0, score_motivos: ["desconectado"], saidas_por_mil: null as number | null };
+  let sc = 100;
+  if (x.timelock) { sc -= 40; motivos.push("restrição do WhatsApp"); }
+  if (x.capping && x.capping.cappingStatus && x.capping.cappingStatus !== "NONE") { sc -= 30; motivos.push("limite de conversas novas"); }
+  if (x.rate24 > 0) { sc -= Math.min(30, x.rate24 * 10); motivos.push(`${x.rate24} limite(s) de envio em 24h`); }
+  const tot = x.ok24 + x.erros24;
+  const taxa = tot ? x.erros24 / tot : 0;
+  if (taxa > 0.005) { const p = Math.min(20, Math.round(taxa * 400)); sc -= p; motivos.push(`${(taxa * 100).toFixed(1).replace(".", ",")}% de erro`); }
+  const porMil = x.membros ? (x.sairam / x.membros) * 1000 : null;
+  if (porMil != null && porMil > 5) { const p = Math.min(30, Math.round((porMil - 5) * 2)); sc -= p; motivos.push(`${porMil.toFixed(1).replace(".", ",")} saídas por mil hoje`); }
+  return { score: Math.max(0, Math.round(sc)), score_motivos: motivos, saidas_por_mil: porMil != null ? Math.round(porMil * 10) / 10 : null };
 }
