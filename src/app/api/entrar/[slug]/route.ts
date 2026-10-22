@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 
-// Reserva se algo falhar: o link antigo do SendFlow (ninguém fica sem grupo)
+// Reserva se algo falhar: convite fixo de um grupo com espaço (ninguém fica sem grupo)
 const RESERVA: Record<string, string> = {
-  "ofertas-maternas": "https://sndflw.com/i/xVTaSq0Ldq3oCzNmYC6s",
+  "ofertas-maternas": "https://chat.whatsapp.com/F6adXJyutoYHCaWbDqP3Wh", // As Ofertas Maternas #10 (SendFlow sai do ar, 22/Out)
 };
 const LIMITE = 900; // grupo com mais que isso não recebe gente nova (WhatsApp aceita 1.024)
 
