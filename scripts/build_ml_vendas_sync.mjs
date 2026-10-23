@@ -60,7 +60,29 @@ for (let i = 0; i < rows.length; i += 400) {
   gravadas += Math.min(400, rows.length - i);
 }
 const com = rows.filter((r) => r.status !== 'CANCELLED').reduce((a, r) => a + r.commission, 0);
-return [{ json: { janela: ini + '..' + fim, vendas: rows.length, gravadas, comissao_sem_canceladas: Math.round(com * 100) / 100 } }];
+
+// Por ETIQUETA (23/Out): a lista de vendas não diz a etiqueta; a página de ganhos (afiliados/dashboard, bloco
+// "earnings") diz cliques/vendas/comissão por etiqueta no período → 1 dia por vez, últimos 10 dias + hoje.
+// Vai pra tabela à parte (afiliado_etiquetas_diario). Falha aqui não derruba o sync de vendas acima.
+const etiquetas = [];
+let erroEtiquetas = null;
+try {
+  for (let k = 10; k >= 0; k--) {
+    const dia = brt(Date.now() - k * 86400e3), prox = brt(Date.now() - (k - 1) * 86400e3);
+    const r = await h.httpRequest({ url: 'https://www.mercadolivre.com.br/afiliados/dashboard?filter_time_range=' + encodeURIComponent(dia + 'T00:00:00.000-03:00--' + prox + 'T00:00:00.000-03:00'),
+      headers: { cookie: COOKIE, 'user-agent': UA }, json: false, returnFullResponse: true, ignoreHttpStatusErrors: true, timeout: 60000 });
+    const t = String(r.body || '');
+    const m = t.match(/"earnings":\\{"item_list":(\\[[^\\]]*\\])/);
+    if (!m) continue;
+    for (const e of JSON.parse(m[1])) etiquetas.push({ tag: e.tag, dia, cliques: e.clicks || 0, vendas: e.quantity || 0, comissao: e.earnings || 0 });
+  }
+  if (etiquetas.length) {
+    const r = await h.httpRequest({ url: 'https://ofertas-beta-painel.xktssy.easypanel.host/api/vendas/import', method: 'POST',
+      headers: { 'x-import-secret': SECRET, 'content-type': 'application/json' }, body: JSON.stringify({ source: 'ml', etiquetas }), json: false, returnFullResponse: true, ignoreHttpStatusErrors: true, timeout: 60000 });
+    if (r.statusCode >= 300) erroEtiquetas = 'import etiquetas ' + r.statusCode + ' ' + String(r.body).slice(0, 150);
+  }
+} catch (e) { erroEtiquetas = String(e).slice(0, 200); }
+return [{ json: { janela: ini + '..' + fim, vendas: rows.length, gravadas, comissao_sem_canceladas: Math.round(com * 100) / 100, etiquetas: etiquetas.length, erroEtiquetas } }];
 `;
 
 const nodes = [

@@ -21,11 +21,26 @@ export async function POST(request: Request) {
   if (source !== "ml" && source !== "amazon") {
     return NextResponse.json({ error: "source inválido (ml|amazon)" }, { status: 400 });
   }
+  const admin = createAdminClient();
+
+  // Resultado por etiqueta/dia (23/Out, só ML): tabela à parte (recorte do mesmo dinheiro, não soma com affiliate_sales)
+  // Body: { source: "ml", etiquetas: [{ tag, dia: "AAAA-MM-DD", cliques, vendas, comissao }] }
+  if (Array.isArray(body?.etiquetas)) {
+    const agora = new Date().toISOString();
+    const et = (body.etiquetas as { tag?: string; dia?: string; cliques?: number; vendas?: number; comissao?: number }[])
+      .filter((e) => e.tag && /^\d{4}-\d{2}-\d{2}$/.test(e.dia ?? ""))
+      .map((e) => ({ fonte: source, tag: String(e.tag), dia: e.dia, cliques: Math.round(e.cliques ?? 0),
+        vendas: Math.round(e.vendas ?? 0), comissao: Number(e.comissao ?? 0), atualizado_em: agora }));
+    if (et.length) {
+      const { error } = await admin.from("afiliado_etiquetas_diario").upsert(et, { onConflict: "fonte,tag,dia" });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!rows.length) return NextResponse.json({ ok: true, source, etiquetas: et.length });
+  }
+
   if (!rows.length) {
     return NextResponse.json({ error: "rows vazio" }, { status: 400 });
   }
-
-  const admin = createAdminClient();
 
   // Opcional: limpar um período antes de reinserir (evita produto/dia órfão de sync anterior).
   const rp = body?.replacePeriod;

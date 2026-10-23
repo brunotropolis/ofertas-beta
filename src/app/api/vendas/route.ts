@@ -308,7 +308,21 @@ async function gerar(request: Request) {
     }
   })();
 
-  await Promise.all([shopeeJob, mlJob, amazonJob]);
+  // ── ML por etiqueta (23/Out): tabela à parte, só pra mostrar o recorte por campanha (NÃO entra no combinado) ──
+  let etiquetasMl: { tag: string; cliques: number; vendas: number; comissao: number }[] = [];
+  const etiquetasJob = (async () => {
+    const dia = (sec: number) => new Date(sec * 1000 - 3 * 3600 * 1000).toISOString().slice(0, 10);
+    const { data: et } = await supabase.from("afiliado_etiquetas_diario").select("tag, cliques, vendas, comissao")
+      .eq("fonte", "ml").gte("dia", dia(start)).lte("dia", dia(end));
+    const m = new Map<string, { tag: string; cliques: number; vendas: number; comissao: number }>();
+    for (const r of (et ?? []) as { tag: string; cliques: number; vendas: number; comissao: number }[]) {
+      const x = m.get(r.tag) ?? { tag: r.tag, cliques: 0, vendas: 0, comissao: 0 };
+      x.cliques += r.cliques; x.vendas += r.vendas; x.comissao += Number(r.comissao); m.set(r.tag, x);
+    }
+    etiquetasMl = [...m.values()];
+  })().catch(() => {});
+
+  await Promise.all([shopeeJob, mlJob, amazonJob, etiquetasJob]);
 
   // ── Combinado (soma o que deu certo) ──────────────────────────────────────
   const combined = { commission: 0, conversions: 0, items: 0, gmv: 0 };
@@ -321,5 +335,5 @@ async function gerar(request: Request) {
     }
   }
 
-  return NextResponse.json({ period: { days, from: start, to: end, custom }, sources, combined });
+  return NextResponse.json({ period: { days, from: start, to: end, custom }, sources, combined, etiquetasMl });
 }

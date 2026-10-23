@@ -37,6 +37,23 @@ interface VendasResp {
   period: { days: number };
   sources: { shopee: SourceResult; ml: SourceResult; amazon: SourceResult };
   combined: { commission: number; conversions: number; items: number; gmv: number };
+  etiquetasMl?: { tag: string; cliques: number; vendas: number; comissao: number }[];
+}
+
+// Marca de campanha nos links dos grupos (22/Out): Shopee volta "<grupo>-<campanha>" no UTM; Amazon tem 1 ID de
+// rastreamento por campanha; ML 1 etiqueta por campanha. Só um recorte (não soma no total).
+const CAMPANHAS = [
+  { k: "m", nome: "Ofertas Maternas", amazon: "mrnofmaternas-20", ml: "asofertasmaternas" },
+  { k: "f", nome: "Fraldas", amazon: "mrnoffraldas-20", ml: "mrnoffraldas" },
+  { k: "c", nome: "Cupons", amazon: "mrnofcupons-20", ml: "mrnofcupons" },
+  { k: "e", nome: "Enxoval", amazon: "mrnofenxoval-20", ml: "mrnofenxoval" },
+] as const;
+function lerUtm(utm: string): { grupo: string; camp: string } | null {
+  // Shopee junta os sub_ids com "-" e completa com traços vazios ("51-m---"), por isso limpa as pontas
+  const m = utm.replace(/^-+|-+$/g, "").match(/^(x?\d+)-([mfce])$/);
+  if (!m) return null;
+  const c = CAMPANHAS.find((x) => x.k === m[2]);
+  return { grupo: m[1].startsWith("x") ? "outro grupo" : `Grupo #${m[1]}`, camp: c?.nome ?? m[2] };
 }
 
 type SourceKey = "todas" | "shopee" | "ml" | "amazon";
@@ -591,12 +608,52 @@ export default function VendasClient() {
                   </Section>
                 )}
 
+                {data && (source === "todas" || source === "shopee" || source === "amazon" || source === "ml") && (() => {
+                  const shopeeUtm = data.sources.shopee.ok ? data.sources.shopee.agg?.byUtm ?? [] : [];
+                  const amzStore = data.sources.amazon.ok ? data.sources.amazon.agg?.byStore ?? [] : [];
+                  const mlEt = data.etiquetasMl ?? [];
+                  const linhas = CAMPANHAS.map((c) => {
+                    const sh = shopeeUtm.filter((u) => lerUtm(u.utm)?.camp === c.nome);
+                    const am = amzStore.find((x) => x.store === c.amazon);
+                    const ml = mlEt.find((x) => x.tag === c.ml);
+                    return { nome: c.nome,
+                      shopee: { v: sh.reduce((a, u) => a + u.conversions, 0), c: sh.reduce((a, u) => a + u.commission, 0) },
+                      amazon: { v: am?.qty ?? 0, c: am?.commission ?? 0 },
+                      ml: { v: ml?.vendas ?? 0, c: ml?.comissao ?? 0, cl: ml?.cliques ?? 0 } };
+                  });
+                  const cel = (x: { v: number; c: number }) => x.v || x.c
+                    ? <span>{num(x.v)}× · <span className="text-emerald-400 font-medium">{brl(x.c)}</span></span>
+                    : <span className="text-zinc-600">—</span>;
+                  return (
+                    <Section acc="utm" icon={Target} title="Vendas por campanha"
+                      desc="Marcadas nos links dos grupos desde 22/10. É um recorte do total (não soma de novo). Shopee ao vivo; Amazon quando o sync roda (a cada 2 dias); ML 8h e 14h. Venda sem marca (link antigo, bio, outros canais) fica fora daqui.">
+                      <div className="overflow-x-auto scroll-thin">
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-zinc-500 text-left"><th className="py-1 pr-3 font-medium">Campanha</th><th className="py-1 pr-3 font-medium">Shopee</th><th className="py-1 pr-3 font-medium">Amazon</th><th className="py-1 font-medium">Mercado Livre</th></tr></thead>
+                          <tbody>
+                            {linhas.map((l) => (
+                              <tr key={l.nome} className="border-t border-zinc-800/60 text-zinc-300">
+                                <td className="py-1.5 pr-3 text-white">{l.nome}</td>
+                                <td className="py-1.5 pr-3">{cel(l.shopee)}</td>
+                                <td className="py-1.5 pr-3">{cel(l.amazon)}</td>
+                                <td className="py-1.5">{cel(l.ml)}{l.ml.cl > 0 && <span className="text-zinc-500"> · {num(l.ml.cl)} cliques</span>}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Section>
+                  );
+                })()}
+
                 {agg.byUtm.length > 0 && (
-                  <Section acc="utm" icon={Tag} title="Vendas por UTM">
+                  <Section acc="utm" icon={Tag} title="Vendas por grupo (Shopee)" desc="De qual grupo saiu a venda. Códigos fora do padrão dos grupos aparecem como vieram.">
                     <div className="space-y-1.5 max-h-[220px] overflow-y-auto scroll-thin">
                       {agg.byUtm.map((u, i) => (
                         <div key={i} className="flex items-center justify-between gap-3 text-sm px-1">
-                          <span className="text-zinc-300 truncate font-mono text-xs">{u.utm}</span>
+                          {(() => { const l = lerUtm(u.utm); return l
+                            ? <span className="text-zinc-300 truncate text-xs">{l.grupo} <span className="text-zinc-500">· {l.camp}</span></span>
+                            : <span className="text-zinc-300 truncate font-mono text-xs">{u.utm}</span>; })()}
                           <span className="text-zinc-500 text-xs shrink-0">{num(u.conversions)}× · <span className="text-emerald-400 font-medium">{brl(u.commission)}</span></span>
                         </div>
                       ))}
