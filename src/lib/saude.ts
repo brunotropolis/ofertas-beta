@@ -165,7 +165,24 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
     motivo: pior ? `${pior.nome}: ${pior.motivo}` : campanhas.length ? "Disparos saindo normalmente" : "Nenhuma campanha ativa",
   };
 
-  return { numeros, plataformas, disparo, campanhas };
+  // Links (23/Out): post saindo com link DIRETO da loja = encurtador recusando o cadastro (22/Out o worker perdeu
+  // a senha WORKER_SECRET e o dia inteiro saiu sem contar clique nem marcar campanha). Olha os 5 últimos posts.
+  const { data: pf } = await db.from("perfis").select("short_domain").eq("id", id).maybeSingle();
+  const dominio = (pf?.short_domain as string | null) ?? null;
+  let links: { luz: Luz; motivo: string; diretos: number; vistos: number } = { luz: "verde", motivo: "Sem domínio curto", diretos: 0, vistos: 0 };
+  const idsCamp = ((campsAtivas ?? []) as Any[]).map((c) => c.id);
+  if (dominio && idsCamp.length) {
+    const { data: ultPosts } = await db.from("publication_queue").select("offer:offers(affiliate_url)")
+      .overlaps("campaign_ids", idsCamp).eq("status", "published").gte("published_at", new Date(agora - 3 * 3600_000).toISOString())
+      .order("published_at", { ascending: false }).limit(5);
+    const vistos = (ultPosts ?? []) as Any[];
+    const diretos = vistos.filter((x) => !String(x.offer?.affiliate_url ?? "").includes(`${dominio}/l/`)).length;
+    links = { diretos, vistos: vistos.length,
+      luz: vistos.length >= 3 && diretos >= 3 ? "vermelho" : "verde",
+      motivo: vistos.length >= 3 && diretos >= 3 ? `${diretos} dos últimos ${vistos.length} posts saíram sem o link curto (encurtador recusando)` : "Links saindo pelo encurtador" };
+  }
+
+  return { numeros, plataformas, disparo, campanhas, links };
 }
 
 /**

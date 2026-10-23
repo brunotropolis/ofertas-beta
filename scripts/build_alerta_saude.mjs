@@ -55,6 +55,7 @@ if (r.statusCode >= 300) {
     for (const x of p.plataformas || []) {
       muda('plat:' + p.perfil + ':' + x.plataforma, x.luz === 'vermelho', x.nome + ' (' + p.perfil + '): ' + x.motivo, x.nome + ' (' + p.perfil + ') voltou a trazer ofertas');
     }
+    if (p.links) muda('links:' + p.perfil, p.links.luz === 'vermelho', 'Links (' + p.perfil + '): ' + p.links.motivo + ' — clique e campanha não estão sendo marcados', 'Links (' + p.perfil + ') voltaram a sair pelo encurtador');
     // por campanha (20/Out): o agregado escondia a Maternas parada enquanto Fraldas/Cupons postavam
     for (const c of p.campanhas || []) {
       muda('camp:' + c.id, c.luz === 'vermelho', c.nome + ': ' + c.motivo, c.nome + ': voltou a postar');
