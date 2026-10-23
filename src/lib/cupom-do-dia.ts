@@ -23,7 +23,7 @@ const money = (s: string) => parseFloat(s.replace(/\./g, "").replace(",", "."));
 const brl = (n: number) => "R$" + (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(".", ","));
 
 function parseRegra(line: string): Omit<CupomDia, "loja" | "code"> | null {
-  const cond: CupomDia["cond"] = /full/i.test(line) ? "full" : /lojas? oficia/i.test(line) ? "oficial" : null;
+  const cond: CupomDia["cond"] = /\bfull\b/i.test(line) ? "full" : /lojas? oficia/i.test(line) ? "oficial" : null;
   if (CATEGORIA.test(line.replace(/lojas? oficia\w*|entregas? full/gi, ""))) return null;
   const min = line.match(/(?:acima de|em compras? (?:acima|a partir) de|a partir de|\bem)\s*R\$\s*([\d.]+(?:,\d{1,2})?)/i);
   const fixo = line.match(/R\$\s*([\d.]+(?:,\d{1,2})?)\s*(?:de\s*)?OFF/i);

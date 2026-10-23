@@ -120,6 +120,12 @@ export async function POST(request: Request) {
     if (dup) return NextResponse.json({ deduped: true, offer_id: dup.id });
   }
 
+  // Post feito PRA AFILIADO ("Sextou, Afiliado(a)!", aviso de comissão) nunca entra: saiu um nos 170 grupos em
+  // 23/Out vindo do @afiliadosshopeebroficial. 2ª trava (a 1ª é no leitor).
+  if (/afiliad[oa]s?\b|afiliad[oa]\(a\)|\bcomiss(?:[aã]o|[oõ]es)\b|programa de afiliad|seus links/i.test(`${p.title ?? ""}\n${p.extra_text ?? ""}`)) {
+    return NextResponse.json({ skipped: "post_pra_afiliado" });
+  }
+
   // ── Resolve perfil (slug → id) ───────────────────────────────────────────
   let perfilId: string | null = null;
   let shortDomain = "manualdorecemnascido.com.br"; // padrão (marca-mãe)

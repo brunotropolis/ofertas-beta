@@ -67,7 +67,7 @@ const META_ML = 0.45;
 const META_AMAZON = 0.33;
 const CANAL_REF = "@promocaozinha"; // canal do Telegram mais parecido com o grupo real
 const CANAL_FRESCO_MS = 6 * 3600_000; // item do canal vale se chegou nas últimas 6h (canal parado → cai nos coletores)
-const isFralda = (t: string | null) => /fralda/i.test(t || "");
+const isFralda = (t: string | null) => /\bfralda/i.test(t || "");
 /** código do produto na loja (ASIN / item Shopee / MLB) — o mesmo produto vem com nome diferente do Telegram e do coletor */
 const idProduto = (url: string | null | undefined): string | null => {
   const u = url || "";
