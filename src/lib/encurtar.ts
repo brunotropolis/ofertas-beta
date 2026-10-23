@@ -15,12 +15,48 @@ const slugDe = (url: string) => {
   return "o" + n.toString(36).padStart(6, "0").slice(-6);
 };
 
+// Shopee: o link de afiliado "an_redir" aceita marca própria (sub_id) que volta no relatório de vendas
+// (campo utmContent). O encurtador acrescenta sub_id=<grupo>-<campanha> no clique (22/Out).
+const SHOPEE_AFILIADO = "18177790005";
+async function shopeeComMarca(link: string): Promise<string | null> {
+  let u = link;
+  for (let i = 0; i < 3 && /s\.shopee\.com\.br\/(?!an_redir)/.test(u); i++) {
+    try {
+      const r = await fetch(u, { redirect: "manual", headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) });
+      const loc = r.headers.get("location");
+      if (!loc) break;
+      u = new URL(loc, u).toString();
+    } catch { return null; }
+  }
+  const m = u.match(/shopee\.com\.br\/(?:product|opaanlp)\/(\d+)\/(\d+)/) || u.match(/-i\.(\d+)\.(\d+)/);
+  if (!m) return null;
+  const origem = `https://shopee.com.br/product/${m[1]}/${m[2]}`;
+  return `https://s.shopee.com.br/an_redir?origin_link=${encodeURIComponent(origem)}&affiliate_id=${SHOPEE_AFILIADO}`;
+}
+
 /** Devolve o link curto da oferta (registra no encurtador e grava na oferta se ainda não for nosso). */
-export async function garantirLinkCurto(db: DB, offerId: string, link: string, shortDomain: string | null): Promise<string> {
-  if (!shortDomain || !link || link.includes(`${shortDomain}/l/`)) return link;
+export async function garantirLinkCurto(db: DB, offerId: string, link: string, shortDomain: string | null, plataforma?: string | null): Promise<string> {
+  if (!shortDomain || !link) return link;
+  // Shopee com link antigo (sem marca): troca pelo formato que aceita marca, mesmo que já seja curto nosso
+  if (plataforma === "shopee" && !link.includes(`${shortDomain}/l/p`)) {
+    let destino = link;
+    if (link.includes(`${shortDomain}/l/`)) {
+      try {
+        const r = await fetch(link, { redirect: "manual", signal: AbortSignal.timeout(6000) });
+        destino = r.headers.get("location") || link;
+      } catch { /* mantém */ }
+    }
+    const marcado = await shopeeComMarca(destino);
+    if (marcado) return registrar(db, offerId, marcado, shortDomain, "p");
+  }
+  if (link.includes(`${shortDomain}/l/`)) return link;
+  return registrar(db, offerId, link, shortDomain, "o");
+}
+
+async function registrar(db: DB, offerId: string, link: string, shortDomain: string, prefixo: string): Promise<string> {
   const secret = process.env.UTM_WORKER_SECRET;
   if (!secret) return link;
-  const slug = slugDe(link);
+  const slug = prefixo + slugDe(link).slice(1);
   try {
     const r = await fetch("https://manualdorecemnascido.com.br/_utmapi/register", {
       method: "POST",
@@ -43,4 +79,7 @@ export function marcaGrupo(groupName: string | null | undefined, jid: string): s
   return m ? m[1] : "x" + jid.replace(/\D/g, "").slice(-6);
 }
 
-export const comGrupo = (link: string, g: string) => `${link}${link.includes("?") ? "&" : "?"}g=${g}`;
+/** Marca no link: grupo (g) + campanha (c: m=Maternas, f=Fraldas, c=Cupons, e=Enxoval) — lidos pelo encurtador no clique. */
+export const CAMPANHA_CODIGO: Record<string, string> = { geral: "m", fraldas: "f", cupons: "c", enxoval: "e" };
+export const comGrupo = (link: string, g: string, c?: string) =>
+  `${link}${link.includes("?") ? "&" : "?"}g=${g}${c ? `&c=${c}` : ""}`;

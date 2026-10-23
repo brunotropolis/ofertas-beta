@@ -17,7 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
-import { comGrupo, garantirLinkCurto, marcaGrupo } from "@/lib/encurtar";
+import { CAMPANHA_CODIGO, comGrupo, garantirLinkCurto, marcaGrupo } from "@/lib/encurtar";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
@@ -429,7 +429,7 @@ export async function publishQueueItemForCampaign(
   let linkBase = o.affiliate_url || o.url;
   if (viaWaha && campaign.perfil_id) {
     const { data: pf } = await db.from("perfis").select("short_domain").eq("id", campaign.perfil_id).maybeSingle();
-    linkBase = await garantirLinkCurto(db, o.id, linkBase, (pf?.short_domain as string | null) ?? null);
+    linkBase = await garantirLinkCurto(db, o.id, linkBase, (pf?.short_domain as string | null) ?? null, o.platform);
     o.affiliate_url = linkBase;
   }
   const caption = await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
@@ -465,7 +465,7 @@ export async function publishQueueItemForCampaign(
     try {
       if (viaWaha) {
         // cada grupo recebe o link com a marca dele (?g=51) — o encurtador conta o clique por grupo
-        const lk = linkBase.includes("/l/") ? comGrupo(linkBase, marcaGrupo(group.group_name, group.group_jid)) : linkBase;
+        const lk = linkBase.includes("/l/") ? comGrupo(linkBase, marcaGrupo(group.group_name, group.group_jid), CAMPANHA_CODIGO[campaign.categoria ?? "geral"]) : linkBase;
         await sendCardWaha({ ...perfilWaha!, waha_url: url }, group.group_jid, caption.split(linkBase).join(lk), { ...o, affiliate_url: lk });
       } else {
         await sendTextEvolution(phone!.evolution_instance_id, group.group_jid, caption);

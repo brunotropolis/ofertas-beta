@@ -57,6 +57,9 @@ const header = rows.shift().map(h => h.trim().toLowerCase());
 const col = (name) => header.indexOf(name.toLowerCase());
 const iDate = col("Date"), iCat = col("Category"), iTitle = col("Product Title"), iAsin = col("Asin"),
   iClicks = col("Clicks"), iItems = col("Items Ordered"), iRev = col("Ordered Revenue"), iEarn = col("Total Earnings");
+// 22/Out: se o CSV trouxer o ID de rastreamento por linha, cada linha vai pro bucket da sua tag
+// (mrnofmaternas-20 / mrnoffraldas-20 / mrnofcupons-20 / mrnofenxoval-20 = venda por campanha)
+const iTag = ["tracking id", "tracking_id", "id de rastreamento", "tag"].map(col).find((i) => i >= 0) ?? -1;
 
 // múltiplos dias? (Date variando entre linhas)
 const dates = new Set(rows.map(r => (r[iDate] || "").trim()).filter(Boolean));
@@ -71,19 +74,20 @@ const out = rows.map((r) => {
   const cat = (r[iCat] || "").trim();
   const category = isOutros || !cat || cat === "-" || /^others?$/i.test(cat) ? "Outras" : cat;
   const day = (r[iDate] || "").trim();
+  const tag = iTag >= 0 && (r[iTag] || "").trim() ? (r[iTag] || "").trim() : storeId;
   return {
-    external_id: perDay ? `${storeId}:${asin}:${day}` : `${storeId}:${asin}:${pStart}:${pEnd}`,
+    external_id: perDay ? `${tag}:${asin}:${day}` : `${tag}:${asin}:${pStart}:${pEnd}`,
     sold_at: perDay && /^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T12:00:00.000-03:00` : null,
     period_start: pStart,
     period_end: pEnd,
     product_name: name,
     category,
-    store: storeId,
+    store: tag,
     clicks: Math.round(num(r[iClicks])),
     units: Math.round(num(r[iItems])),
     gross_value: num(r[iRev]),
     commission: num(r[iEarn]),
-    raw: { asin, date: day, store: storeId },
+    raw: { asin, date: day, store: tag },
   };
 });
 
@@ -93,11 +97,13 @@ const payload = out.map(r => ({ source: "amazon", ...r, synced_at: now,
 
 // Acumula por período E por tracking ID: apaga SÓ o bucket deste storeId+período (re-sync idempotente;
 // buckets não-sobrepostos coexistem e somam). storeIds diferentes (0c-20, 04-20) acumulam.
-const del = await fetch(`${URL}/rest/v1/affiliate_sales?source=eq.amazon&store=eq.${encodeURIComponent(storeId)}&period_start=eq.${pStart}&period_end=eq.${pEnd}`, {
-  method: "DELETE",
-  headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: "return=minimal" },
-});
-if (!del.ok) { console.error(`delete amazon período: HTTP ${del.status} ${await del.text()}`); process.exit(1); }
+for (const tg of new Set([storeId, ...out.map((r) => r.store)])) {
+  const del = await fetch(`${URL}/rest/v1/affiliate_sales?source=eq.amazon&store=eq.${encodeURIComponent(tg)}&period_start=eq.${pStart}&period_end=eq.${pEnd}`, {
+    method: "DELETE",
+    headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: "return=minimal" },
+  });
+  if (!del.ok) { console.error(`delete amazon período: HTTP ${del.status} ${await del.text()}`); process.exit(1); }
+}
 
 const endpoint = `${URL}/rest/v1/affiliate_sales?on_conflict=source,external_id`;
 let ok = 0;
@@ -111,4 +117,7 @@ for (let i = 0; i < payload.length; i += 500) {
   if (!res.ok) { console.error(`lote ${i}: HTTP ${res.status} ${await res.text()}`); process.exit(1); }
   ok += batch.length;
 }
-console.log(`OK: ${ok} linhas amazon [${storeId}] (perDay=${perDay}, período ${pStart}..${pEnd}). Comissão total: R$ ${out.reduce((a, b) => a + b.commission, 0).toFixed(2)}`);
+const porTag = {};
+for (const r of out) porTag[r.store] = (porTag[r.store] ?? 0) + r.commission;
+console.log(`OK: ${ok} linhas amazon [${storeId}] (perDay=${perDay}, período ${pStart}..${pEnd}). Comissão total: R$ ${out.reduce((a, b) => a + b.commission, 0).toFixed(2)}`
+  + (iTag >= 0 ? ` | por tag: ${Object.entries(porTag).map(([k, v]) => `${k} R$ ${v.toFixed(2)}`).join(", ")}` : " | (CSV sem coluna de ID de rastreamento: tudo na tag da loja)"));
