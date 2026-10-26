@@ -192,7 +192,7 @@ function buildCouponListCaption(offer: CaptionOffer, lista: CupomLista[]): strin
   const loja = LOJA[offer.coupon_meta?.loja || offer.platform || ""] || "";
   const parts: string[] = [`*🟡CUPONS ${loja.toUpperCase()} DE HOJE 🟡*`];
   parts.push(lista.map((c) => {
-    const linhas = [c.codigo ? `🏷️ *${c.titulo}* com o código *${c.codigo}*` : `🎟️ *${c.titulo}*`];
+    const linhas = [c.codigo ? `🏷️ *${c.titulo.trim()}* com o código *${c.codigo}*` : `🎟️ *${c.titulo.trim()}*`];
     const det = [c.detalhe, c.aviso ? `⏰ ${c.aviso.toLowerCase().replace(/!$/, "")}` : null].filter(Boolean).join(" · ");
     if (det) linhas.push(`_${det}_`);
     return linhas.join("\n");

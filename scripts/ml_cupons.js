@@ -135,7 +135,9 @@ async function main() {
     const pct = (c.titulo.match(/(\d+)%/) || [])[1];
     const detalhe = [min ? `compra mínima R$ ${min.toLocaleString("pt-BR")}` : "sem compra mínima", cap ? `desconto até R$ ${cap.toLocaleString("pt-BR")}` : null].filter(Boolean).join(" · ");
     const aviso = /hoje|esgotando|amanh/i.test(c.aviso || "") ? c.aviso : null;
-    cands.push({ id: c.id, titulo: codigo ? c.titulo.replace(new RegExp(`\\s*com\\s+${codigo}`, "i"), "") : c.titulo, codigo, detalhe, aviso, min, pct: pct ? +pct : null });
+    // trim: "*10% OFF *" com espaço antes do asterisco quebra o negrito no WhatsApp
+    const titulo = (codigo ? c.titulo.replace(new RegExp(`\\s*com\\s+${codigo}`, "i"), "") : c.titulo).replace(/\s+/g, " ").trim();
+    cands.push({ id: c.id, titulo, codigo, detalhe, aviso, min, pct: pct ? +pct : null });
   }
   cands.sort((a, b) => pontua(b) - pontua(a));
   // mistura: até 2 de código (MELISALVA, SEMPREMELI...) + os de "Aplicar" (1 toque na página de Cupons)
