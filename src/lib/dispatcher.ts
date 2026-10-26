@@ -76,10 +76,14 @@ interface Group {
   waha_url?: string | null;
 }
 
-// Intervalo entre um envio e o próximo (aleatório, ms). Com os grupos divididos entre os números e
-// intercalados, cada número espera ~3x isso entre os seus próprios envios.
+// Intervalo entre um envio e o próximo (aleatório, ms) — só no caminho Evolution (fila única).
 const GAP_MIN_MS = 1500;
 const GAP_MAX_MS = 3000;
+// WAHA (26/Out, Bruno "manda ver" na opção moderada): os números mandam AO MESMO TEMPO, cada um nos seus grupos,
+// com 4–6s entre os PRÓPRIOS envios. Antes: fila única intercalada (1,5–3s entre envios = cada número a cada
+// ~10s) → post levava ~10 min pros 170 grupos; agora ~5 min com 3 números (e cai mais com chip novo).
+const GAP_NUMERO_MIN_MS = 4000;
+const GAP_NUMERO_MAX_MS = 6000;
 // Aviso de "rate-overlimit" vai pro WhatsApp do Bruno (só avisa, não pausa — decisão 19/Out)
 const ALERTA_CHAT = "554184302127@c.us";
 
@@ -441,25 +445,20 @@ export async function publishQueueItemForCampaign(
   const vivos = [...saudaveis.keys()];
   const servidorDe = (g: Group, i: number) =>
     g.waha_url && saudaveis.has(g.waha_url) ? g.waha_url : vivos.length ? vivos[i % vivos.length] : perfilWaha?.waha_url ?? "";
-  const ordem: { group: Group; url: string }[] = [];
+  // cada número com a sua fila de grupos
+  const filas = new Map<string, Group[]>();
   if (viaWaha) {
-    const filas = new Map<string, Group[]>();
     groupList.forEach((g, i) => {
       const u = servidorDe(g, i);
       if (!filas.has(u)) filas.set(u, []);
       filas.get(u)!.push(g);
     });
-    const listas = [...filas.entries()];
-    for (let k = 0; listas.some(([, l]) => k < l.length); k++) {
-      for (const [u, l] of listas) if (k < l.length) ordem.push({ group: l[k], url: u });
-    }
-  } else {
-    for (const g of groupList) ordem.push({ group: g, url: "" });
   }
   const rateLimitados = new Map<string, number>(); // url → nº de grupos com rate-overlimit neste post
   const inicioPost = new Date().toISOString();
+  const espera = (min: number, max: number) => new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
 
-  for (const { group, url } of ordem) {
+  const enviar = async (group: Group, url: string) => {
     const phone = phoneList.length ? phoneList[Math.floor(Math.random() * phoneList.length)] : null;
     const usado = viaWaha ? wahaTag(url) : phone?.phone_number ?? "";
     try {
@@ -493,7 +492,16 @@ export async function publishQueueItemForCampaign(
       });
       failures++;
     }
-    await new Promise((r) => setTimeout(r, GAP_MIN_MS + Math.random() * (GAP_MAX_MS - GAP_MIN_MS)));
+  };
+
+  if (viaWaha) {
+    // números em paralelo; cada um começa com uma folguinha sorteada pra não sair tudo no mesmo segundo
+    await Promise.all([...filas.entries()].map(async ([u, lista]) => {
+      await espera(0, 2000);
+      for (const g of lista) { await enviar(g, u); await espera(GAP_NUMERO_MIN_MS, GAP_NUMERO_MAX_MS); }
+    }));
+  } else {
+    for (const g of groupList) { await enviar(g, ""); await espera(GAP_MIN_MS, GAP_MAX_MS); }
   }
 
   if (rateLimitados.size) await avisarRateLimit(db, perfilWaha!, saudaveis, rateLimitados, campaign.id, inicioPost);
