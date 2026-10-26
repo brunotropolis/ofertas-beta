@@ -114,10 +114,11 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
   const desde = new Date(Date.now() - 3 * 3600_000).toISOString();
   const { data } = await db.from("offers")
     .select("id, title, extra_text, coupon_code, coupon_meta, created_at")
-    .eq("perfil_id", c.perfil_id!).eq("kind", "cupom").eq("source", "telegram")
+    .eq("perfil_id", c.perfil_id!).eq("kind", "cupom").in("source", ["telegram", "auto"]) // auto = lista da página de Cupons do ML (26/Out)
     .not("affiliate_url", "is", null).gte("created_at", desde)
     .order("created_at", { ascending: false }).limit(200);
   const feitos = await jaDaCampanha(db, c.id, dayStart);
+  const idsFeitos = new Set<string>(feitos.map((o) => o.id as string));
   const usados = new Set<string>();
   for (const o of feitos) for (const k of (o.coupon_meta?.codes?.length ? o.coupon_meta.codes : [o.coupon_code])) if (k) usados.add(String(k).toUpperCase());
 
@@ -132,6 +133,11 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
   for (const o of lista) {
     if (ids.length >= n) break;
     if (MORTO.test(`${o.title} ${o.extra_text} ${o.coupon_meta?.regra ?? ""}`)) continue;
+    // lista de cupons do ML (sem código pra conferir): entra 1x por campanha
+    if (Array.isArray(o.coupon_meta?.lista) && o.coupon_meta.lista.length) {
+      if (!idsFeitos.has(o.id)) { ids.push(o.id); idsFeitos.add(o.id); }
+      continue;
+    }
     const brutos: string[] = o.coupon_meta?.codes?.length ? o.coupon_meta.codes : o.coupon_code ? [o.coupon_code] : [];
     const bons = [...new Set(brutos.map((k) => String(k).toUpperCase()).filter(codigoValido))];
     if (!bons.length || bons.some((k) => usados.has(k) || mortos.has(k))) continue;

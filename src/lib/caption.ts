@@ -181,8 +181,31 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   return semLinkDeCanal(parts.join("\n\n"));
 }
 
+/** Item da lista de cupons da página de Cupons do ML (coletor ml_cupons.js, 26/Out). */
+export interface CupomLista { titulo: string; detalhe?: string | null; codigo?: string | null; aviso?: string | null }
+
+/**
+ * Post com VÁRIOS cupons do dia (página de Cupons do ML): a pessoa ativa no app e compra pelo nosso link.
+ * Cupom "Aplicar" não tem código (ativa com 1 toque na página de Cupons); o de código aparece com o código.
+ */
+function buildCouponListCaption(offer: CaptionOffer, lista: CupomLista[]): string {
+  const loja = LOJA[offer.coupon_meta?.loja || offer.platform || ""] || "";
+  const parts: string[] = [`*🟡CUPONS ${loja.toUpperCase()} DE HOJE 🟡*`];
+  parts.push(lista.map((c) => {
+    const linhas = [c.codigo ? `🏷️ *${c.titulo}* com o código *${c.codigo}*` : `🎟️ *${c.titulo}*`];
+    const det = [c.detalhe, c.aviso ? `⏰ ${c.aviso.toLowerCase().replace(/!$/, "")}` : null].filter(Boolean).join(" · ");
+    if (det) linhas.push(`_${det}_`);
+    return linhas.join("\n");
+  }).join("\n\n"));
+  parts.push(AVISO_CUPOM);
+  parts.push(`👉 Ative em *Cupons* no app do ${loja || "app"} e compre pelo nosso link 👇\n${offer.affiliate_url || offer.url}`);
+  return semLinkDeCanal(parts.join("\n\n"));
+}
+
 /** Post de CUPOM (sem IA), no formato do grupo. */
 export function buildCouponCaption(offer: CaptionOffer): string {
+  const lista = (offer.coupon_meta as { lista?: CupomLista[] } | null | undefined)?.lista;
+  if (Array.isArray(lista) && lista.length) return buildCouponListCaption(offer, lista);
   const loja = LOJA[offer.coupon_meta?.loja || offer.platform || ""] || "";
   const codes = offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : offer.coupon_code ? [offer.coupon_code] : [];
   const regras = (offer.coupon_meta?.regra || offer.extra_text || "")

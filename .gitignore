@@ -37,3 +37,7 @@ next-env.d.ts
 scripts/_*.mjs
 
 scripts/_*.json
+
+# coletor de cupons do ML (perfil do Chrome + estado do dia)
+.ml-cupons-profile/
+scripts/.ml-cupons-estado.json
