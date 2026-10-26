@@ -86,6 +86,11 @@ interface Cand {
 // puxa de TODOS os canais do Telegram (os que postam primeiro de manhã) alternando com os nossos coletores,
 // maior desconto primeiro nos dois, + cupons de loja.
 const META_CUPOM_DUPLA = 0.25;
+// 26/Out (Bruno: "pela manhã, aumente as postagens de cupons no grupo do ofertas"): post de CUPOM volta pros
+// 170 grupos em dia normal (no manual ~41% dos posts levavam cupom). Manhã 8h–11h = 40% dos posts; resto do dia 20%.
+// Mesma régua do grupo de Cupons (código limpo, fresco 3h, sem repetir código no dia, mata o ESGOTADO).
+const META_CUPOM_MANHA = 0.40;
+const META_CUPOM_DIA = 0.20;
 function ehDataDupla(): boolean {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCDate() === brt.getUTCMonth() + 1;
@@ -148,6 +153,11 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nTele = feitos.filter((o) => o.source === "telegram").length;
   let nAuto = feitos.filter((o) => o.source === "auto").length;
   const poolCupom = (cupons ?? []) as Cand[];
+  if (!dupla) {
+    const ids = await escolherPorCategoria(db, "cupons", c, n, dayStart);
+    for (const id of ids) poolCupom.push({ id, kind: "cupom", title: null, platform: null, source: "telegram" });
+  }
+  const metaCupom = dupla ? META_CUPOM_DUPLA : brtHour() < 11 ? META_CUPOM_MANHA : META_CUPOM_DIA;
   let nCupons = feitos.filter((o) => o.kind === "cupom").length;
 
   const escolhidos: Cand[] = [];
@@ -163,8 +173,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   for (let k = 0; k < n; k++) {
     const t = Math.max(total, 1);
     let o: Cand | null = null;
-    if (dupla && nCupons / t < META_CUPOM_DUPLA) {
-      const i = poolCupom.findIndex((x) => !jaFoi(x));
+    if (nCupons / t < metaCupom) {
+      const i = poolCupom.findIndex((x) => x.title == null || !jaFoi(x));
       if (i >= 0) { o = poolCupom.splice(i, 1)[0]; nCupons++; }
     }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
