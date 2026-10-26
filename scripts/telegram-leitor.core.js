@@ -17,6 +17,19 @@ const CUPOM_FORA = /\bmoda\b|beleza|decor|\bcasa\b|eletr[oô]n|celular|smartphon
 // Post feito PRA AFILIADO (canais oficiais tipo @afiliadosshopeebroficial e "Crescendo com o Meli"): avisos do
 // programa, comissão, "Sextou, Afiliado(a)!". Nunca pode ir pros grupos (23/Out saiu um nos 170 grupos).
 const PRA_AFILIADO = /afiliad[oa]s?\b|afiliad[oa]\(a\)|\bcomiss(?:[aã]o|[oõ]es)\b|seus links|link de afiliad|programa de afiliad|criador(?:es|a)? de conte[uú]do|painel de afiliad|\bcreators?\b/i;
+// Oferta falsa / troll (26/Out, Bruno: "não cair em enviar link falso"). Tem gente que posta oferta de propósito
+// (até produto adulto) pra pegar quem copia por robô. 3 travas antes de aceitar produto do Telegram/WhatsApp:
+// (1) palavra proibida no post ou no nome oficial; (2) nome do post sem NADA a ver com o produto do link;
+// (3) preço da loja bem acima do que o post promete (oferta falsa ou já acabou).
+const PROIBIDO = /\bsex(?:o|y| ?shop|ual\w*)\b|er[oó]tic|consolo|vibrador|p[eê]nis|lubrificante [ií]ntimo|fetiche|bdsm|preservativo|camisinha|pornogr|\bxxx\b|\barma\b|pistola|rev[oó]lver|muni[cç][aã]o|soco ingl[eê]s|canivete|faca t[aá]tica|cigarr|\bvape\b|narguil|tabaco|maconha|cannabis|anabolizante|esteroide|abortiv|cytotec|cassino|\baposta/i;
+const PALAVRA_VAZIA = new Set(["para", "com", "sem", "kit", "unidades", "unidade", "cada", "promocao", "oferta", "frete", "gratis", "novo", "nova", "original", "pacote", "tamanho", "cor", "preto", "branco", "infantil", "bebe"]);
+function palavras(t) { return new Set(norm(t).replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !PALAVRA_VAZIA.has(w) && !/^\d+$/.test(w))); }
+function nomeBate(tituloPost, oficial) {
+  const a = palavras(tituloPost), b = palavras(oficial);
+  if (a.size < 2 || b.size < 2) return true; // pouco texto pra julgar
+  for (const w of a) if (b.has(w) || [...b].some((x) => x.length >= 5 && w.length >= 5 && (x.startsWith(w.slice(0, 5)) || w.startsWith(x.slice(0, 5))))) return true;
+  return false;
+}
 // "ESGOTADO" (o canal costuma EDITAR o post depois). "Esgota rápido" é chamada de urgência, não conta.
 const ESGOTADO = /\besgotad[oa]s?\b|\besgotou\b|\bacabou o estoque\b|\bsem estoque\b/i;
 const STOP_CODES = new Set(["OFF", "PIX", "FULL", "SHOPEE", "CUPOM", "CUPONS", "MERCADO", "LIVRE", "AMAZON", "PRIME", "LINK", "ATIVE", "AQUI", "ALERTA", "SAIU", "SAINDO", "RESGATE", "CARRINHO", "LOJAS", "OFICIAIS", "RELAMPAGO", "OFERTA", "OFERTAS", "BRL", "FRETE", "GRATIS", "HOJE", "AGORA", "CORRE", "RAPIDO", "MAGALU", "LISTA", "SITE", "CODIGO", "VOLTOU", "BAIXOU", "PROMO", "PROMOCAO", "ACIMA", "LIMITE", "ATENCAO", "URGENTE", "NOVO", "NOVOS", "DESCONTO", "VALE"]);
@@ -229,7 +242,7 @@ async function productLink(ctx, links) {
       const aff = await shopeeShort(ctx, clean);
       if (!aff) continue;
       const info = await shopeeInfo(ctx, m[1], m[2]).catch(() => null);
-      return { platform: "shopee", ref: m[2], url: clean, affiliate_url: aff, image: info?.imageUrl || null, officialTitle: info?.productName || null };
+      return { platform: "shopee", ref: m[2], url: clean, affiliate_url: aff, image: info?.imageUrl || null, officialTitle: info?.productName || null, lojaPreco: info?.priceMin ? +info.priceMin : null };
     }
     if (p2 === "ml") {
       let prod = null, mlImage = null;
@@ -315,7 +328,15 @@ async function processarPosts(ctx, res, fresh, origem) {
           if (l0 && (res.debug = res.debug || []).length < 6) { const r0 = await resolve(ctx, l0); res.debug.push(`${origem.canal}/${p.id} ${l0} -> ${r0.url.slice(0, 140)}`); }
           continue;
         }
+        const nomeOficial = link.officialTitle || link.amazon?.title || "";
+        if (PROIBIDO.test(p.text) || PROIBIDO.test(nomeOficial)) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`proibido: ${origem.canal}/${p.id}`); continue; }
+        if (nomeOficial && !nomeBate(titleOf(p.text) || "", nomeOficial)) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`nome não bate: ${origem.canal}/${p.id} "${(titleOf(p.text) || "").slice(0, 40)}" x "${nomeOficial.slice(0, 40)}"`); continue; }
         let { cur, orig } = pricesOf(p.text);
+        const precoLoja = link.amazon?.price ?? link.lojaPreco ?? null;
+        // post que cita cupom / programe e poupe / Pix / "na tela de pagamento" mostra o preço FINAL, abaixo da página
+        // (Pampers R$96,80 com cupom x R$143,88 na página = oferta real). Aí a folga é maior; preço falso (10x) cai igual.
+        const comCondicao = /cupo[mn]|programe|poupe|pagamento|carrinho|checkout|\bpix\b|[aà] vista|recorr/i.test(p.text);
+        if (cur && precoLoja && precoLoja > cur * (comCondicao ? 1.6 : 1.25) + 2) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`preço não bate: ${origem.canal}/${p.id} post R${cur} x loja R${precoLoja}`); continue; }
         const codes = extractCodes(p.text);
         const promo = { ...promoFlags(p.text) };
         if (link.amazon) {

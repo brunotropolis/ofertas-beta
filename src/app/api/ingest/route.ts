@@ -125,6 +125,11 @@ export async function POST(request: Request) {
   if (/afiliad[oa]s?\b|afiliad[oa]\(a\)|\bcomiss(?:[aã]o|[oõ]es)\b|programa de afiliad|seus links/i.test(`${p.title ?? ""}\n${p.extra_text ?? ""}`)) {
     return NextResponse.json({ skipped: "post_pra_afiliado" });
   }
+  // produto proibido pros grupos (adulto, arma, cigarro/vape, aposta...) — vale pra TODAS as fontes (26/Out).
+  // Mesma lista do leitor (scripts/telegram-leitor.core.js PROIBIDO).
+  if (/\bsex(?:o|y| ?shop|ual\w*)\b|er[oó]tic|consolo|vibrador|p[eê]nis|lubrificante [ií]ntimo|fetiche|bdsm|preservativo|camisinha|pornogr|\bxxx\b|\barma\b|pistola|rev[oó]lver|muni[cç][aã]o|soco ingl[eê]s|canivete|faca t[aá]tica|cigarr|\bvape\b|narguil|tabaco|maconha|cannabis|anabolizante|esteroide|abortiv|cytotec|cassino|\baposta/i.test(`${p.title ?? ""}\n${p.extra_text ?? ""}`)) {
+    return NextResponse.json({ skipped: "produto_proibido" });
+  }
 
   // ── Resolve perfil (slug → id) ───────────────────────────────────────────
   let perfilId: string | null = null;
