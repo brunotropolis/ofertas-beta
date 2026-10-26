@@ -82,8 +82,8 @@ const GAP_MAX_MS = 3000;
 // WAHA (26/Out, Bruno "manda ver" na opção moderada): os números mandam AO MESMO TEMPO, cada um nos seus grupos,
 // com 4–6s entre os PRÓPRIOS envios. Antes: fila única intercalada (1,5–3s entre envios = cada número a cada
 // ~10s) → post levava ~10 min pros 170 grupos; agora ~5 min com 3 números (e cai mais com chip novo).
-const GAP_NUMERO_MIN_MS = 4000;
-const GAP_NUMERO_MAX_MS = 6000;
+const GAP_NUMERO_MIN_MS = 2500; // + ~2s do próprio envio do cartão = ~1 msg a cada 5s por número (medido 26/10: 4–6s dava 6,9 min)
+const GAP_NUMERO_MAX_MS = 4000;
 // Aviso de "rate-overlimit" vai pro WhatsApp do Bruno (só avisa, não pausa — decisão 19/Out)
 const ALERTA_CHAT = "554184302127@c.us";
 
