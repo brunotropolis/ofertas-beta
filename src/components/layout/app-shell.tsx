@@ -17,6 +17,7 @@ import {
   Home,
   Wallet,
   History,
+  GalleryHorizontal,
   Menu,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Postagens",
     items: [
       { href: "/ofertas", label: "Nova oferta", icon: Tag },
+      { href: "/carrossel", label: "Carrossel", icon: GalleryHorizontal },
       { href: "/publicacoes", label: "Publicações", icon: List },
       { href: "/fila", label: "Fila", icon: Clock },
       { href: "/agendamento", label: "Agendamento", icon: CalendarClock },
