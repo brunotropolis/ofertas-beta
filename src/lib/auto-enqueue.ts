@@ -247,6 +247,30 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
 
     // Enfileira até completar o buffer, sem furar o teto do dia:
     // (buffer - pendentes) limitado por (teto - publicados - pendentes).
+    // Cupom com ANTECIPAÇÃO (27/Out, Bruno: "quero os cupons com antecipação, movimenta muito a conversão"):
+    // cupom que chegou há ≤20 min fura a fila (entra na frente e sai no próximo post), mesmo com o buffer cheio.
+    // Só Maternas (geral) e o grupo de Cupons; respeita o teto do dia; o mesmo código nunca sai 2x no dia.
+    const cat0 = (c.categoria ?? "geral") as Categoria;
+    if ((cat0 === "geral" || cat0 === "cupons") && today + pending < c.auto_daily_cap) {
+      const ids = await escolherPorCategoria(db, "cupons", c, 2, dayStart);
+      if (ids.length) {
+        const { data: frescos } = await db.from("offers").select("id, created_at").in("id", ids)
+          .gte("created_at", new Date(Date.now() - 20 * 60_000).toISOString());
+        const { data: primeiro } = await db.from("publication_queue").select("position")
+          .in("status", ["pending", "publishing"]).order("position", { ascending: true }).limit(1).maybeSingle();
+        let frente = ((primeiro?.position ?? 1) as number) - 1;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const f of ((frescos ?? []) as any[]).slice(0, 1)) {
+          const { error } = await db.from("publication_queue").insert({ offer_id: f.id, campaign_ids: [c.id], position: frente--, status: "pending", created_by: null });
+          if (!error) {
+            if (cat0 === "geral") await db.from("offers").update({ status: "queued" }).eq("id", f.id);
+            result.enqueued++;
+            result.skipped.push({ campaign: c.name, reason: "cupom fresco furou a fila" });
+          }
+        }
+      }
+    }
+
     const toEnqueue = Math.max(0, Math.min(buffer - pending, c.auto_daily_cap - today - pending));
     if (toEnqueue <= 0) {
       result.skipped.push({ campaign: c.name, reason: `buffer cheio (${pending} na fila, ${today}/${c.auto_daily_cap} hoje)` });

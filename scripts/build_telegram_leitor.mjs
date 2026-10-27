@@ -26,7 +26,9 @@ const WHATSAPP_FONTES = [
   { id: "120363429739898910@newsletter", nome: "WA: Crescendo com o Meli" },
   { id: "120363404397839295@g.us", nome: "WA: Amazon Associados Gerenciados" },
 ];
-const CHANNELS = ["grupo_promocoes", "amigacompra", "promocaozinha", "cuponsm", "afiliadosshopeebroficial", "cuponsdasho", "fadadoscupons"];
+// 27/Out: leitor a cada 2 min desde 7h (era a cada 5, 8h-19h) pra cupom sair com antecipação.
+// 27/Out: + PromosdaMih (melhor fonte de cupom Shopee: 12 em 48h), promotop e sddescontos (medido na pesquisa de canais)
+const CHANNELS = ["grupo_promocoes", "amigacompra", "promocaozinha", "cuponsm", "afiliadosshopeebroficial", "cuponsdasho", "fadadoscupons", "PromosdaMih", "promotop", "sddescontos"];
 
 // segredo do ingest = o mesmo dos coletores maternas
 const shopeeWf = await api("GET", "/workflows/spdOQNLpjiLYiL4n");
@@ -101,7 +103,7 @@ if (process.env.PRINT_CODE) { fs.writeFileSync(process.env.PRINT_CODE, jsCode); 
 
 const nodes = [
   // só 8h–20h BRT (decisão Bruno 02/Out: nada de madrugada)
-  { parameters: { rule: { interval: [{ field: "cronExpression", expression: WA ? "*/10 8-19 * * *" : "*/5 8-19 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
+  { parameters: { rule: { interval: [{ field: "cronExpression", expression: WA ? "*/10 8-19 * * *" : "*/2 7-19 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
   { parameters: { jsCode }, name: "LER CANAIS + INGEST", type: "n8n-nodes-base.code", typeVersion: 2, position: [240, 0] },
 ];
 const connections = { "A cada 5 min": { main: [[{ node: "LER CANAIS + INGEST", type: "main", index: 0 }]] } };
