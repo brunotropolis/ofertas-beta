@@ -24,6 +24,18 @@ const BLOCKED_HOST_PATTERNS = [
   /\.local$/i,
 ];
 
+export function isUrlPermitida(u: string): boolean {
+  try {
+    const url = new URL(u);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    if (BLOCKED_HOST_PATTERNS.some((re) => re.test(host))) return false;
+    return ALLOWED_DOMAINS.some((d) => host === d || host.endsWith("." + d));
+  } catch {
+    return false;
+  }
+}
+
 export const ParseUrlSchema = z.object({
   url: z.string()
     .url("URL inválida")

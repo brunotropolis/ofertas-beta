@@ -98,7 +98,7 @@ export default function CarrosselClient() {
     const falhas: string[] = [];
     for (const url of urls) {
       try {
-        const r = await fetch("/api/ofertas/parse-url", {
+        const r = await fetch("/api/carrossel/produto", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url }),
