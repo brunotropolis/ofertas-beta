@@ -106,9 +106,19 @@ export function codigoValido(c: string): boolean {
   if (!/^[A-Z0-9]{4,20}$/.test(s)) return false;
   if (/(.)\1{2,}/.test(s)) return false; // CORREEEE, UHUUU
   if (/\d/.test(s)) return true;
-  if (s.length < 6 || PALAVRAS.has(s)) return false;
-  return !/(.)\1$/.test(s); // SAINDOO
+  if (s.length < 6 || PALAVRAS.has(s) || PALAVRA_SOLTA.has(s)) return false;
+  if (/(.)\1$/.test(s)) return false; // SAINDOO
+  // 27/Out: "DISPON" (DISPONÍVEL cortado) e "INSERIR" saíram nos grupos como código. Código de verdade só de
+  // letras é palavra COMPOSTA (TOPMELI, OFFHOJE, MELITECH, SUPERDESCONTO): vale se tem um pedaço típico de código
+  // e mais 3+ letras além dele, ou se é longo (9+) e não é palavra solta conhecida.
+  const pedaco = PEDACOS_CODIGO.find((p) => s.includes(p));
+  if (pedaco && s.length >= pedaco.length + 3) return true;
+  return s.length >= 9;
 }
+// pedaços que aparecem nos códigos reais (medido nos cupons de 12–27/Out)
+const PEDACOS_CODIGO = ["MELI", "OFF", "NOML", "HOJE", "TECH", "PROMO", "CUPO", "DESCONTO", "OFERTA", "RESGATE", "SITE", "CLUB", "VALE", "MIMO", "COMPRA", "ECONOMIA", "ACHADO", "SUPER", "TOP", "AQUI", "LOJA", "ESTOQUE", "CARRINHO", "GARANTE"];
+// palavras soltas que os canais escrevem em CAIXA ALTA e passavam como código
+const PALAVRA_SOLTA = new Set(["DISPON", "INSERIR", "RESGATAR", "RESGATE", "SEMPRE", "PROMOS", "ECONOMIZE", "OPORTUNIDADE", "EXCLUSIVO", "EXCLUSIVA", "PRIMEIRA", "CASHBACK", "RENOVADOS", "SEXTOU", "APROVEITE", "DESCONTO", "DESCONTOS", "PRESENTE", "CLIQUE", "ACESSE", "APLIQUE", "UTILIZE", "DIGITE", "COPIE", "CODIGO", "INSIRA", "CONFIRA", "GARANTA", "PEGUE", "CHECKOUT", "PAGAMENTO", "CARRINHO", "ESTOQUE", "MERCADOPAGO", "ACIMA", "ABAIXO", "TODOSITE", "IMPERDIVEL", "INCRIVEL", "SELECIONADOS", "PRODUTOS"]);
 
 async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Promise<string[]> {
   const desde = new Date(Date.now() - 3 * 3600_000).toISOString();
