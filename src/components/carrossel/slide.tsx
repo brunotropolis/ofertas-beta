@@ -191,7 +191,7 @@ function Cta({ marca }: { marca: MarcaCarrossel }) {
 function Arco({ texto, tamanho, largura }: { texto: string; tamanho: number; largura: number }) {
   const id = `arco-${texto.length}-${tamanho}`;
   // o arco tem ~110 unidades; letra média ~0,62 do corpo, com folga → encolhe título longo pra não cortar
-  const corpo = Math.min(tamanho * 1.15, 85 / (Math.max(texto.length, 1) * 0.62));
+  const corpo = Math.min(tamanho * 1.15, 74 / (Math.max(texto.length, 1) * 0.62));
   return (
     <svg viewBox="0 0 100 30" style={{ width: `${largura}cqw`, overflow: "visible" }} aria-label={texto}>
       <path id={id} d="M 4 26 Q 50 -6 96 26" fill="none" />
