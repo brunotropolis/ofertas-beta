@@ -190,10 +190,12 @@ function Cta({ marca }: { marca: MarcaCarrossel }) {
 // Título em arco (Coleção Temática): texto num caminho SVG curvado.
 function Arco({ texto, tamanho, largura }: { texto: string; tamanho: number; largura: number }) {
   const id = `arco-${texto.length}-${tamanho}`;
+  // o arco tem ~110 unidades; letra média ~0,55 do corpo → encolhe título longo pra não cortar
+  const corpo = Math.min(tamanho * 1.15, 100 / (Math.max(texto.length, 1) * 0.55));
   return (
     <svg viewBox="0 0 100 30" style={{ width: `${largura}cqw`, overflow: "visible" }} aria-label={texto}>
       <path id={id} d="M 4 26 Q 50 -6 96 26" fill="none" />
-      <text className={fonteTitulo.className} fill="#fff" fontWeight={600} fontSize={tamanho * 1.15} textAnchor="middle" style={{ filter: "drop-shadow(0 0.4px 1.2px rgba(0,0,0,0.6))" }}>
+      <text className={fonteTitulo.className} fill="#fff" fontWeight={600} fontSize={corpo} textAnchor="middle" style={{ filter: "drop-shadow(0 0.4px 1.2px rgba(0,0,0,0.6))" }}>
         <textPath href={`#${id}`} startOffset="50%">{texto}</textPath>
       </text>
     </svg>
