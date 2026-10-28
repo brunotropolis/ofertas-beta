@@ -243,7 +243,9 @@ function waParaTelegramHtml(text: string): string {
 
 async function sendTelegram(chatId: string, text: string, offer: Offer) {
   if (!TG_TOKEN) throw new Error("TELEGRAM_BOT_OFERTAS não configurado");
-  const html = waParaTelegramHtml(text);
+  // "> " no começo da linha é citação no WhatsApp, no Telegram aparece cru → tira; rodapé pra quem recebe encaminhado entrar
+  const canal = chatId.startsWith("@") ? `\n\n📲 Entre no canal: t.me/${chatId.slice(1)}` : "";
+  const html = waParaTelegramHtml(text.replace(/^>\s?/gm, "").trimEnd() + canal);
   const foto = offer.image_url && !/telesco.pe|telegram.org/i.test(offer.image_url) ? offer.image_url : null;
   // foto com legenda (limite 1024); sem foto ou legenda longa → mensagem com prévia do link
   const [metodo, body] = foto && html.length <= 1024
