@@ -22,6 +22,8 @@ import { CAMPANHA_CODIGO, comGrupo, garantirLinkCurto, marcaGrupo } from "@/lib/
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
 const WAHA_KEY = process.env.WAHA_OFERTAS_API_KEY || process.env.WAHA_API_KEY || "";
+// Canal do Telegram (28/Out): linha em campaign_groups com group_jid "tg:@canal", sai pelo bot @asofertasmaternas_bot
+const TG_TOKEN = process.env.TELEGRAM_BOT_OFERTAS || "";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -227,6 +229,33 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
     }),
   });
   if (!res.ok) throw new Error(`WAHA ${res.status}: ${await res.text().catch(() => "")}`);
+}
+
+/** Legenda do WhatsApp (*negrito* _itálico_ ~riscado~) → HTML do Telegram. */
+function waParaTelegramHtml(text: string): string {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // só marca colada em espaço/pontuação — não mexe em "_" ou "*" dentro de link
+  return esc
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,!?:;])/gm, "$1<b>$2</b>")
+    .replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?:;])/gm, "$1<i>$2</i>")
+    .replace(/(^|[\s(])~([^~\n]+)~(?=$|[\s).,!?:;])/gm, "$1<s>$2</s>");
+}
+
+async function sendTelegram(chatId: string, text: string, offer: Offer) {
+  if (!TG_TOKEN) throw new Error("TELEGRAM_BOT_OFERTAS não configurado");
+  const html = waParaTelegramHtml(text);
+  const foto = offer.image_url && !/telesco.pe|telegram.org/i.test(offer.image_url) ? offer.image_url : null;
+  // foto com legenda (limite 1024); sem foto ou legenda longa → mensagem com prévia do link
+  const [metodo, body] = foto && html.length <= 1024
+    ? ["sendPhoto", { chat_id: chatId, photo: foto, caption: html, parse_mode: "HTML" }]
+    : ["sendMessage", { chat_id: chatId, text: html, parse_mode: "HTML", link_preview_options: { is_disabled: false } }];
+  const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/${metodo}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json().catch(() => null);
+  if (!j?.ok) throw new Error(`Telegram ${res.status}: ${j?.description ?? ""}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -446,9 +475,12 @@ export async function publishQueueItemForCampaign(
   const servidorDe = (g: Group, i: number) =>
     g.waha_url && saudaveis.has(g.waha_url) ? g.waha_url : vivos.length ? vivos[i % vivos.length] : perfilWaha?.waha_url ?? "";
   // cada número com a sua fila de grupos
+  const ehTelegram = (g: Group) => g.group_jid.startsWith("tg:");
+  const tgList = groupList.filter(ehTelegram);
+  const waList = groupList.filter((g) => !ehTelegram(g));
   const filas = new Map<string, Group[]>();
   if (viaWaha) {
-    groupList.forEach((g, i) => {
+    waList.forEach((g, i) => {
       const u = servidorDe(g, i);
       if (!filas.has(u)) filas.set(u, []);
       filas.get(u)!.push(g);
@@ -460,9 +492,12 @@ export async function publishQueueItemForCampaign(
 
   const enviar = async (group: Group, url: string) => {
     const phone = phoneList.length ? phoneList[Math.floor(Math.random() * phoneList.length)] : null;
-    const usado = viaWaha ? wahaTag(url) : phone?.phone_number ?? "";
+    const usado = ehTelegram(group) ? "telegram" : viaWaha ? wahaTag(url) : phone?.phone_number ?? "";
     try {
-      if (viaWaha) {
+      if (ehTelegram(group)) {
+        const lk = linkBase.includes("/l/") ? comGrupo(linkBase, "tg", CAMPANHA_CODIGO[campaign.categoria ?? "geral"]) : linkBase;
+        await sendTelegram(group.group_jid.slice(3), caption.split(linkBase).join(lk), o);
+      } else if (viaWaha) {
         // cada grupo recebe o link com a marca dele (?g=51) — o encurtador conta o clique por grupo
         const lk = linkBase.includes("/l/") ? comGrupo(linkBase, marcaGrupo(group.group_name, group.group_jid), CAMPANHA_CODIGO[campaign.categoria ?? "geral"]) : linkBase;
         await sendCardWaha({ ...perfilWaha!, waha_url: url }, group.group_jid, caption.split(linkBase).join(lk), { ...o, affiliate_url: lk });
@@ -494,6 +529,8 @@ export async function publishQueueItemForCampaign(
     }
   };
 
+  // Telegram corre em paralelo com o WhatsApp (não depende dos números)
+  const telegram = Promise.all(tgList.map((g) => enviar(g, "")));
   if (viaWaha) {
     // números em paralelo; cada um começa com uma folguinha sorteada pra não sair tudo no mesmo segundo
     await Promise.all([...filas.entries()].map(async ([u, lista]) => {
@@ -501,8 +538,9 @@ export async function publishQueueItemForCampaign(
       for (const g of lista) { await enviar(g, u); await espera(GAP_NUMERO_MIN_MS, GAP_NUMERO_MAX_MS); }
     }));
   } else {
-    for (const g of groupList) { await enviar(g, ""); await espera(GAP_MIN_MS, GAP_MAX_MS); }
+    for (const g of waList) { await enviar(g, ""); await espera(GAP_MIN_MS, GAP_MAX_MS); }
   }
+  await telegram;
 
   if (rateLimitados.size) await avisarRateLimit(db, perfilWaha!, saudaveis, rateLimitados, campaign.id, inicioPost);
 
