@@ -41,13 +41,25 @@ export async function GET(request: Request) {
     .select("id, url, source_ref, price_current, promo_meta, status, created_at")
     .eq("platform", "amazon")
     .eq("kind", "produto")
-    // campeão entra sempre (mesmo velho ou já publicado): ele volta pra fila em dia útil e precisa de preço do dia
-    .or(`and(status.in.(draft,queued),created_at.gte.${new Date(Date.now() - dias * 86400_000).toISOString()}),and(campeao.eq.true,status.in.(draft,queued,published))`)
+    .in("status", ["draft", "queued"])
+    .gte("created_at", new Date(Date.now() - dias * 86400_000).toISOString())
     .order("created_at", { ascending: false })
     .limit(500);
-  if (perfilId) q = q.eq("perfil_id", perfilId);
-  const { data, error } = await q;
+  // campeão entra sempre (mesmo velho ou já publicado): ele volta pra fila em dia útil e precisa de preço do dia
+  let qc = d
+    .from("offers")
+    .select("id, url, source_ref, price_current, promo_meta, status, created_at")
+    .eq("platform", "amazon")
+    .eq("campeao", true)
+    .in("status", ["draft", "queued", "published"])
+    .limit(200);
+  if (perfilId) { q = q.eq("perfil_id", perfilId); qc = qc.eq("perfil_id", perfilId); }
+  const [{ data: recentes, error }, { data: campeoes }] = await Promise.all([q, qc]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vistos = new Set(((recentes ?? []) as any[]).map((o) => o.id));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = [...((campeoes ?? []) as any[]).filter((o) => !vistos.has(o.id)), ...((recentes ?? []) as any[])];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itens = ((data ?? []) as any[]).map((o) => ({
     id: o.id,
