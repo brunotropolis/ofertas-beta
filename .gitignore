@@ -42,3 +42,6 @@ scripts/_*.json
 .ml-cupons-profile/
 scripts/.ml-cupons-estado.json
 scripts/ml_cupons.log
+
+# Tio Patinhas (saida com dado de vendas, fora do git)
+scripts/tio-patinhas/.saida/
