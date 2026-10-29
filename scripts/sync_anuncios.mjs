@@ -15,7 +15,7 @@ function loadEnv(file) {
 }
 const local = loadEnv(path.join(process.cwd(), ".env.local"));
 const meta = loadEnv("D:/CLAUDE/.env.meta");
-const SUPA = local.NEXT_PUBLIC_SUPABASE_URL, KEY = local.SUPABASE_SERVICE_ROLE_KEY;
+const SUPA = meta.SUPABASE_URL_OFERTAS_BETA || local.NEXT_PUBLIC_SUPABASE_URL, KEY = meta.SUPABASE_SERVICE_ROLE_OFERTAS_BETA || local.SUPABASE_SERVICE_ROLE_KEY;
 const WHAPI = meta.WHAPI_BASE_URL || "https://gate.whapi.cloud", WTOK = meta.WHAPI_TOKEN;
 const GROUP_ID = process.argv[3] || "120363345689119695@g.us"; // As Ofertas Maternas#1
 const GROUP_NAME = process.argv[4] || "As Ofertas Maternas#1";
@@ -41,7 +41,7 @@ const product = (b) => {
 
 const rows = [];
 let offset = 0;
-for (let page = 0; page < 60; page++) {
+for (let page = 0; page < 400; page++) {
   const res = await fetch(`${WHAPI}/messages/list/${GROUP_ID}?count=100&offset=${offset}`, { headers: { Authorization: "Bearer " + WTOK } });
   if (!res.ok) { console.error("WHAPI HTTP", res.status, (await res.text()).slice(0, 200)); break; }
   const j = await res.json();
@@ -64,7 +64,9 @@ for (let page = 0; page < 60; page++) {
       platform: platform(url),
       product_raw: prod,
       url,
-      raw: null,
+      // texto do post + quem mandou (29/Out, Tio Patinhas): preço/cupom/fralda saem daqui; origem manual × painel
+      // se decide pelo link (painel usa link curto /l/ do nosso domínio e só posta nos grupos reais desde 10/10).
+      raw: { texto: String(lp.body || "").slice(0, 800), from: m.from || null, from_name: m.from_name || null },
       synced_at: new Date().toISOString(),
     });
   }

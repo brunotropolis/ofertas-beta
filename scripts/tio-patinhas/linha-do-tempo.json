@@ -1,0 +1,26 @@
+{
+  "_como_usar": "Linha do tempo do Ofertas Maternas pro Tio Patinhas. Toda decisão/incidente novo no 🧭 do DIARIO-ofertas-beta.md que mexe no que é postado (volume, mix, horário, cupom, número, link) ganha uma linha aqui. tipo: manual (operação da equipe pelo celular) | sistema (regra do publicador) | pausa | incidente | fonte (coleta/leitor) | medicao. 'ate' só quando a mudança tem fim.",
+  "eventos": [
+    { "data": "2026-08-04", "tipo": "manual", "o_que": "Início do histórico lido do WhatsApp (grupo #1): operação manual pela equipe no celular, ~60-73 posts/dia, ML 45% / Amazon 33% / Shopee 10% / Magalu+Natura 9%, cupom ~41%, fralda ~20%, pico 8-10h, para ~17h." },
+    { "data": "2026-09-18", "ate": "2026-09-19", "tipo": "sistema", "o_que": "Painel postando automático só nos grupos de TESTE (não afeta os grupos reais)." },
+    { "data": "2026-10-02", "tipo": "sistema", "o_que": "Painel religado em teste: janela 8h-20h, intervalo 10 min, teto 60/dia; leitor Telegram ligado (curadoria)." },
+    { "data": "2026-10-08", "tipo": "sistema", "o_que": "Automático com metas: fralda 35% / Amazon 45%, puxando @promocaozinha." },
+    { "data": "2026-10-10", "tipo": "sistema", "o_que": "IR PRO REAL: painel assume a postagem nos 79-87 grupos reais pelo 5052 (revezando com 9476). Intervalo 15 min. Equipe ainda posta pelo celular em paralelo." },
+    { "data": "2026-10-10", "ate": "2026-10-17", "tipo": "incidente", "o_que": "Leitor Telegram quebrado (regex): automático sem @promocaozinha nesse período." },
+    { "data": "2026-10-12", "ate": "2026-10-17", "tipo": "pausa", "o_que": "Disparos do painel PAUSADOS (Bruno, 12/10 23h17 → 17/10 14h45)." },
+    { "data": "2026-10-16", "tipo": "manual", "o_que": "FIM da operação manual pelo celular. Daqui pra frente só o automático." },
+    { "data": "2026-10-17", "tipo": "sistema", "o_que": "Disparos religados: 87 grupos, 15 min, teto 60, 8h-20h (~27-40 posts/dia)." },
+    { "data": "2026-10-19", "tipo": "sistema", "o_que": "170 grupos (83 convertidos), 3 números com grupos fixos, campanhas Fraldas/Cupons/Enxoval separadas. ~27 posts/dia na Maternas." },
+    { "data": "2026-10-19", "ate": "2026-10-20", "tipo": "incidente", "o_que": "Maternas parada ~16h (19/10 18h10 → 20/10 10h46): deploy cortou posts." },
+    { "data": "2026-10-22", "tipo": "sistema", "o_que": "Volta ao formato manual: ML 45% / Amazon 33% / fralda 20%; cupom e até R$60 primeiro; Telegram de todos os canais; 2 min das 8h às 11h e 5 min no resto; teto 70; legenda abre com produto+preço." },
+    { "data": "2026-10-22", "tipo": "incidente", "o_que": "Dia inteiro com link DIRETO (worker sem secret): comissão mantida, sem clique por grupo." },
+    { "data": "2026-10-23", "tipo": "medicao", "o_que": "Começa clique por grupo (link_cliques) e etiqueta ML asofertasmaternas / IDs Amazon mrnof*-20 / utm Shopee por grupo." },
+    { "data": "2026-10-23", "tipo": "incidente", "o_que": "Post pra afiliado vazou nos 170 grupos às 11h02 (trava criada)." },
+    { "data": "2026-10-26", "tipo": "sistema", "o_que": "Cupom de volta na Maternas: 40% dos posts das 8h às 11h, 20% no resto. Post com vários cupons do ML (7h45/9h45). Fraldas 40/dia a cada 18 min. Envio em paralelo (post em ~4,7 min nos 170 grupos)." },
+    { "data": "2026-10-26", "tipo": "fonte", "o_que": "Amazon coletor página 1-8 sorteada (estava sem produto novo há 16h); Amazon cupons; trava de oferta falsa." },
+    { "data": "2026-10-27", "tipo": "sistema", "o_que": "Cupom com antecipação: cupom de até 20 min fura a fila. Leitor Telegram a cada 2 min desde 7h, +3 canais. Cupons ML 4x de manhã." },
+    { "data": "2026-10-28", "tipo": "sistema", "o_que": "Canal WhatsApp 'Manual das Ofertas do Bebê' e canal Telegram @asofertasmaternas como destinos da Maternas." },
+    { "data": "2026-10-28", "tipo": "incidente", "o_que": "Os 4 WhatsApp das ofertas fora ~9h40-10h33." },
+    { "data": "2026-10-29", "tipo": "sistema", "o_que": "Campeões de venda (até 20% dos posts em dia útil, cada um no máx. 1x a cada 3 dias) + ML caro de bebê (até 12%, ≥R$100)." }
+  ]
+}

@@ -142,6 +142,79 @@ const operacao = {
   cliquesTopGrupos: cliquesPorGrupo.slice(0, 8), cliquesPioresGrupos: cliquesPorGrupo.slice(-5),
 };
 
+// ── 5b. O QUE FOI POSTADO: manual × painel no MESMO critério (grupo #1) ────
+// Fonte: anuncios (texto lido do WhatsApp do grupo As Ofertas Maternas#1, desde 04/08; atualizar antes com
+// `node scripts/sync_anuncios.mjs 14`). Origem: link curto /l/ do nosso domínio = painel; resto = equipe no celular
+// (o painel só posta nos grupos reais desde 10/10). Loja do post do painel vem da oferta (o link curto esconde a loja).
+const G1 = "120363345689119695@g.us";
+const [anun, ofertasCurtas] = await Promise.all([
+  all(`anuncios?select=posted_at,platform,product_raw,url,raw&group_id=eq.${G1}&posted_at=gte.${inicio}&order=posted_at`),
+  all(`offers?select=affiliate_url,platform,kind,campeao&affiliate_url=like.*%2Fl%2F*`),
+]);
+const lojaDoCurto = new Map(ofertasCurtas.map((o) => [String(o.affiliate_url).split("?")[0], o]));
+const PAINEL = /(asofertasmaternas|manualdorecemnascido)\.com\.br\/l\//;
+const precoDe = (t) => { const m = String(t).match(/Por \*?R\$\s?([\d.]+,\d{2}|\d+)/i) || String(t).match(/R\$\s?([\d.]+,\d{2}|\d+)/); return m ? Number(m[1].replace(/\./g, "").replace(",", ".")) : null; };
+const horaBRT = (iso) => new Date(new Date(iso).getTime() - 3 * 3600e3).getUTCHours();
+const postsG1 = anun.map((a) => {
+  const t = a.raw?.texto || "", painel = PAINEL.test(a.url || ""), of = painel ? lojaDoCurto.get(String(a.url).split("?")[0]) : null;
+  let loja = painel ? of?.platform || "?" : a.platform;
+  if (/natura|magazine|magalu/i.test(a.url || "")) loja = "magalu/natura";
+  return { dia: diaBRT(a.posted_at), hora: horaBRT(a.posted_at), origem: painel ? "painel" : "manual", loja,
+    cupom: /cupom|🎟|CUPONS/i.test(t) || of?.kind === "cupom", fralda: /fralda/i.test(a.product_raw || ""), campeao: !!of?.campeao,
+    preco: precoDe(t), produto: nomeChave(a.product_raw) };
+});
+function perfilPosts(ps) {
+  const dias = new Set(ps.map((p) => p.dia)).size || 1, n = ps.length || 1;
+  const lojas = {}; for (const p of ps) lojas[p.loja] = (lojas[p.loja] || 0) + 1;
+  const precos = ps.map((p) => p.preco).filter((x) => x != null).sort((a, b) => a - b);
+  return { posts: ps.length, dias, postsDia: ps.length / dias, lojas: Object.fromEntries(Object.entries(lojas).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((100 * v) / n)])),
+    cupom: ps.filter((p) => p.cupom).length / n, fralda: ps.filter((p) => p.fralda).length / n, campeao: ps.filter((p) => p.campeao).length / n,
+    precoMediano: precos.length ? precos[Math.floor(precos.length / 2)] : null, caro100: precos.filter((x) => x >= 100).length / (precos.length || 1),
+    manha8a11: ps.filter((p) => p.hora >= 8 && p.hora < 11).length / n, depois17: ps.filter((p) => p.hora >= 17).length / n,
+    produtosUnicos: new Set(ps.map((p) => p.produto)).size / n };
+}
+// comissão por dia (conta inteira, 3 lojas) num período, pra pôr do lado do perfil de posts
+function comissaoDia(ini, fim) {
+  const dentro = (d) => d >= ini && d <= fim;
+  const c = soma(ml.filter((r) => !cancel(r.status) && dentro(diaBRT(r.sold_at))), (r) => r.commission)
+    + soma(shp.filter((r) => !cancel(r.status) && dentro(diaBRT(r.sold_at))), (r) => r.commission)
+    + soma(diario.filter((d) => d.fonte === "amazon" && d.tag === "manualdorec0c-20" && dentro(d.dia)), (d) => d.comissao);
+  const dias = Math.max(1, Math.round((new Date(fim) - new Date(ini)) / 86400e3) + 1);
+  return c / dias;
+}
+const ontem = somaDias(hoje, -1);
+const PERIODOS = [
+  { nome: "Só manual (equipe no celular)", ini: "2026-08-04", fim: "2026-10-09" },
+  { nome: "Misto (painel + equipe; pausa 12-17/10)", ini: "2026-10-10", fim: "2026-10-16" },
+  { nome: "Só automático, antes do formato manual", ini: "2026-10-17", fim: "2026-10-21" },
+  { nome: "Automático no formato manual (22/10+)", ini: "2026-10-22", fim: ontem },
+].filter((p) => p.ini <= ontem);
+const comparacao = PERIODOS.map((p) => ({ ...p, comissaoDia: comissaoDia(p.ini, p.fim), ...perfilPosts(postsG1.filter((x) => x.dia >= p.ini && x.dia <= p.fim)) }));
+const postsSemana = {};
+for (const p of postsG1) (postsSemana[quinta(p.dia)] ||= []).push(p);
+
+// ── 5c. linha do tempo (o que mudou em cada semana) ─────────────────────────
+const tempo = JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")), "linha-do-tempo.json"), "utf8")).eventos;
+const eventosDaSemana = (w) => { const f = somaDias(w, 6); return tempo.filter((e) => e.data <= f && (e.ate || e.data) >= w); };
+
+// ── 5d. regras ATUAIS do publicador (lidas do código e da campanha) ─────────
+const fonteEnqueue = fs.readFileSync("D:/CLAUDE/ofertas-beta/src/lib/auto-enqueue.ts", "utf8");
+const regras = Object.fromEntries([...fonteEnqueue.matchAll(/^const (META_[A-Z_]+|CAMPEAO_INTERVALO_MS) = ([\d._* ]+);/gm)].map(([, k, v]) => [k, Function(`return ${v.replace(/_/g, "")}`)()]));
+const campCfg = await all(`campaigns?select=name,categoria,timer_minutes,auto_daily_cap,auto_window_start,auto_window_end,is_active&perfil_id=eq.${PERFIL}`);
+const publicador = { regras, campanhas: campCfg, obs: "Maternas: 2 min das 8h às 11h e timer_minutes no resto (dispatcher). Cupom ≤20 min fura a fila. Campeões só em dia útil. Mudança de regra = /projeto ofertas-beta + 🧭 no diário + linha-do-tempo.json." };
+
+// ── 5e. postado × vendido (aproximado, por palavras do nome) ────────────────
+const palavras = (s) => nomeChave(s).split(" ").filter((w) => w.length > 2 && !/^(com|para|sem|kit|unidades?|bebe|infantil|tamanho)$/.test(w)).slice(0, 5);
+const d60 = somaDias(hoje, -60);
+const posts60 = postsG1.filter((p) => p.dia >= d60);
+function vezesPostado(nome) { const ws = palavras(nome); if (ws.length < 2) return null; return posts60.filter((p) => ws.slice(0, 3).every((w) => p.produto.includes(w))).length; }
+const vendidos60 = [
+  ...top(ml.filter((r) => !cancel(r.status) && diaBRT(r.sold_at) >= d60), (r) => r.product_name, (r) => +r.commission || 0, 12).map((x) => ({ ...x, loja: "ml" })),
+  ...top(shp.filter((r) => !cancel(r.status) && diaBRT(r.sold_at) >= d60), (r) => r.product_name, (r) => +r.commission || 0, 8).map((x) => ({ ...x, loja: "shopee" })),
+  ...top(amzVisiveis.filter((r) => r.period_start >= d60.slice(0, 8) + "01"), (r) => r.product_name, (r) => +r.commission || 0, 12).map((x) => ({ ...x, loja: "amazon" })),
+].map((x) => ({ ...x, postado60d: vezesPostado(x.nome) })).sort((a, b) => b.comissao - a.comissao);
+const maisPostados60 = Object.entries(posts60.reduce((a, p) => ((a[p.produto] = (a[p.produto] || 0) + 1), a), {})).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
 // ── 6. alertas automáticos ──────────────────────────────────────────────────
 const alertas = [];
 const op0 = operacao.grupos;
@@ -155,7 +228,7 @@ if (op0 && op0.sairam7d > op0.entraram7d) alertas.push(`Grupos perdendo gente: +
 for (const [s, d] of Object.entries(ultimaSync)) if (!d || d < somaDias(hoje, -3)) alertas.push(`Dado velho: ${s} sincronizado por último em ${d || "nunca"}.`);
 if (!amzDiaUlt || amzDiaUlt < somaDias(hoje, -3)) alertas.push(`Amazon por dia parada em ${amzDiaUlt || "nunca"} (tarefa amazon-vendas-sync roda a cada 2 dias com o PC ligado).`);
 
-const saida = { geradoEm: new Date().toISOString(), hoje, inicio, regua: { manualSemana: REGUA_MANUAL_SEMANA }, ultimaSync, amzDiaUlt, semanas, mediaSemanal4: media(4), mediaSemanal8: media(8), meses, medias, tops, operacao, alertas };
+const saida = { geradoEm: new Date().toISOString(), hoje, inicio, regua: { manualSemana: REGUA_MANUAL_SEMANA }, ultimaSync, amzDiaUlt, semanas, mediaSemanal4: media(4), mediaSemanal8: media(8), meses, medias, tops, operacao, alertas, comparacao, publicador, vendidos60, maisPostados60, linhaDoTempo: tempo };
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")), ".saida");
 fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, "ultimo.json"), JSON.stringify(saida, null, 1));
@@ -165,7 +238,10 @@ const L = [];
 L.push(`TIO PATINHAS · Ofertas Maternas · gerado ${hoje} · dados desde ${inicio}`);
 L.push(`Última sync: ML ${ultimaSync.ml} · Shopee ${ultimaSync.shopee} · Amazon mês ${ultimaSync.amazon} · Amazon dia ${amzDiaUlt}`);
 L.push(`\n== SEMANAS (qui–qua, comissão CONTA INTEIRA; grupos = só o provado) ==`);
-for (const s of semanas) L.push(`${s.semana}${s.parcial ? " (parcial)" : ""}${s.amzAte ? ` (Amazon até ${s.amzAte})` : ""} | total ${brl(s.total)} | ML ${brl(s.ml)} · Shopee ${brl(s.shp)} · Amazon ${brl(s.amz)} | grupos: ML ${brl(s.mlGrupos)} · Shopee ${brl(s.shpGrupos)} | posts (4 campanhas) ${s.posts} · cliques ${s.cliques} | Amazon conv ${pct(s.itensAmz, s.cliquesAmz)}`);
+for (const s of semanas) {
+  L.push(`${s.semana}${s.parcial ? " (parcial)" : ""}${s.amzAte ? ` (Amazon até ${s.amzAte})` : ""} | total ${brl(s.total)} | ML ${brl(s.ml)} · Shopee ${brl(s.shp)} · Amazon ${brl(s.amz)} | grupos: ML ${brl(s.mlGrupos)} · Shopee ${brl(s.shpGrupos)} | posts (4 campanhas) ${s.posts} · cliques ${s.cliques} | Amazon conv ${pct(s.itensAmz, s.cliquesAmz)} | grupo #1: ${(postsSemana[s.semana] || []).filter((p) => p.origem === "manual").length} manuais · ${(postsSemana[s.semana] || []).filter((p) => p.origem === "painel").length} painel`);
+  for (const e of eventosDaSemana(s.semana)) L.push(`    ↳ ${e.data}${e.ate ? "→" + e.ate : ""} [${e.tipo}] ${e.o_que}`);
+}
 L.push(`Média 4 sem ${brl(media(4))} · 8 sem ${brl(media(8))} · régua manual ${brl(REGUA_MANUAL_SEMANA)}`);
 L.push(`\n== MESES (conta inteira) ==`);
 for (const m of meses) L.push(`${m.mes} | total ${brl(m.total)}${m.shopeeIncompleto ? " (sem Shopee completa)" : ""} | ML ${brl(m.ml)} (${m.vendasMl} vendas, ${m.cancMl} canc) · Shopee ${brl(m.shp)} (${m.pedShp} itens) · Amazon ${brl(m.amz)} (${m.itensAmz} itens, ocultos ${brl(m.amzOcultos)}, IDs grupos ${brl(m.amzGrupos)}) | vendido ML ${brl(m.gmvMl)} · Shopee ${brl(m.gmvShp)} · Amazon ${brl(m.gmvAmz)}`);
@@ -183,5 +259,27 @@ L.push(`\n== OPERAÇÃO ==`);
 if (op.grupos) L.push(`Grupos ${op.grupos.grupos} · ${op.grupos.pessoas} pessoas únicas (${op.grupos.dia}) · 7d: +${op.grupos.entraram7d} / -${op.grupos.sairam7d}`);
 L.push(`Posts 7d por loja (soma das 4 campanhas): ${JSON.stringify(op.posts7dPorLoja)}`);
 L.push(`Cliques: top grupos ${op.cliquesTopGrupos.map(([gr, n]) => `#${gr}=${n}`).join(" ")} · menos cliques ${op.cliquesPioresGrupos.map(([gr, n]) => `#${gr}=${n}`).join(" ")}`);
+const pc = (x) => Math.round(100 * x) + "%";
+L.push(`\n== O QUE FOI POSTADO × COMISSÃO (grupo #1, mesmo critério; comissão = conta inteira/dia) ==`);
+for (const c of comparacao) L.push(`${c.nome} ${c.ini}→${c.fim} | ${brl(c.comissaoDia)}/dia | ${c.postsDia.toFixed(0)} posts/dia (${c.dias} dias) | lojas ${Object.entries(c.lojas).map(([k, v]) => k + " " + v + "%").join(" · ")} | cupom ${pc(c.cupom)} · fralda ${pc(c.fralda)} · campeão ${pc(c.campeao)} | preço mediano ${c.precoMediano != null ? brl(c.precoMediano) : "-"} · ≥R$100 ${pc(c.caro100)} | 8-11h ${pc(c.manha8a11)} · após 17h ${pc(c.depois17)} | produtos únicos ${pc(c.produtosUnicos)}`);
+const man = comparacao[0], atual = comparacao.at(-1);
+const diferencas = [];
+if (man && atual && atual !== man) {
+  if (atual.postsDia < 0.8 * man.postsDia) diferencas.push(`volume: ${atual.postsDia.toFixed(0)} posts/dia contra ${man.postsDia.toFixed(0)} no manual`);
+  if (atual.cupom < man.cupom - 0.08) diferencas.push(`cupom: ${pc(atual.cupom)} contra ${pc(man.cupom)}`);
+  if (atual.fralda < man.fralda - 0.05) diferencas.push(`fralda: ${pc(atual.fralda)} contra ${pc(man.fralda)}`);
+  if (atual.caro100 < man.caro100 - 0.05) diferencas.push(`produto de R$100 ou mais: ${pc(atual.caro100)} contra ${pc(man.caro100)}`);
+  if (atual.manha8a11 < man.manha8a11 - 0.08) diferencas.push(`manhã 8-11h: ${pc(atual.manha8a11)} contra ${pc(man.manha8a11)}`);
+  if (atual.produtosUnicos > man.produtosUnicos + 0.1) diferencas.push(`repetição: o manual repetia mais (produtos únicos ${pc(man.produtosUnicos)} × agora ${pc(atual.produtosUnicos)})`);
+  for (const [k, v] of Object.entries(man.lojas)) { const a = atual.lojas[k] || 0; if (Math.abs(a - v) >= 8) diferencas.push(`${k}: ${a}% agora contra ${v}% no manual`); }
+}
+L.push("Diferenças do publicador hoje × manual: " + (diferencas.length ? diferencas.join(" | ") : "nenhuma grande"));
+L.push(`\n== REGRAS ATUAIS DO PUBLICADOR ==`);
+L.push(Object.entries(publicador.regras).map(([k, v]) => k + "=" + (k.endsWith("_MS") ? v / 86400e3 + "d" : v)).join(" · "));
+for (const c of publicador.campanhas) L.push(`${c.name} (${c.categoria}) ${c.is_active ? "ativa" : "parada"} · a cada ${c.timer_minutes} min · teto ${c.auto_daily_cap}/dia · ${c.auto_window_start}h-${c.auto_window_end}h`);
+L.push(publicador.obs);
+L.push(`\n== POSTADO × VENDIDO 60d (vendas = conta inteira; vezes postado no grupo #1, aproximado pelo nome) ==`);
+for (const v of vendidos60.slice(0, 18)) L.push(`${v.loja} ${brl(v.comissao)} · ${v.vendas}un · postado ${v.postado60d ?? "?"}x · ${v.nome}`);
+L.push("Mais postados 60d: " + maisPostados60.map(([p, n]) => n + "x " + p).join(" | "));
 L.push(`\n== ALERTAS ==\n` + (alertas.length ? alertas.map((a) => "! " + a).join("\n") : "nenhum"));
 console.log(L.join("\n"));
