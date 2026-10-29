@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     .gte("created_at", new Date(Date.now() - dias * 86400_000).toISOString())
     .order("created_at", { ascending: false })
     .limit(500);
-  // campeão entra sempre (mesmo velho ou já publicado): ele volta pra fila em dia útil e precisa de preço do dia
+  // campeão entra sempre (mesmo velho ou já publicado): ele volta pra fila todo dia e precisa de preço do dia
   let qc = d
     .from("offers")
     .select("id, url, source_ref, price_current, promo_meta, status, created_at")

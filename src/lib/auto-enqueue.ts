@@ -95,16 +95,14 @@ const META_CUPOM_DIA = 0.20;
 // (1) repostava os campeões de venda da Amazon (Bepantol, Huggies, Pampers, Granado… até 11x em 51 dias) e
 // (2) vendia produto caro de bebê no ML (babá eletrônica, cadeira de carro, carrinho, berço = 31% da comissão ML),
 // que o "até R$60 primeiro" empurrava pro fim. Campeão = offers.campeao (Amazon Refresh mantém o preço do dia).
-const META_CAMPEAO = 0.20; // só em dia útil (seg–sex), onde a venda do manual se concentrava
+// 29/Out (Tio Patinhas, Bruno: "pode mandar ver"): lista foi de 19 pra 35 campeões e passa a valer também no
+// fim de semana (com 19 só chegava a ~12% dos posts; o manual repetia em mais da metade dos posts de Amazon).
+const META_CAMPEAO = 0.20;
 const CAMPEAO_INTERVALO_MS = 3 * 86400_000; // o mesmo campeão no máx. a cada 3 dias
 const CAMPEAO_PRECO_FRESCO_MS = 6 * 3600_000; // Amazon: só reposta com preço conferido nas últimas 6h
 const META_ML_CARO = 0.12;
 const BEBE_CARO = /cadeira (de|para) (carro|auto)|cadeirinha|beb[eê] conforto|bab[aá] eletr|carrinho de beb|carrinho (de )?passeio|ber[çc]o|banheira|cercadinho|andador|canguru|monitor/i;
 const ehMlCaro = (o: Cand) => o.platform === "ml" && BEBE_CARO.test(o.title || "") && (o.price_current ?? 0) >= 100;
-function ehDiaUtil(): boolean {
-  const dow = new Date(Date.now() - 3 * 3600_000).getUTCDay();
-  return dow >= 1 && dow <= 5;
-}
 function ehDataDupla(): boolean {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCDate() === brt.getUTCMonth() + 1;
@@ -173,10 +171,10 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const ids = await escolherPorCategoria(db, "cupons", c, n, dayStart);
     for (const id of ids) poolCupom.push({ id, kind: "cupom", title: null, platform: null, source: "telegram" });
   }
-  // campeões: dia útil, fora do intervalo de 3 dias, não esgotado; Amazon só com preço conferido há pouco.
+  // campeões: todo dia, fora do intervalo de 3 dias, não esgotado; Amazon só com preço conferido há pouco.
   // O que saiu há mais tempo vai primeiro.
   const poolCampeao: Cand[] = [];
-  if (ehDiaUtil() && !dupla) {
+  if (!dupla) {
     const { data: camps } = await db.from("offers").select(campos + ", promo_meta").eq("perfil_id", c.perfil_id!).eq("campeao", true)
       .in("status", ["draft", "published"]).not("image_url", "is", null).not("affiliate_url", "is", null).limit(200);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
