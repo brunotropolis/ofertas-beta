@@ -68,7 +68,9 @@ async function alerta(texto) {
 }
 
 async function segredoIngest() {
-  // o mesmo dos coletores maternas (fica no nó POST INGEST do coletor Shopee)
+  // o /api/ingest aceita o CRON_SECRET do painel (cofre) — não depende da chave do n8n (venceu 29/10 e derrubou o coletor)
+  if (env.CRON_SECRET_OFERTAS_BETA) return env.CRON_SECRET_OFERTAS_BETA;
+  // fallback: o mesmo dos coletores maternas (fica no nó POST INGEST do coletor Shopee)
   const r = await fetch(`${env.N8N_BASE_URL}/api/v1/workflows/spdOQNLpjiLYiL4n`, { headers: { "X-N8N-API-KEY": env.N8N_API_KEY } });
   const w = await r.json();
   return w.nodes.find((n) => n.name === "POST INGEST").parameters.headerParameters.parameters[0].value;
