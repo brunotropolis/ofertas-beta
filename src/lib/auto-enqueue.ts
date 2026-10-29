@@ -91,6 +91,20 @@ const META_CUPOM_DUPLA = 0.25;
 // Mesma régua do grupo de Cupons (código limpo, fresco 3h, sem repetir código no dia, mata o ESGOTADO).
 const META_CUPOM_MANHA = 0.40;
 const META_CUPOM_DIA = 0.20;
+// 29/Out (Bruno: "faz"): mapa manual × automático (grupo #1, 20/08–09/10 × 17–28/10) mostrou que o manual
+// (1) repostava os campeões de venda da Amazon (Bepantol, Huggies, Pampers, Granado… até 11x em 51 dias) e
+// (2) vendia produto caro de bebê no ML (babá eletrônica, cadeira de carro, carrinho, berço = 31% da comissão ML),
+// que o "até R$60 primeiro" empurrava pro fim. Campeão = offers.campeao (Amazon Refresh mantém o preço do dia).
+const META_CAMPEAO = 0.20; // só em dia útil (seg–sex), onde a venda do manual se concentrava
+const CAMPEAO_INTERVALO_MS = 3 * 86400_000; // o mesmo campeão no máx. a cada 3 dias
+const CAMPEAO_PRECO_FRESCO_MS = 6 * 3600_000; // Amazon: só reposta com preço conferido nas últimas 6h
+const META_ML_CARO = 0.12;
+const BEBE_CARO = /cadeira (de|para) (carro|auto)|cadeirinha|beb[eê] conforto|bab[aá] eletr|carrinho de beb|carrinho (de )?passeio|ber[çc]o|banheira|cercadinho|andador|canguru|monitor/i;
+const ehMlCaro = (o: Cand) => o.platform === "ml" && BEBE_CARO.test(o.title || "") && (o.price_current ?? 0) >= 100;
+function ehDiaUtil(): boolean {
+  const dow = new Date(Date.now() - 3 * 3600_000).getUTCDay();
+  return dow >= 1 && dow <= 5;
+}
 function ehDataDupla(): boolean {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCDate() === brt.getUTCMonth() + 1;
@@ -109,14 +123,16 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   // o que o automático já pôs hoje (publicado + na fila)
   const { data: hoje } = await db
     .from("publication_queue")
-    .select("offer:offers(title, platform, kind, source, url)")
+    .select("offer:offers(title, platform, kind, source, url, campeao, price_current)")
     .is("created_by", null)
     .contains("campaign_ids", [c.id])
     .gte("created_at", dayStart)
     .limit(500);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null; kind?: string | null; source?: string | null; url?: string | null }[];
+  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean) as { title: string | null; platform: string | null; kind?: string | null; source?: string | null; url?: string | null; campeao?: boolean; price_current?: number | null }[];
   let total = feitos.length;
+  let nCampeoes = feitos.filter((o) => o.campeao).length;
+  let nMlCaro = feitos.filter((o) => ehMlCaro(o as Cand)).length;
   let fraldas = feitos.filter((o) => isFralda(o.title)).length;
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   let mls = feitos.filter((o) => o.platform === "ml").length;
@@ -157,6 +173,26 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const ids = await escolherPorCategoria(db, "cupons", c, n, dayStart);
     for (const id of ids) poolCupom.push({ id, kind: "cupom", title: null, platform: null, source: "telegram" });
   }
+  // campeões: dia útil, fora do intervalo de 3 dias, não esgotado; Amazon só com preço conferido há pouco.
+  // O que saiu há mais tempo vai primeiro.
+  const poolCampeao: Cand[] = [];
+  if (ehDiaUtil() && !dupla) {
+    const { data: camps } = await db.from("offers").select(campos + ", promo_meta").eq("perfil_id", c.perfil_id!).eq("campeao", true)
+      .in("status", ["draft", "published"]).not("image_url", "is", null).not("affiliate_url", "is", null).limit(200);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vivos = ((camps ?? []) as any[]).filter((o) => !o.promo_meta?.esgotado && (o.platform !== "amazon"
+      || Date.now() - new Date(o.promo_meta?.checked_at ?? 0).getTime() < CAMPEAO_PRECO_FRESCO_MS));
+    if (vivos.length) {
+      const { data: ult } = await db.from("publication_queue").select("offer_id, created_at")
+        .in("offer_id", vivos.map((o) => o.id)).contains("campaign_ids", [c.id])
+        .gte("created_at", new Date(Date.now() - 30 * 86400_000).toISOString()).limit(2000);
+      const ultima = new Map<string, number>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of (ult ?? []) as any[]) ultima.set(r.offer_id, Math.max(ultima.get(r.offer_id) ?? 0, new Date(r.created_at).getTime()));
+      poolCampeao.push(...vivos.filter((o) => Date.now() - (ultima.get(o.id) ?? 0) >= CAMPEAO_INTERVALO_MS)
+        .sort((a, b) => (ultima.get(a.id) ?? 0) - (ultima.get(b.id) ?? 0)));
+    }
+  }
   const metaCupom = dupla ? META_CUPOM_DUPLA : brtHour() < 11 ? META_CUPOM_MANHA : META_CUPOM_DIA;
   let nCupons = feitos.filter((o) => o.kind === "cupom").length;
 
@@ -177,7 +213,12 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       const i = poolCupom.findIndex((x) => x.title == null || !jaFoi(x));
       if (i >= 0) { o = poolCupom.splice(i, 1)[0]; nCupons++; }
     }
+    if (!o && poolCampeao.length && nCampeoes / t < META_CAMPEAO) {
+      const i = poolCampeao.findIndex((x) => !jaFoi(x));
+      if (i >= 0) { o = poolCampeao.splice(i, 1)[0]; nCampeoes++; }
+    }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
+    if (!o && mls / t < META_ML && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
     if (!o && mls / t < META_ML) o = pega((x) => x.platform === "ml");
     if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
     if (!o) {
@@ -191,6 +232,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++;
+    if (ehMlCaro(o)) nMlCaro++;
   }
   return escolhidos;
 }
