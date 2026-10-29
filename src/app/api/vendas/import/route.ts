@@ -8,7 +8,9 @@ export const maxDuration = 60;
 
 // POST /api/vendas/import  — ingestão do coletor (skill /vendas-sync via Chrome).
 // Auth: header x-import-secret == CRON_SECRET. Não usa sessão de usuário.
-// Body: { source: "ml"|"amazon", replacePeriod?: {start,end}, rows: ImportRow[] }
+// Body: { source: "ml"|"amazon"|"shopee", replacePeriod?: {start,end}, rows: ImportRow[] }
+// shopee (29/Out): só HISTÓRICO pro Tio Patinhas (a API da Shopee apaga depois de 3 meses). A tela Vendas
+// continua lendo a Shopee ao vivo; nenhuma leitura do painel soma source=shopee desta tabela.
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("x-import-secret") !== secret) {
@@ -18,8 +20,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const source = body?.source;
   const rows: ImportRow[] = Array.isArray(body?.rows) ? body.rows : [];
-  if (source !== "ml" && source !== "amazon") {
-    return NextResponse.json({ error: "source inválido (ml|amazon)" }, { status: 400 });
+  if (source !== "ml" && source !== "amazon" && source !== "shopee") {
+    return NextResponse.json({ error: "source inválido (ml|amazon|shopee)" }, { status: 400 });
   }
   const admin = createAdminClient();
 
