@@ -22,6 +22,7 @@
     { "data": "2026-10-28", "tipo": "sistema", "o_que": "Canal WhatsApp 'Manual das Ofertas do Bebê' e canal Telegram @asofertasmaternas como destinos da Maternas." },
     { "data": "2026-10-28", "tipo": "incidente", "o_que": "Os 4 WhatsApp das ofertas fora ~9h40-10h33." },
     { "data": "2026-10-29", "tipo": "sistema", "o_que": "Campeões de venda (até 20% dos posts em dia útil, cada um no máx. 1x a cada 3 dias) + ML caro de bebê (até 12%, ≥R$100)." },
-    { "data": "2026-10-29", "tipo": "sistema", "o_que": "Tio Patinhas item 1: campeões de 19 pra 35 (Huggies Máxima P/M, Natural Care P, Bepantol 30g, Pampers Pants G/M, RN+, Confort Sec P/M/XG, Premium Care M, lenços Pampers/MamyPoko, Weleda, Mustela, Pom Pom Protek) e valendo também no fim de semana. Medir semana 30/10–05/11: Amazon/dia >R$150, conversão rumo a 20%." }
+    { "data": "2026-10-29", "tipo": "sistema", "o_que": "Tio Patinhas item 1: campeões de 19 pra 35 (Huggies Máxima P/M, Natural Care P, Bepantol 30g, Pampers Pants G/M, RN+, Confort Sec P/M/XG, Premium Care M, lenços Pampers/MamyPoko, Weleda, Mustela, Pom Pom Protek) e valendo também no fim de semana. Medir semana 30/10–05/11: Amazon/dia >R$150, conversão rumo a 20%." },
+    { "data": "2026-10-30", "tipo": "sistema", "o_que": "Link curto criado só na hora de postar (antes: no momento da coleta). Muda só a infra do encurtador; o post sai igual." }
   ]
 }
