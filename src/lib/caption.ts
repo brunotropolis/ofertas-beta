@@ -2,14 +2,16 @@
  * Legenda no padrão do grupo As Ofertas Maternas (mapeado 05/Out em 337 posts reais).
  * Fonte única: o dispatcher (post de verdade) e o preview do painel usam as mesmas funções.
  *
- * Produto:  [OFERTAS DE FRALDAS 🚼 | 2 linhas da IA]
- *           *Título*
- *           💰 Por *R$X*  /  *(0,79 por unidade)*  /  > Custa R$Y
+ * Produto:  [OFERTAS DE FRALDAS 🚼 | chamada da equipe ("‼️TÁ BARATOOOO‼️") quando a oferta é boa]
+ *           *✅ Título*  /  frase curta da IA (só sem chamada)
+ *           *Por: R$X*  /  *(0,79 por unidade)*  /  > Custa R$Y
  *           _Exclusivo para Membros Prime_
  *           🏷️Utilize o cupom: *COD*
  *           ✔️Selecione a opção "programe e poupe" / ✔️Confira o desconto na tela de pagamento / ...
  *           🚚 Frete Grátis c/ Amazon PRIME
- *           Compre aqui 👇 link
+ *           Link 🔗 link
+ * (31/Out: formato de texto da equipe, lido em 268 posts manuais 06–09/10: sem "(X% OFF)", sem aviso de cupom no
+ *  post de produto, ✅ no nome, chamada em caixa alta em ~1 de cada 4, link na mesma linha.)
  * Cupom:    *🟡CUPOM LOJA 🟡*  +  🎟️ *COD* / regra  +  Resgate aqui 👇 link
  */
 
@@ -89,7 +91,8 @@ export function qtyFromTitle(title: string | null | undefined): number | null {
 function unitLine(offer: CaptionOffer): string | null {
   if (!isPorUnidade(offer.title)) return null;
   const u = offer.promo_meta?.unit_price;
-  if (u && u > 0) return `*(${num2(u)} por unidade)*`;
+  // pricePerUnit da Amazon às vezes vem por pacote/kit (30/Out: "311,60 por unidade") → só confia se for bem menor que o preço
+  if (u && u > 0 && (!offer.price_current || u < offer.price_current / 5)) return `*(${num2(u)} por unidade)*`;
   const q = qtyFromTitle(offer.title);
   if (q && offer.price_current) return `*(${num2(offer.price_current / q)} por unidade)*`;
   return null;
@@ -103,7 +106,7 @@ function priceBlock(offer: CaptionOffer): string {
   const pct = o0 && o0 > a ? Math.round((1 - a / o0) * 100) : 0;
   // trava: acima de 80% quase sempre é preço "de" errado/inflado → mostra só o preço (Bruno 10/Out)
   const confiavel = pct > 0 && pct <= 80;
-  const lines = [`💰 Por *${moneyBRL(a)}*${confiavel && pct >= 5 ? ` (${pct}% OFF)` : ""}`];
+  const lines = [`*Por: ${moneyBRL(a)}*`];
   const u = unitLine(offer);
   if (u) lines.push(u);
   if (confiavel) lines.push(`> Custa ${moneyBRL(o0!)}`);
@@ -151,6 +154,23 @@ function freteLine(offer: CaptionOffer): string | null {
 // extra_text antigo do leitor Telegram ("🏷️ Use o cupom: *X*") — agora o cupom sai do coupon_code
 const isLegacyCouponExtra = (s: string) => /^🏷️\s*Use o cupom/i.test(s.trim());
 
+// chamadas usadas pela equipe no topo do post (268 posts manuais 06–09/10)
+const CHAMADAS = [
+  "‼️TÁ BARATOOOO‼️", "🔥BAIXOUUUU🔥", "💥OFERTA RELÂMPAGO💥", "📣 PRECINHOOOO📣", "🚨 CORREEEE!! 🚨",
+  "ESSE PREÇO ESTÁ IMPERDÍVEEEL 🚨", "🌟OFERTA DO DIA🌟", "🔥MUUUUITO BARATOOOOOO🔥", "💥SUPER DICA💥",
+  "‼️CHO-CA-DA com esse preço😱🔥‼️", "🔥 Valor pra Fazer ESTOQUEEEEE 😱🏃🏻‼️",
+];
+const hash = (t: string) => [...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+
+/** Chamada em caixa alta quando a oferta é boa (desconto ≥25%, menor preço 30d ou cupom), como a equipe fazia. */
+function chamada(offer: CaptionOffer): string | null {
+  const a = offer.price_current, o = offer.price_original;
+  const pct = a && o && o > a ? (1 - a / o) * 100 : 0;
+  const boa = (pct >= 25 && pct <= 80) || !!offer.promo_meta?.menor_30d || !!offer.coupon_code || !!offer.coupon_meta?.codes?.length || !!offer.cupom_dia;
+  if (!boa) return null;
+  return CHAMADAS[hash((offer.title || "") + (offer.price_current ?? "")) % CHAMADAS.length];
+}
+
 /**
  * Corpo do post de PRODUTO (estilo maternidade). `creative` = 2 linhas da IA (ou null).
  * Fralda usa o cabeçalho do grupo no lugar das linhas da IA.
@@ -159,11 +179,17 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   // 22/Out (Bruno: "retornar o que estava funcionando"): no formato da operação manual, o post ABRE com o
   // produto e o preço; da IA fica só a frase de benefício (2ª linha) logo abaixo do nome. Era: frase de
   // gancho da IA em cima + nome depois.
+  // 31/Out (Bruno: "adequar o formato de texto" ao da equipe): chamada em caixa alta no topo quando a oferta é
+  // boa, ✅ no nome, preço "*Por: R$X*" sem %, frase da IA só quando curta e sem chamada.
   const parts: string[] = [];
-  if (isFralda(offer.title)) parts.push("OFERTAS DE FRALDAS 🚼");
-  if (offer.title) parts.push(`*${offer.title.trim()}*`);
+  const fralda = isFralda(offer.title);
+  const ch = fralda ? null : chamada(offer);
+  if (fralda) parts.push("OFERTAS DE FRALDAS 🚼");
+  else if (ch) parts.push(ch);
+  if (offer.title) parts.push(`*✅ ${offer.title.trim()}*`);
   const linhasIa = (creative || "").split("\n").map((l) => l.trim()).filter(Boolean);
-  if (!isFralda(offer.title) && linhasIa.length >= 2) parts.push(linhasIa.slice(1).join(" "));
+  const frase = linhasIa.length >= 2 ? linhasIa.slice(1).join(" ") : "";
+  if (!fralda && !ch && frase && frase.length <= 90) parts.push(frase);
   const pb = priceBlock(offer);
   if (pb) parts.push(offer.promo_meta?.menor_30d ? `${pb}\n📉 _Menor preço dos últimos 30 dias_` : pb);
   const ps = provaSocial(offer);
@@ -175,9 +201,9 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   if (ins.length) parts.push(ins.join("\n"));
   const fr = freteLine(offer);
   if (fr) parts.push(fr);
-  if (cl || offer.promo_meta?.cupom_anuncio) parts.push(AVISO_CUPOM);
+  // aviso "cupons podem encerrar" fica só no post de CUPOM (a equipe não usava em produto; saía em 56% dos posts)
   if (offer.extra_text?.trim() && !isLegacyCouponExtra(offer.extra_text)) parts.push(offer.extra_text.trim());
-  parts.push(`Compre aqui 👇\n${offer.affiliate_url || offer.url}`);
+  parts.push(`Link 🔗 ${offer.affiliate_url || offer.url}`);
   return semLinkDeCanal(parts.join("\n\n"));
 }
 
@@ -192,7 +218,9 @@ function buildCouponListCaption(offer: CaptionOffer, lista: CupomLista[]): strin
   const loja = LOJA[offer.coupon_meta?.loja || offer.platform || ""] || "";
   const parts: string[] = [`*🟡CUPONS ${loja.toUpperCase()} DE HOJE 🟡*`];
   parts.push(lista.map((c) => {
-    const linhas = [c.codigo ? `🏷️ *${c.titulo.trim()}* com o código *${c.codigo}*` : `🎟️ *${c.titulo.trim()}*`];
+    // título às vezes já traz o código ("25% OFF GARANTAMEUDESCONTO com o código GARANTAMEUDESCONTO", 30/Out)
+    const tit = c.codigo ? c.titulo.split(c.codigo).join("").replace(/\s{2,}/g, " ").trim() : c.titulo.trim();
+    const linhas = [c.codigo ? `🏷️ *${tit}* com o código *${c.codigo}*` : `🎟️ *${tit}*`];
     const det = [c.detalhe, c.aviso ? `⏰ ${c.aviso.toLowerCase().replace(/!$/, "")}` : null].filter(Boolean).join(" · ");
     if (det) linhas.push(`_${det}_`);
     return linhas.join("\n");
