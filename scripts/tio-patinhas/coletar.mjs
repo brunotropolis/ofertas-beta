@@ -201,7 +201,7 @@ const eventosDaSemana = (w) => { const f = somaDias(w, 6); return tempo.filter((
 const fonteEnqueue = fs.readFileSync("D:/CLAUDE/ofertas-beta/src/lib/auto-enqueue.ts", "utf8");
 const regras = Object.fromEntries([...fonteEnqueue.matchAll(/^const (META_[A-Z_]+|CAMPEAO_INTERVALO_MS) = ([\d._* ]+);/gm)].map(([, k, v]) => [k, Function(`return ${v.replace(/_/g, "")}`)()]));
 const campCfg = await all(`campaigns?select=name,categoria,timer_minutes,auto_daily_cap,auto_window_start,auto_window_end,is_active&perfil_id=eq.${PERFIL}`);
-const publicador = { regras, campanhas: campCfg, obs: "Maternas: 2 min das 8h às 11h e timer_minutes no resto (dispatcher). Cupom ≤20 min fura a fila. Campeões só em dia útil. Mudança de regra = /projeto ofertas-beta + 🧭 no diário + linha-do-tempo.json." };
+const publicador = { regras, campanhas: campCfg, obs: "Maternas: 2 min das 8h às 11h e timer_minutes no resto (dispatcher). Cupom ≤20 min fura a fila. Campeões todo dia (desde 29/10). Mudança de regra = /projeto ofertas-beta + 🧭 no diário + linha-do-tempo.json." };
 
 // ── 5e. postado × vendido (aproximado, por palavras do nome) ────────────────
 const palavras = (s) => nomeChave(s).split(" ").filter((w) => w.length > 2 && !/^(com|para|sem|kit|unidades?|bebe|infantil|tamanho)$/.test(w)).slice(0, 5);
