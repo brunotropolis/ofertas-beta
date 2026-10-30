@@ -61,20 +61,22 @@ for (let i = 0; i < rows.length; i += 400) {
 }
 const com = rows.filter((r) => r.status !== 'CANCELLED').reduce((a, r) => a + r.commission, 0);
 
-// Por ETIQUETA (23/Out): a lista de vendas não diz a etiqueta; a página de ganhos (afiliados/dashboard, bloco
-// "earnings") diz cliques/vendas/comissão por etiqueta no período → 1 dia por vez, últimos 10 dias + hoje.
+// Por ETIQUETA (23/Out): a lista de vendas não diz a etiqueta; a API da página de ganhos
+// (affiliate-program/api/dashboard/ganancias, desde 28/Out) diz cliques/vendas/comissão por etiqueta no período → 1 dia por vez, últimos 10 dias + hoje.
 // Vai pra tabela à parte (afiliado_etiquetas_diario). Falha aqui não derruba o sync de vendas acima.
 const etiquetas = [];
 let erroEtiquetas = null;
 try {
   for (let k = 10; k >= 0; k--) {
     const dia = brt(Date.now() - k * 86400e3), prox = brt(Date.now() - (k - 1) * 86400e3);
-    const r = await h.httpRequest({ url: 'https://www.mercadolivre.com.br/afiliados/dashboard?filter_time_range=' + encodeURIComponent(dia + 'T00:00:00.000-03:00--' + prox + 'T00:00:00.000-03:00'),
-      headers: { cookie: COOKIE, 'user-agent': UA }, json: false, returnFullResponse: true, ignoreHttpStatusErrors: true, timeout: 60000 });
-    const t = String(r.body || '');
-    const m = t.match(/"earnings":\\{"item_list":(\\[[^\\]]*\\])/);
-    if (!m) continue;
-    for (const e of JSON.parse(m[1])) etiquetas.push({ tag: e.tag, dia, cliques: e.clicks || 0, vendas: e.quantity || 0, comissao: e.earnings || 0 });
+    // 28/Out o ML tirou o bloco da página e passou a buscar por API (dashboard/ganancias); mesmo item_list
+    const r = await h.httpRequest({ url: 'https://www.mercadolivre.com.br/affiliate-program/api/dashboard/ganancias?metric_tab=general&type=GENERAL&filter_time_range=' + encodeURIComponent(dia + 'T00:00:00.000-03:00--' + prox + 'T00:00:00.000-03:00'),
+      headers: { cookie: COOKIE, 'user-agent': UA, accept: 'application/json' }, json: false, returnFullResponse: true, ignoreHttpStatusErrors: true, timeout: 60000 });
+    let lista = null;
+    // o n8n já entrega o corpo JSON como objeto (mesmo com json:false)
+    try { lista = (typeof r.body === 'object' && r.body && !Buffer.isBuffer(r.body) ? r.body : JSON.parse(String(r.body || ''))).item_list; } catch { /* resposta não-JSON = cookie caiu */ }
+    if (!Array.isArray(lista)) { erroEtiquetas = 'ganancias ' + r.statusCode + ' ' + String(r.body).slice(0, 120); continue; }
+    for (const e of lista) etiquetas.push({ tag: e.tag, dia, cliques: e.clicks || 0, vendas: e.quantity || 0, comissao: e.earnings || 0 });
   }
   if (etiquetas.length) {
     const r = await h.httpRequest({ url: 'https://ofertas-beta-painel.xktssy.easypanel.host/api/vendas/import', method: 'POST',

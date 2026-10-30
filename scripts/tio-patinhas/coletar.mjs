@@ -65,17 +65,19 @@ const ultimaSync = Object.fromEntries(await Promise.all(["ml", "shopee", "amazon
   const r = await (await fetch(`${U}/rest/v1/affiliate_sales?select=synced_at&source=eq.${s}&order=synced_at.desc&limit=1`, { headers: H })).json();
   return [s, r[0]?.synced_at ? diaBRT(r[0].synced_at) : null];
 })));
-const amzDiaUlt = diario.filter((d) => d.fonte === "amazon").map((d) => d.dia).sort().at(-1) || null;
+const amzDiaUlt = diario.filter((d) => d.fonte === "amazon" && d.tag === "manualdorec0c-20").map((d) => d.dia).sort().at(-1) || null;
 
 // ── 1. semanas (qui–qua) ────────────────────────────────────────────────────
 const sem = {};
-const S = (d) => (sem[quinta(d)] ||= { ml: 0, shp: 0, amz: 0, mlGrupos: 0, shpGrupos: 0, posts: 0, cliques: 0, gmvMl: 0, gmvShp: 0, vendasMl: 0, pedShp: 0, itensAmz: 0, cliquesAmz: 0 });
+const S = (d) => (sem[quinta(d)] ||= { ml: 0, shp: 0, amz: 0, mlGrupos: 0, shpGrupos: 0, amzGrupos: 0, posts: 0, cliques: 0, gmvMl: 0, gmvShp: 0, vendasMl: 0, pedShp: 0, itensAmz: 0, cliquesAmz: 0 });
 for (const r of ml) if (!cancel(r.status)) { const s = S(diaBRT(r.sold_at)); s.ml += +r.commission || 0; s.gmvMl += +r.gross_value || 0; s.vendasMl++; }
 const shpGrupo = (r) => /^\d+-[mfce]/.test(r.utm || "") || r.sale_type === "WhatsApp";
 for (const r of shp) if (!cancel(r.status)) { const s = S(diaBRT(r.sold_at)); s.shp += +r.commission || 0; s.gmvShp += +r.gross_value || 0; s.pedShp++; if (shpGrupo(r)) s.shpGrupos += +r.commission || 0; }
 for (const d of diario) {
   if (d.fonte === "amazon" && d.tag === "manualdorec0c-20") { const s = S(d.dia); s.amz += +d.comissao; s.itensAmz += d.vendas; s.cliquesAmz += d.cliques; }
   if (d.fonte === "ml" && /^(asofertasmaternas|mrnof)/.test(d.tag)) S(d.dia).mlGrupos += +d.comissao;
+  // Amazon por ID de campanha (mrnof*-20), lido da tabela da página por dia desde 30/Out; já está DENTRO do total da loja
+  if (d.fonte === "amazon" && /^mrnof/.test(d.tag)) { S(d.dia).amzGrupos += +d.comissao; }
 }
 for (const p of Array.isArray(posts) ? posts : []) S(p.dia).posts += +p.posts;
 for (const c of cliques) S(diaBRT(c.clicked_at)).cliques++;
@@ -95,15 +97,15 @@ for (const r of amzMes) {
   const m = M(r.period_start.slice(0, 7)), c = +r.commission || 0;
   m.amz += c; m.gmvAmz += +r.gross_value || 0; m.itensAmz += +r.units || 0; m.cliquesAmz += +r.clicks || 0;
   if (!r.product_name || /^(others?|-|none|outros produtos.*)$/i.test(r.product_name)) m.amzOcultos += c;
-  if (/^mrnof/.test(r.store || "")) m.amzGrupos += c;
 }
+for (const d of diario) if (d.fonte === "amazon" && /^mrnof/.test(d.tag)) M(d.dia.slice(0, 7)).amzGrupos += +d.comissao;
 const meses = Object.keys(mes).sort().map((m) => ({ mes: m, ...mes[m], total: mes[m].ml + mes[m].shp + mes[m].amz, shopeeIncompleto: m < "2026-08" }));
 
 // ── 3. médias técnicas (últimos 30 dias fechados) ───────────────────────────
 const d30 = somaDias(hoje, -30);
 const ml30 = ml.filter((r) => diaBRT(r.sold_at) >= d30 && diaBRT(r.sold_at) < hoje);
 const shp30 = shp.filter((r) => diaBRT(r.sold_at) >= d30 && diaBRT(r.sold_at) < hoje);
-const amz30 = diario.filter((d) => d.fonte === "amazon" && d.dia >= d30 && d.dia < hoje);
+const amz30 = diario.filter((d) => d.fonte === "amazon" && d.tag === "manualdorec0c-20" && d.dia >= d30 && d.dia < hoje);
 const soma = (a, f) => a.reduce((x, r) => x + (+f(r) || 0), 0);
 const mlOk = ml30.filter((r) => !cancel(r.status)), shpOk = shp30.filter((r) => !cancel(r.status));
 const medias = {
@@ -239,7 +241,7 @@ L.push(`TIO PATINHAS · Ofertas Maternas · gerado ${hoje} · dados desde ${inic
 L.push(`Última sync: ML ${ultimaSync.ml} · Shopee ${ultimaSync.shopee} · Amazon mês ${ultimaSync.amazon} · Amazon dia ${amzDiaUlt}`);
 L.push(`\n== SEMANAS (qui–qua, comissão CONTA INTEIRA; grupos = só o provado) ==`);
 for (const s of semanas) {
-  L.push(`${s.semana}${s.parcial ? " (parcial)" : ""}${s.amzAte ? ` (Amazon até ${s.amzAte})` : ""} | total ${brl(s.total)} | ML ${brl(s.ml)} · Shopee ${brl(s.shp)} · Amazon ${brl(s.amz)} | grupos: ML ${brl(s.mlGrupos)} · Shopee ${brl(s.shpGrupos)} | posts (4 campanhas) ${s.posts} · cliques ${s.cliques} | Amazon conv ${pct(s.itensAmz, s.cliquesAmz)} | grupo #1: ${(postsSemana[s.semana] || []).filter((p) => p.origem === "manual").length} manuais · ${(postsSemana[s.semana] || []).filter((p) => p.origem === "painel").length} painel`);
+  L.push(`${s.semana}${s.parcial ? " (parcial)" : ""}${s.amzAte ? ` (Amazon até ${s.amzAte})` : ""} | total ${brl(s.total)} | ML ${brl(s.ml)} · Shopee ${brl(s.shp)} · Amazon ${brl(s.amz)} | grupos: ML ${brl(s.mlGrupos)} · Shopee ${brl(s.shpGrupos)} · Amazon ${brl(s.amzGrupos)} | posts (4 campanhas) ${s.posts} · cliques ${s.cliques} | Amazon conv ${pct(s.itensAmz, s.cliquesAmz)} | grupo #1: ${(postsSemana[s.semana] || []).filter((p) => p.origem === "manual").length} manuais · ${(postsSemana[s.semana] || []).filter((p) => p.origem === "painel").length} painel`);
   for (const e of eventosDaSemana(s.semana)) L.push(`    ↳ ${e.data}${e.ate ? "→" + e.ate : ""} [${e.tipo}] ${e.o_que}`);
 }
 L.push(`Média 4 sem ${brl(media(4))} · 8 sem ${brl(media(8))} · régua manual ${brl(REGUA_MANUAL_SEMANA)}`);
