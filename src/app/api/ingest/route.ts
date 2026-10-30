@@ -134,6 +134,9 @@ export async function POST(request: Request) {
   // ── Resolve perfil (slug → id) ───────────────────────────────────────────
   let perfilId: string | null = null;
   let shortDomain = "manualdorecemnascido.com.br"; // padrão (marca-mãe)
+  // perfil com domínio próprio: o dispatcher encurta na hora de postar (garantirLinkCurto). Encurtar aqui
+  // gravava 1 slug por oferta coletada, postada ou não, e estourava o limite de gravações do KV (30/Out).
+  let encurtaNoPost = false;
   if (p.perfil) {
     const { data: perfilRow } = await db
       .from("perfis")
@@ -141,7 +144,7 @@ export async function POST(request: Request) {
       .eq("slug", p.perfil)
       .maybeSingle();
     perfilId = perfilRow?.id ?? null;
-    if (perfilRow?.short_domain) shortDomain = perfilRow.short_domain as string;
+    if (perfilRow?.short_domain) { shortDomain = perfilRow.short_domain as string; encurtaNoPost = true; }
   }
 
   // ── Encurta link Amazon (URL longa) via worker utm-redirector ────────────
@@ -150,7 +153,7 @@ export async function POST(request: Request) {
   // Best-effort: qualquer falha mantém a URL completa. ML(meli.la)/Shopee já vêm curtos.
   let affiliateUrl = p.affiliate_url || p.url;
   const isAmazon = p.platform === "amazon" || /(^|\.)amazon\.com/.test((() => { try { return new URL(affiliateUrl).hostname; } catch { return ""; } })());
-  if (isAmazon && /amazon\.com/.test(affiliateUrl) && process.env.UTM_WORKER_SECRET) {
+  if (!encurtaNoPost && isAmazon && /amazon\.com/.test(affiliateUrl) && process.env.UTM_WORKER_SECRET) {
     const asin =
       (p.source_ref?.replace(/^amazon_/, "") || "").match(/^[A-Z0-9]{8,12}$/)?.[0] ||
       affiliateUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{8,12})/)?.[1] ||
@@ -177,7 +180,7 @@ export async function POST(request: Request) {
   // ── Telegram: todo link (ML, Shopee, cupom) também sai no domínio da marca ─
   // <short_domain>/l/t<hash> → 302 pro NOSSO link de afiliado (meli.la, s.shopee, vitrine ML).
   // Slug = hash da URL (mesma URL → mesmo slug). Oculto no utm-builder. Best-effort.
-  if (p.source === "telegram" && process.env.UTM_WORKER_SECRET && !affiliateUrl.includes(`${shortDomain}/l/`)) {
+  if (!encurtaNoPost && p.source === "telegram" && process.env.UTM_WORKER_SECRET && !affiliateUrl.includes(`${shortDomain}/l/`)) {
     try {
       const slug = shortSlug(p.kind === "cupom" ? "c" : p.platform === "shopee" ? "s" : "m", affiliateUrl);
       const reg = await fetch("https://manualdorecemnascido.com.br/_utmapi/register", {

@@ -464,7 +464,7 @@ export async function publishQueueItemForCampaign(
   let linkBase = o.affiliate_url || o.url;
   if (viaWaha && campaign.perfil_id) {
     const { data: pf } = await db.from("perfis").select("short_domain").eq("id", campaign.perfil_id).maybeSingle();
-    linkBase = await garantirLinkCurto(db, o.id, linkBase, (pf?.short_domain as string | null) ?? null, o.platform);
+    linkBase = await garantirLinkCurto(db, o.id, linkBase, (pf?.short_domain as string | null) ?? null, o.platform, o.kind);
     o.affiliate_url = linkBase;
   }
   const caption = await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");

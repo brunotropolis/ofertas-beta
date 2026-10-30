@@ -35,7 +35,7 @@ async function shopeeComMarca(link: string): Promise<string | null> {
 }
 
 /** Devolve o link curto da oferta (registra no encurtador e grava na oferta se ainda não for nosso). */
-export async function garantirLinkCurto(db: DB, offerId: string, link: string, shortDomain: string | null, plataforma?: string | null): Promise<string> {
+export async function garantirLinkCurto(db: DB, offerId: string, link: string, shortDomain: string | null, plataforma?: string | null, kind?: string | null): Promise<string> {
   if (!shortDomain || !link) return link;
   // Shopee com link antigo (sem marca): troca pelo formato que aceita marca, mesmo que já seja curto nosso
   if (plataforma === "shopee" && !link.includes(`${shortDomain}/l/p`)) {
@@ -50,7 +50,8 @@ export async function garantirLinkCurto(db: DB, offerId: string, link: string, s
     if (marcado) return registrar(db, offerId, marcado, shortDomain, "p");
   }
   if (link.includes(`${shortDomain}/l/`)) return link;
-  return registrar(db, offerId, link, shortDomain, "o");
+  // letra do slug diz a origem (c = cupom, a = Amazon, o = resto), como era no ingest
+  return registrar(db, offerId, link, shortDomain, kind === "cupom" ? "c" : plataforma === "amazon" ? "a" : "o");
 }
 
 async function registrar(db: DB, offerId: string, link: string, shortDomain: string, prefixo: string): Promise<string> {
