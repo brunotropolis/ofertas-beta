@@ -24,6 +24,7 @@
     { "data": "2026-10-29", "tipo": "sistema", "o_que": "Campeões de venda (até 20% dos posts em dia útil, cada um no máx. 1x a cada 3 dias) + ML caro de bebê (até 12%, ≥R$100)." },
     { "data": "2026-10-29", "tipo": "sistema", "o_que": "Tio Patinhas item 1: campeões de 19 pra 35 (Huggies Máxima P/M, Natural Care P, Bepantol 30g, Pampers Pants G/M, RN+, Confort Sec P/M/XG, Premium Care M, lenços Pampers/MamyPoko, Weleda, Mustela, Pom Pom Protek) e valendo também no fim de semana. Medir semana 30/10–05/11: Amazon/dia >R$150, conversão rumo a 20%." },
     { "data": "2026-10-30", "tipo": "sistema", "o_que": "Link curto criado só na hora de postar (antes: no momento da coleta). Muda só a infra do encurtador; o post sai igual." },
-    { "data": "2026-10-30", "tipo": "medicao", "o_que": "Venda por campanha completa: ML etiqueta de volta (parou 28-30/10 por mudança na página do ML), Amazon por ID mrnof*-20 por dia desde 23/10 (só os IDs; o oculto da Amazon fica fora)." }
+    { "data": "2026-10-30", "tipo": "medicao", "o_que": "Venda por campanha completa: ML etiqueta de volta (parou 28-30/10 por mudança na página do ML), Amazon por ID mrnof*-20 por dia desde 23/10 (só os IDs; o oculto da Amazon fica fora)." },
+    { "data": "2026-10-30", "tipo": "sistema", "o_que": "Legenda no formato de texto da equipe (~19h): chamada em caixa alta nas ofertas boas, ✅ no nome, 'Por: R$X' sem %, aviso de cupom só no post de cupom, 'Link 🔗' na mesma linha." }
   ]
 }
