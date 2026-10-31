@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
 import { CAMPANHA_CODIGO, comGrupo, garantirLinkCurto, marcaGrupo } from "@/lib/encurtar";
+import { intervaloFimDeSemana } from "@/lib/fim-de-semana";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
 const EVO_KEY = process.env.EVOLUTION_API_KEY!;
@@ -35,6 +36,8 @@ interface Campaign {
   ai_prompt?: string | null;
   perfil_id?: string | null;
   categoria?: string | null;
+  auto_window_start?: number | null;
+  auto_window_end?: number | null;
 }
 interface PerfilWaha {
   waha_url: string;
@@ -393,6 +396,9 @@ async function campaignIsDue(db: DB, campaign: Campaign): Promise<boolean> {
   const elapsedMin = (Date.now() - new Date(data.sent_at as string).getTime()) / 60_000;
   // 22/Out: a operação manual concentrava posts das 8h às 11h (cupons especiais de manhã) →
   // na campanha geral, de manhã o intervalo cai pra 2 min (o resto do dia segue o da campanha)
+  // fim de semana (31/Out): a geral espalha no máx. 30 posts pela janela, sem o ritmo de 2 min da manhã
+  const fds = intervaloFimDeSemana(campaign);
+  if (fds != null) return elapsedMin >= Math.max(campaign.timer_minutes, fds);
   const hBrt = new Date(Date.now() - 3 * 3600_000).getUTCHours();
   const manha = (campaign.categoria ?? "geral") === "geral" && hBrt >= 8 && hBrt < 11;
   return elapsedMin >= (manha ? Math.min(campaign.timer_minutes, 2) : campaign.timer_minutes);
@@ -615,7 +621,7 @@ export async function tickAll(db: DB): Promise<TickResult> {
 
   const { data: campaigns } = await db
     .from("campaigns")
-    .select("id, name, timer_minutes, ai_prompt, perfil_id, categoria")
+    .select("id, name, timer_minutes, ai_prompt, perfil_id, categoria, auto_window_start, auto_window_end")
     .eq("is_active", true);
 
   const camps = (campaigns ?? []) as Campaign[];

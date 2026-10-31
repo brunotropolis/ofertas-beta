@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
+import { tetoDoDia } from "@/lib/fim-de-semana";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -246,7 +247,8 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
     .eq("is_active", true)
     .eq("auto_enqueue", true);
 
-  const camps = (campaigns ?? []) as AutoCampaign[];
+  // fim de semana: a geral fica em no máx. 30/dia (31/Out) — ver lib/fim-de-semana.ts
+  const camps = ((campaigns ?? []) as AutoCampaign[]).map((c) => ({ ...c, auto_daily_cap: tetoDoDia(c) }));
   result.campaigns_checked = camps.length;
 
   const hour = brtHour();

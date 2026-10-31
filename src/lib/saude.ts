@@ -10,6 +10,7 @@
  *                 dentro da janela (8h30–20h) com campanha ativa.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { intervaloFimDeSemana, tetoDoDia } from "@/lib/fim-de-semana";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -133,7 +134,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
       db.from("publication_queue").select("id, status, created_at").contains("campaign_ids", [c.id]).in("status", ["pending", "publishing"]).order("created_at", { ascending: true }).limit(20),
       db.from("publication_queue").select("id", { count: "exact", head: true }).contains("campaign_ids", [c.id]).eq("status", "published").is("created_by", null).gte("published_at", inicioHoje),
     ]);
-    const timer = c.timer_minutes ?? 15;
+    const timer = Math.max(c.timer_minutes ?? 15, intervaloFimDeSemana(c) ?? 0);
     const ultMs = ult?.sent_at ? Date.parse(ult.sent_at) : 0;
     const aberturaMs = inicioDiaUtc + ini * 60_000;
     const refMs = Math.max(ultMs, aberturaMs);
@@ -147,7 +148,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
       return u?.sent_at ? (agora - Date.parse(u.sent_at)) / 60000 : (agora - Date.parse(i.created_at)) / 60000 - timer;
     }));
     const esperandoMin = itens.filter((i) => i.status === "pending").map((i) => (agora - Date.parse(i.created_at)) / 60000);
-    const tetoOk = (hoje ?? 0) >= (c.auto_daily_cap ?? 9999);
+    const tetoOk = (hoje ?? 0) >= (c.auto_daily_cap != null ? tetoDoDia(c) : 9999);
     const geral = (c.categoria ?? "geral") === "geral";
     let luz: Luz = "verde", motivo = "Postando normalmente";
     if (!naJanela) motivo = `Fora do horário (${ini / 60}h–${fim / 60}h)`;
