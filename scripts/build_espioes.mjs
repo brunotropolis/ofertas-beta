@@ -81,10 +81,12 @@ for (const [k, fake] of nomes.entries()) {
     const jid = typeof g.id === 'string' ? g.id : g.id && g.id._serialized;
     if (nossos.has(jid) || s.base[fake].includes(jid) || s.alertados[jid]) continue;
     const dono = so(g.ownerPn || g.owner || g.subjectOwnerPn);
-    if (primeira || nosso(dono) || /soninho|meteoric|dream baby|manual do rec/i.test(g.subject || '')) { s.base[fake].push(jid); continue; }
+    if (primeira || nosso(dono) || /soninho|meteoric|dream baby|manual do rec|black maternity|clube do beb/i.test(g.subject || '')) { s.base[fake].push(jid); continue; }
     s.alertados[jid] = Date.now();
     const admins = (g.participants || []).filter((p) => p.admin || p.isAdmin || p.isSuperAdmin).map(fone).filter((n) => n && !nosso(n));
     const suspeitos = [...new Set([dono, ...admins].filter((n) => n && !nosso(n)))];
+    // grupo onde só número nosso manda (Black/Clube/meteórico) não é suspeito
+    if (!suspeitos.length) { s.base[fake].push(jid); continue; }
     if (!membros) membros = (await mapaMembros()).m;
     const onde = suspeitos.map((n) => '+' + n + (membros.get(n) ? ' (está nos nossos: ' + membros.get(n).slice(0, 8).join(', ') + (membros.get(n).length > 8 ? '…' : '') + ')' : ' (não está em grupo nosso agora)')).join('\\n');
     alertas.push('🚨 A *' + FAKES[fake] + '* (espiã) foi colocada num grupo que NÃO é nosso: *' + (g.subject || jid) + '* (' + (g.size || (g.participants || []).length) + ' pessoas).\\nQuem manda nesse grupo:\\n' + (onde || '(não consegui ver)') + '\\n\\nProvável ladrão de lead: remover dos nossos grupos.');
