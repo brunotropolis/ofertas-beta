@@ -89,8 +89,10 @@ const META_CUPOM_DUPLA = 0.25;
 // 26/Out (Bruno: "pela manhã, aumente as postagens de cupons no grupo do ofertas"): post de CUPOM volta pros
 // 170 grupos em dia normal (no manual ~41% dos posts levavam cupom). Manhã 8h–11h = 40% dos posts; resto do dia 20%.
 // Mesma régua do grupo de Cupons (código limpo, fresco 3h, sem repetir código no dia, mata o ESGOTADO).
+// 31/Out (Bruno: "vamos diminuir os cupons, coloca concentrado pela manhã"): saíam 29% de posts só de cupom
+// (20 de 70; equipe ~3%). Tarde sem post de cupom na Maternas; a antecipação também só vale até 11h na Maternas.
 const META_CUPOM_MANHA = 0.40;
-const META_CUPOM_DIA = 0.20;
+const META_CUPOM_DIA = 0;
 // 29/Out (Bruno: "faz"): mapa manual × automático (grupo #1, 20/08–09/10 × 17–28/10) mostrou que o manual
 // (1) repostava os campeões de venda da Amazon (Bepantol, Huggies, Pampers, Granado… até 11x em 51 dias) e
 // (2) vendia produto caro de bebê no ML (babá eletrônica, cadeira de carro, carrinho, berço = 31% da comissão ML),
@@ -291,7 +293,9 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
     // cupom que chegou há ≤20 min fura a fila (entra na frente e sai no próximo post), mesmo com o buffer cheio.
     // Só Maternas (geral) e o grupo de Cupons; respeita o teto do dia; o mesmo código nunca sai 2x no dia.
     const cat0 = (c.categoria ?? "geral") as Categoria;
-    if ((cat0 === "geral" || cat0 === "cupons") && today + pending < c.auto_daily_cap) {
+    // Maternas: só de manhã (31/Out); grupo de Cupons: o dia todo; data dupla segue com cupom o dia todo
+    const cupomAgora = cat0 === "cupons" || (cat0 === "geral" && (brtHour() < 11 || ehDataDupla()));
+    if (cupomAgora && today + pending < c.auto_daily_cap) {
       const ids = await escolherPorCategoria(db, "cupons", c, 2, dayStart);
       if (ids.length) {
         const { data: frescos } = await db.from("offers").select("id, created_at").in("id", ids)
