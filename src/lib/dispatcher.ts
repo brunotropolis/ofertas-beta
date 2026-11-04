@@ -400,7 +400,8 @@ async function campaignIsDue(db: DB, campaign: Campaign): Promise<boolean> {
   const fds = intervaloFimDeSemana(campaign);
   if (fds != null) return elapsedMin >= Math.max(campaign.timer_minutes, fds);
   const hBrt = new Date(Date.now() - 3 * 3600_000).getUTCHours();
-  const manha = (campaign.categoria ?? "geral") === "geral" && hBrt >= 8 && hBrt < 11;
+  // 04/Nov: só campanha de ritmo rápido (Maternas, 5 min) acelera de manhã; a do geek (30 min) segue o próprio intervalo
+  const manha = (campaign.categoria ?? "geral") === "geral" && campaign.timer_minutes <= 5 && hBrt >= 8 && hBrt < 11;
   return elapsedMin >= (manha ? Math.min(campaign.timer_minutes, 2) : campaign.timer_minutes);
 }
 
@@ -470,8 +471,11 @@ export async function publishQueueItemForCampaign(
   // por grupo. Desfazer = trocar linkDaLoja por garantirLinkCurto(db, o.id, linkBase, dominio, o.platform, o.kind).
   let linkBase = o.affiliate_url || o.url;
   if (viaWaha && campaign.perfil_id) {
-    const { data: pf } = await db.from("perfis").select("short_domain").eq("id", campaign.perfil_id).maybeSingle();
-    linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m");
+    const { data: pf } = await db.from("perfis").select("short_domain, slug").eq("id", campaign.perfil_id).maybeSingle();
+    // 04/Nov: perfil que não é o Maternas (BRUNOTROPOLIS/geek) usa marca "g": Amazon com a tag principal
+    // manualdorec0c-20 (não a mrnofmaternas-20) e Shopee com sub_id 0-g — não mistura com as campanhas do Maternas.
+    const cod = pf?.slug && pf.slug !== "ofertas-maternas" ? "g" : CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m";
+    linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
   }
   const caption = await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
