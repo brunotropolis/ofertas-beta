@@ -81,7 +81,7 @@ async function registrar(db: DB, offerId: string, link: string, shortDomain: str
 // Desfazer: no dispatcher, voltar a chamar garantirLinkCurto no lugar de linkDaLoja.
 // ─────────────────────────────────────────────────────────────────────────────
 const AMAZON_TAG_CAMPANHA: Record<string, string> = { m: "mrnofmaternas-20", f: "mrnoffraldas-20", c: "mrnofcupons-20", e: "mrnofenxoval-20" };
-const ML_ETIQUETA_CAMPANHA: Record<string, string> = { m: "asofertasmaternas", f: "mrnoffraldas", c: "mrnofcupons", e: "mrnofenxoval" };
+const ML_VITRINE_CURTO = "https://meli.la/2Axm7cw"; // vitrine social/manualdorecemnascido (link da equipe, conta Manual RN)
 
 async function shopeeLinkCurto(origem: string, campanha: string): Promise<string | null> {
   const appId = process.env.SHOPEE_APP_ID, secret = process.env.SHOPEE_APP_SECRET;
@@ -169,10 +169,10 @@ export async function linkDaLoja(link: string, shortDomain: string | null, plata
     }
     return destino;
   }
-  // ML: meli.la direto; vitrine (cupons) com a etiqueta da campanha
-  if (/mercadolivre\.com\.br\/social\/.*matt_word=/.test(destino) && ML_ETIQUETA_CAMPANHA[campanha]) {
-    try { const u = new URL(destino); u.searchParams.set("matt_word", ML_ETIQUETA_CAMPANHA[campanha]); return u.toString(); } catch { /* segue */ }
-  }
+  // ML: meli.la direto. Vitrine (posts de cupom) → meli.la fixo da vitrine, o mesmo que a equipe postava (04/Nov,
+  // Bruno: "link de cupom do ML indo com URL gigante"). O gerador do ML (createLink) só aceita produto, então não dá pra
+  // gerar um por campanha; este leva pra social/manualdorecemnascido com a etiqueta padrão da conta.
+  if (/mercadolivre\.com\.br\/social\/manualdorecemnascido/.test(destino)) return ML_VITRINE_CURTO;
   return destino;
 }
 
