@@ -102,6 +102,34 @@ async function shopeeLinkCurto(origem: string, campanha: string): Promise<string
   } catch { return null; }
 }
 
+// Amazon amzn.to pelo SiteStripe (o mesmo botão "Texto" da barra de associados). Só funciona logado: a sessão da
+// conta de associado fica em AMAZON_SITESTRIPE_COOKIE (env do servidor; cofre .env.meta). Sem ela ou se a sessão
+// cair → null, o post sai com o link longo e a saúde avisa (amazonCurtoStatus).
+export const amazonCurtoStatus: { ok: boolean | null; quando: string | null; erro: string | null } = { ok: null, quando: null, erro: null };
+const cacheAmzn = new Map<string, string>();
+async function amazonCurto(longo: string): Promise<string | null> {
+  const cookie = process.env.AMAZON_SITESTRIPE_COOKIE;
+  const marca = (ok: boolean, erro: string | null) => Object.assign(amazonCurtoStatus, { ok, erro, quando: new Date().toISOString() });
+  if (!cookie) { marca(false, "sem login da Amazon no servidor (AMAZON_SITESTRIPE_COOKIE)"); return null; }
+  const emCache = cacheAmzn.get(longo);
+  if (emCache) return emCache;
+  try {
+    const r = await fetch(`https://www.amazon.com.br/associates/sitestripe/getShortUrl?longUrl=${encodeURIComponent(longo)}&marketplaceId=526970`, {
+      redirect: "manual",
+      headers: { cookie, "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.status !== 200) { marca(false, `Amazon respondeu ${r.status} (login caiu?)`); return null; }
+    const j = await r.json().catch(() => null);
+    const curto = j?.shortUrl as string | undefined;
+    if (!curto || !/^https:\/\/(amzn\.to|link\.amazon)\//.test(curto)) { marca(false, "Amazon não devolveu link curto"); return null; }
+    marca(true, null);
+    if (cacheAmzn.size > 2000) cacheAmzn.clear();
+    cacheAmzn.set(longo, curto);
+    return curto;
+  } catch (e) { marca(false, `falha ao chamar a Amazon: ${String(e).slice(0, 80)}`); return null; }
+}
+
 /** Link direto da loja pro post. Se a oferta já tem link curto nosso, descobre o destino dele e usa o destino. */
 export async function linkDaLoja(link: string, shortDomain: string | null, plataforma: string | null | undefined, campanha: string): Promise<string> {
   if (!link) return link;
@@ -114,13 +142,15 @@ export async function linkDaLoja(link: string, shortDomain: string | null, plata
   }
   if (destino.includes(`/l/`) && shortDomain && destino.includes(shortDomain)) return link;
 
-  // Amazon: página do produto com a tag da campanha
+  // Amazon: página do produto com a tag da campanha → amzn.to (como a equipe postava); sem login, link longo
   if (plataforma === "amazon" || /amazon\.com\.br/.test(destino)) {
+    if (/^https:\/\/(amzn\.to|link\.amazon)\//.test(destino)) return destino;
     const asin = destino.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i)?.[1];
     const tag = AMAZON_TAG_CAMPANHA[campanha] || "manualdorec0c-20";
-    if (asin) return `https://www.amazon.com.br/dp/${asin.toUpperCase()}?tag=${tag}`;
-    try { const u = new URL(destino); if (u.hostname.endsWith("amazon.com.br")) { u.searchParams.set("tag", tag); return u.toString(); } } catch { /* segue */ }
-    return destino;
+    let longo = destino;
+    if (asin) longo = `https://www.amazon.com.br/dp/${asin.toUpperCase()}?tag=${tag}`;
+    else { try { const u = new URL(destino); if (u.hostname.endsWith("amazon.com.br")) { u.searchParams.set("tag", tag); longo = u.toString(); } } catch { /* segue */ } }
+    return (await amazonCurto(longo)) || longo;
   }
   // Shopee: link curto oficial s.shopee.com.br gerado na hora (nosso afiliado)
   if (plataforma === "shopee" || /shopee\.com\.br/.test(destino)) {
