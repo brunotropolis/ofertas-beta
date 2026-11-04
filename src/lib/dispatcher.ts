@@ -17,7 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
-import { CAMPANHA_CODIGO, comGrupo, garantirLinkCurto, marcaGrupo } from "@/lib/encurtar";
+import { CAMPANHA_CODIGO, comGrupo, linkDaLoja, marcaGrupo } from "@/lib/encurtar";
 import { intervaloFimDeSemana } from "@/lib/fim-de-semana";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
@@ -466,11 +466,12 @@ export async function publishQueueItemForCampaign(
     const c = melhorCupom(await loadCuponsDoDia(db), o.platform, o.price_current, o.promo_meta);
     if (c) o.cupom_dia = { code: c.code, regra: c.regra };
   }
-  // link curto da marca (conta clique por grupo): oferta com link direto da loja ganha slug agora
+  // 04/Nov: post sai com o link DIRETO da loja (como no manual), não mais com o link curto que contava clique
+  // por grupo. Desfazer = trocar linkDaLoja por garantirLinkCurto(db, o.id, linkBase, dominio, o.platform, o.kind).
   let linkBase = o.affiliate_url || o.url;
   if (viaWaha && campaign.perfil_id) {
     const { data: pf } = await db.from("perfis").select("short_domain").eq("id", campaign.perfil_id).maybeSingle();
-    linkBase = await garantirLinkCurto(db, o.id, linkBase, (pf?.short_domain as string | null) ?? null, o.platform, o.kind);
+    linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m");
     o.affiliate_url = linkBase;
   }
   const caption = await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");

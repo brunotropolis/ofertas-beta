@@ -74,6 +74,78 @@ async function registrar(db: DB, offerId: string, link: string, shortDomain: str
   return curto;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Link DIRETO da loja (04/Nov, Bruno: "quero os links do jeito que era no manual, mesmo perdendo o traqueamento").
+// O post volta a sair com amazon.com.br / meli.la / s.shopee.com.br, como a equipe postava. Perde o clique por
+// grupo (encurtador); a campanha segue marcada dentro do próprio link (tag Amazon, sub_id Shopee, etiqueta ML).
+// Desfazer: no dispatcher, voltar a chamar garantirLinkCurto no lugar de linkDaLoja.
+// ─────────────────────────────────────────────────────────────────────────────
+const AMAZON_TAG_CAMPANHA: Record<string, string> = { m: "mrnofmaternas-20", f: "mrnoffraldas-20", c: "mrnofcupons-20", e: "mrnofenxoval-20" };
+const ML_ETIQUETA_CAMPANHA: Record<string, string> = { m: "asofertasmaternas", f: "mrnoffraldas", c: "mrnofcupons", e: "mrnofenxoval" };
+
+async function shopeeLinkCurto(origem: string, campanha: string): Promise<string | null> {
+  const appId = process.env.SHOPEE_APP_ID, secret = process.env.SHOPEE_APP_SECRET;
+  if (!appId || !secret) return null;
+  // subIds "0-<campanha>": grupo desconhecido (0), campanha mantida no relatório de vendas (utmContent)
+  const body = JSON.stringify({ query: `mutation{generateShortLink(input:{originUrl:${JSON.stringify(origem)},subIds:["0",${JSON.stringify(campanha)}]}){shortLink}}` });
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const sig = createHash("sha256").update(appId + ts + body + secret).digest("hex");
+  try {
+    const r = await fetch("https://open-api.affiliate.shopee.com.br/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `SHA256 Credential=${appId},Timestamp=${ts},Signature=${sig}` },
+      body,
+      signal: AbortSignal.timeout(8000),
+    });
+    const j = await r.json();
+    return j?.data?.generateShortLink?.shortLink || null;
+  } catch { return null; }
+}
+
+/** Link direto da loja pro post. Se a oferta já tem link curto nosso, descobre o destino dele e usa o destino. */
+export async function linkDaLoja(link: string, shortDomain: string | null, plataforma: string | null | undefined, campanha: string): Promise<string> {
+  if (!link) return link;
+  let destino = link;
+  if (shortDomain && link.includes(`${shortDomain}/l/`)) {
+    try {
+      const r = await fetch(link.split("?")[0], { redirect: "manual", headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) });
+      destino = r.headers.get("location") || link;
+    } catch { return link; } // encurtador fora: segue com o curto (não trava o post)
+  }
+  if (destino.includes(`/l/`) && shortDomain && destino.includes(shortDomain)) return link;
+
+  // Amazon: página do produto com a tag da campanha
+  if (plataforma === "amazon" || /amazon\.com\.br/.test(destino)) {
+    const asin = destino.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i)?.[1];
+    const tag = AMAZON_TAG_CAMPANHA[campanha] || "manualdorec0c-20";
+    if (asin) return `https://www.amazon.com.br/dp/${asin.toUpperCase()}?tag=${tag}`;
+    try { const u = new URL(destino); if (u.hostname.endsWith("amazon.com.br")) { u.searchParams.set("tag", tag); return u.toString(); } } catch { /* segue */ }
+    return destino;
+  }
+  // Shopee: link curto oficial s.shopee.com.br gerado na hora (nosso afiliado)
+  if (plataforma === "shopee" || /shopee\.com\.br/.test(destino)) {
+    let u = destino;
+    try { const o = new URL(destino).searchParams.get("origin_link"); if (o) u = o; } catch { /* segue */ }
+    for (let i = 0; i < 3 && /s\.shopee\.com\.br\/(?!an_redir)/.test(u); i++) {
+      try {
+        const r = await fetch(u, { redirect: "manual", headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) });
+        const loc = r.headers.get("location"); if (!loc) break; u = new URL(loc, u).toString();
+      } catch { break; }
+    }
+    const m = u.match(/shopee\.com\.br\/(?:product|opaanlp)\/(\d+)\/(\d+)/) || u.match(/-i\.(\d+)\.(\d+)/);
+    if (m) {
+      const curto = await shopeeLinkCurto(`https://shopee.com.br/product/${m[1]}/${m[2]}`, campanha);
+      if (curto) return curto;
+    }
+    return destino;
+  }
+  // ML: meli.la direto; vitrine (cupons) com a etiqueta da campanha
+  if (/mercadolivre\.com\.br\/social\/.*matt_word=/.test(destino) && ML_ETIQUETA_CAMPANHA[campanha]) {
+    try { const u = new URL(destino); u.searchParams.set("matt_word", ML_ETIQUETA_CAMPANHA[campanha]); return u.toString(); } catch { /* segue */ }
+  }
+  return destino;
+}
+
 /** Marca do grupo no link: nº do "As Ofertas Maternas #N"; outros grupos = final do id. */
 export function marcaGrupo(groupName: string | null | undefined, jid: string): string {
   const m = (groupName || "").match(/^As Ofertas Maternas\s*#\s*(\d+)/i);

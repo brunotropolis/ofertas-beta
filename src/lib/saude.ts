@@ -172,7 +172,10 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
   const dominio = (pf?.short_domain as string | null) ?? null;
   let links: { luz: Luz; motivo: string; diretos: number; vistos: number } = { luz: "verde", motivo: "Sem domínio curto", diretos: 0, vistos: 0 };
   const idsCamp = ((campsAtivas ?? []) as Any[]).map((c) => c.id);
-  if (dominio && idsCamp.length) {
+  // 04/Nov: post sai com link DIRETO da loja de propósito (Bruno, volta ao formato do manual) → checagem desligada.
+  const LINK_DIRETO_DE_PROPOSITO = true;
+  if (LINK_DIRETO_DE_PROPOSITO) links = { luz: "verde", motivo: "Link direto da loja (como no manual, desde 04/11)", diretos: 0, vistos: 0 };
+  else if (dominio && idsCamp.length) {
     const { data: ultPosts } = await db.from("publication_queue").select("offer:offers(affiliate_url)")
       .overlaps("campaign_ids", idsCamp).eq("status", "published").gte("published_at", new Date(agora - 3 * 3600_000).toISOString())
       .order("published_at", { ascending: false }).limit(5);
