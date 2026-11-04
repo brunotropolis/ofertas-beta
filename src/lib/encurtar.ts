@@ -134,13 +134,17 @@ async function amazonCurto(longo: string): Promise<string | null> {
 export async function linkDaLoja(link: string, shortDomain: string | null, plataforma: string | null | undefined, campanha: string): Promise<string> {
   if (!link) return link;
   let destino = link;
-  if (shortDomain && link.includes(`${shortDomain}/l/`)) {
+  // link curto nosso em QUALQUER domínio (o ingest da Amazon grava manualdorecemnascido.com.br/l/… quando o perfil
+  // não tem domínio próprio, ex.: BRUNOTROPOLIS) → descobre o destino e usa o link direto
+  const ehCurtoNosso = (u: string) => /^https:\/\/(?:www\.)?(?:asofertasmaternas\.com\.br|manualdorecemnascido\.com\.br)\/l\//.test(u)
+    || (!!shortDomain && u.includes(`${shortDomain}/l/`));
+  if (ehCurtoNosso(link)) {
     try {
       const r = await fetch(link.split("?")[0], { redirect: "manual", headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) });
       destino = r.headers.get("location") || link;
     } catch { return link; } // encurtador fora: segue com o curto (não trava o post)
   }
-  if (destino.includes(`/l/`) && shortDomain && destino.includes(shortDomain)) return link;
+  if (ehCurtoNosso(destino)) return link;
 
   // Amazon: página do produto com a tag da campanha → amzn.to (como a equipe postava); sem login, link longo
   if (plataforma === "amazon" || /amazon\.com\.br/.test(destino)) {
