@@ -42,6 +42,20 @@ const muda = (chave, vermelho, txtCaiu, txtVoltou) => {
   st.estado[chave] = vermelho ? 'vermelho' : 'ok';
 };
 
+// 07/Nov: campanha só avisa se ficar vermelha em 2 checagens seguidas (10 min). Antes dava alarme falso:
+// o vigia pegava o post no segundo em que começava a sair (status "enviando" sem nenhum envio registrado ainda)
+// e 5 min depois mandava "voltou a postar". Estados: ok > suspeito (1ª vez vermelha, sem aviso) > vermelho (avisa).
+const mudaConfirmado = (chave, vermelho, txtCaiu, txtVoltou) => {
+  const antes = st.estado[chave];
+  if (vermelho) {
+    if (antes === 'suspeito') { linhas.push('🔴 ' + txtCaiu); st.estado[chave] = 'vermelho'; }
+    else if (antes !== 'vermelho') st.estado[chave] = 'suspeito';
+  } else {
+    if (antes === 'vermelho') linhas.push('🟢 ' + txtVoltou);
+    st.estado[chave] = 'ok';
+  }
+};
+
 if (r.statusCode >= 300) {
   muda('painel', true, 'Painel do Ofertas não respondeu (' + r.statusCode + ') — disparos podem estar parados', 'Painel do Ofertas voltou a responder');
 } else {
@@ -55,10 +69,10 @@ if (r.statusCode >= 300) {
     for (const x of p.plataformas || []) {
       muda('plat:' + p.perfil + ':' + x.plataforma, x.luz === 'vermelho', x.nome + ' (' + p.perfil + '): ' + x.motivo, x.nome + ' (' + p.perfil + ') voltou a trazer ofertas');
     }
-    if (p.links) muda('links:' + p.perfil, p.links.luz === 'vermelho', 'Links (' + p.perfil + '): ' + p.links.motivo + ' — clique e campanha não estão sendo marcados', 'Links (' + p.perfil + ') voltaram a sair pelo encurtador');
+    if (p.links) muda('links:' + p.perfil, p.links.luz === 'vermelho', 'Links (' + p.perfil + '): ' + p.links.motivo + ' (abrir /projeto ofertas-beta: renovar login da Amazon)', 'Links (' + p.perfil + '): Amazon voltou a sair com amzn.to');
     // por campanha (20/Out): o agregado escondia a Maternas parada enquanto Fraldas/Cupons postavam
     for (const c of p.campanhas || []) {
-      muda('camp:' + c.id, c.luz === 'vermelho', c.nome + ': ' + c.motivo, c.nome + ': voltou a postar');
+      mudaConfirmado('camp:' + c.id, c.luz === 'vermelho', c.nome + ': ' + c.motivo, c.nome + ': voltou a postar');
     }
   }
 }
