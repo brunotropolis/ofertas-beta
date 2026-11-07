@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fetchConversions, aggregate, type SalesAggregate } from "@/lib/shopee-sales";
-import { aggregateRows, windowAmazonRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
+import { aggregateRows, windowAmazonRows, inicioJanelaBRT, isCancelada, amazonPeloDiario, AMAZON_LOJA_DIARIA, type AffiliateSaleRow, type AmazonDiaRow } from "@/lib/affiliate-sales";
 import { normalize } from "@/lib/normalize";
 import { comCache } from "@/lib/cache-curto";
 
@@ -15,13 +15,14 @@ interface VarItem { product: string; atual: number; anterior: number; delta: num
 interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
 interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
 interface Produto { product: string; category: string; units: number; commission: number; gmv: number; clicks: number; ads: number }
-interface Funnel { clicks: number; buyers: number; orders: number; gmv: number; commission: number; comm_marketplace: number; comm_seller: number; comm_brand: number; synced_at: string | null }
+interface Funnel { stale?: boolean; clicks: number; buyers: number; orders: number; gmv: number; commission: number; comm_marketplace: number; comm_seller: number; comm_brand: number; synced_at: string | null }
 
 interface SourceResult {
   ok: boolean;
   error?: string;
   live?: boolean;
   lastSync?: string | null;
+  diario?: { ultimoDia: string | null } | null; // Amazon: total/cliques/dia vindos da série diária (07/Nov)
   snapshot?: boolean; // Amazon: dado agregado por período (janela aplicada pro-rata via windowAmazonRows)
   period?: { start: string | null; end: string | null };
   agg?: SalesAggregate;
@@ -113,7 +114,7 @@ async function gerar(request: Request) {
   } else {
     days = Math.min(Math.max(parseInt(searchParams.get("days") || "30", 10) || 30, 1), 180);
     end = now;
-    start = end - days * 86400;
+    start = inicioJanelaBRT(days, now); // hoje + (N-1) dias, desde 00h BRT — mesma régua nas 3 lojas
   }
   const prevStart = start - (end - start); // janela anterior de mesmo tamanho
   const startIso = new Date(start * 1000).toISOString();
@@ -137,7 +138,10 @@ async function gerar(request: Request) {
       const { data } = await supabase.from("affiliate_metrics").select("*").eq("source", src).eq("days", days).maybeSingle();
       const m = data as Record<string, unknown> | null;
       if (!m) return null;
+      // funil não tem robô: velho (>3 dias) vai marcado e a tela não mostra como se fosse de agora
+      const sync = m.synced_at ? Date.parse(String(m.synced_at)) : 0;
       return {
+        stale: !sync || Date.now() - sync > 3 * 86400000,
         clicks: Number(m.clicks) || 0, buyers: Number(m.buyers) || 0, orders: Number(m.orders) || 0,
         gmv: Number(m.gmv) || 0, commission: Number(m.commission) || 0,
         comm_marketplace: Number(m.comm_marketplace) || 0, comm_seller: Number(m.comm_seller) || 0, comm_brand: Number(m.comm_brand) || 0,
@@ -210,12 +214,12 @@ async function gerar(request: Request) {
       const salesNorm = new Map<string, NormEntry>();
       const curUnits = new Map<string, number>();
       const prevUnits = new Map<string, number>();
-      for (const c of cur) for (const it of c.items) {
+      for (const c of cur) if (!isCancelada(c.status)) for (const it of c.items) {
         addNorm(salesNorm, it.name, it.category, it.qty, it.commission, it.price * it.qty, 0);
         const p = norm(it.name, it.category).product;
         curUnits.set(p, (curUnits.get(p) ?? 0) + it.qty);
       }
-      for (const c of prev) for (const it of c.items) {
+      for (const c of prev) if (!isCancelada(c.status)) for (const it of c.items) {
         const p = norm(it.name, it.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + it.qty);
       }
@@ -241,12 +245,13 @@ async function gerar(request: Request) {
       const [rows, prevRows] = await Promise.all([
         fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "ml")
           .gte("sold_at", startIso).lte("sold_at", endIso).order("sold_at", { ascending: false }).order("external_id")),
-        fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("product_name,category,units").eq("source", "ml")
+        fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("product_name,category,units,status").eq("source", "ml")
           .gte("sold_at", prevStartIso).lt("sold_at", startIso).order("external_id")),
       ]);
       const salesNorm = new Map<string, NormEntry>();
       const curUnits = new Map<string, number>();
       for (const r of rows) {
+        if (isCancelada(r.status)) continue;
         const u = Number(r.units) || 0, c = Number(r.commission) || 0, g = Number(r.gross_value) || 0;
         addNorm(salesNorm, r.product_name, r.category, u, c, g, 0);
         const p = norm(r.product_name, r.category).product;
@@ -254,6 +259,7 @@ async function gerar(request: Request) {
       }
       const prevUnits = new Map<string, number>();
       for (const r of prevRows) {
+        if (isCancelada(r.status)) continue;
         const p = norm(r.product_name, r.category).product;
         prevUnits.set(p, (prevUnits.get(p) ?? 0) + (Number(r.units) || 0));
       }
@@ -273,7 +279,16 @@ async function gerar(request: Request) {
     try {
       const allRows = await fetchPaged<AffiliateSaleRow>(() =>
         supabase.from("affiliate_sales").select("*").eq("source", "amazon").order("external_id"));
-      const rows = windowAmazonRows(allRows, start, end);
+      const brtDia = (sec: number) => new Date((sec - 3 * 3600) * 1000).toISOString().slice(0, 10);
+      const [{ data: diasJanela }, { data: primeiro }] = await Promise.all([
+        supabase.from("afiliado_etiquetas_diario").select("dia,cliques,vendas,comissao")
+          .eq("fonte", "amazon").eq("tag", AMAZON_LOJA_DIARIA).gte("dia", brtDia(start)).lte("dia", brtDia(end)).order("dia"),
+        supabase.from("afiliado_etiquetas_diario").select("dia")
+          .eq("fonte", "amazon").eq("tag", AMAZON_LOJA_DIARIA).order("dia").limit(1),
+      ]);
+      const proRata = windowAmazonRows(allRows, start, end);
+      const peloDiario = amazonPeloDiario(proRata, (diasJanela ?? []) as AmazonDiaRow[], (primeiro?.[0] as { dia: string } | undefined)?.dia ?? null, start);
+      const rows = peloDiario ? peloDiario.rows : proRata;
       const perDay = rows.some((r) => r.sold_at);
       const period = {
         start: rows.reduce<string | null>((a, r) => (r.period_start && (!a || r.period_start < a) ? r.period_start : a), null),
@@ -298,9 +313,24 @@ async function gerar(request: Request) {
       const salesNorm = new Map<string, NormEntry>();
       for (const r of rows) addNorm(salesNorm, r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0, Number(r.clicks) || 0);
 
+      const agg = aggregateRows(rows, perDay ? "sale" : "daily");
+      if (peloDiario) {
+        // total exato do diário (loja principal) + outras lojas (04-20, pequena) pelo mês
+        const outras = rows.filter((r) => r.store !== AMAZON_LOJA_DIARIA);
+        const somaO = (k: "commission" | "units" | "clicks") => outras.reduce((s, r) => s + (Number(r[k] ?? 0) || 0), 0);
+        const d = peloDiario.diario;
+        agg.kpis.commission = d.commission + somaO("commission");
+        agg.kpis.commissionConfirmed = agg.kpis.commission;
+        agg.kpis.items = d.items + somaO("units");
+        agg.kpis.conversions = agg.kpis.items;
+        agg.kpis.clicks = d.clicks + somaO("clicks");
+        agg.kpis.ticket = agg.kpis.conversions ? agg.kpis.gmv / agg.kpis.conversions : 0;
+        agg.byDay = d.byDay;
+      }
       sources.amazon = {
-        ok: true, snapshot: true, period, lastSync: lastSyncOf(allRows),
-        agg: aggregateRows(rows, perDay ? "sale" : "daily"),
+        ok: true, snapshot: !peloDiario, diario: peloDiario ? { ultimoDia: peloDiario.diario.ultimoDia } : null,
+        period, lastSync: lastSyncOf(allRows),
+        agg,
         variacao, ...buildOutputs("amazon", salesNorm),
       };
     } catch (err) {
@@ -325,10 +355,11 @@ async function gerar(request: Request) {
   await Promise.all([shopeeJob, mlJob, amazonJob, etiquetasJob]);
 
   // ── Combinado (soma o que deu certo) ──────────────────────────────────────
-  const combined = { commission: 0, conversions: 0, items: 0, gmv: 0 };
+  const combined = { commission: 0, commissionConfirmed: 0, conversions: 0, items: 0, gmv: 0 };
   for (const s of Object.values(sources)) {
     if (s.ok && s.agg) {
       combined.commission += s.agg.kpis.commission;
+      combined.commissionConfirmed += s.agg.kpis.commissionConfirmed ?? 0;
       combined.conversions += s.agg.kpis.conversions;
       combined.items += s.agg.kpis.items;
       combined.gmv += s.agg.kpis.gmv;

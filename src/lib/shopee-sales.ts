@@ -118,9 +118,10 @@ export async function fetchConversions(
 export interface SalesAggregate {
   kpis: {
     commission: number;
-    conversions: number;
+    commissionConfirmed: number; // já confirmada pela loja (resto = a confirmar)
+    conversions: number;         // sem as canceladas (07/Nov)
     items: number;
-    gmv: number;
+    gmv: number;                 // valor vendido sem as canceladas
     ticket: number; // gmv / pedidos
     clicks: number; // total de cliques (só Amazon expõe; 0 nas outras)
     byStatusCount: Record<string, number>;
@@ -152,11 +153,17 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
   let commission = 0;
   let items = 0;
   let gmv = 0;
+  let commissionConfirmed = 0;
+  let validas = 0;
 
   for (const c of conversions) {
-    commission += c.commission;
     byStatusCount[c.status] = (byStatusCount[c.status] ?? 0) + 1;
     byStatusCommission[c.status] = (byStatusCommission[c.status] ?? 0) + c.commission;
+    // cancelada: só no quadro de status (comissão já vem 0, mas o valor vendido e os itens inflavam)
+    if (/^CANCEL/i.test(c.status)) continue;
+    validas++;
+    commission += c.commission;
+    if (c.status === "COMPLETED") commissionConfirmed += c.commission;
 
     const day = brtDay(c.purchaseTime);
     const dm = dayMap.get(day) ?? { commission: 0, conversions: 0 };
@@ -199,10 +206,11 @@ export function aggregate(conversions: Conversion[]): SalesAggregate {
   return {
     kpis: {
       commission,
-      conversions: conversions.length,
+      commissionConfirmed,
+      conversions: validas,
       items,
       gmv,
-      ticket: conversions.length ? gmv / conversions.length : 0,
+      ticket: validas ? gmv / validas : 0,
       clicks: 0, // Shopee não expõe cliques
       byStatusCount,
       byStatusCommission,

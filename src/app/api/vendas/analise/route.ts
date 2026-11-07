@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { fetchConversions } from "@/lib/shopee-sales";
 import { normalize } from "@/lib/normalize";
-import { windowAmazonRows, type AffiliateSaleRow } from "@/lib/affiliate-sales";
+import { windowAmazonRows, inicioJanelaBRT, isCancelada, amazonPeloDiario, AMAZON_LOJA_DIARIA, type AffiliateSaleRow, type AmazonDiaRow } from "@/lib/affiliate-sales";
 import { comCache } from "@/lib/cache-curto";
 
 export const runtime = "nodejs";
@@ -73,7 +73,7 @@ async function gerar(request: Request) {
     days = hoje ? 1 : Math.min(Math.max(parseInt(daysParam || "30", 10) || 30, 1), 180);
     end = now;
     if (hoje) { const d = new Date(Date.now() - 3 * 3600 * 1000); start = Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000) + 3 * 3600; }
-    else start = end - days * 86400;
+    else start = inicioJanelaBRT(days, now); // mesma régua da aba Resultados (07/Nov)
   }
   const prevStart = start - (end - start); // janela anterior de mesmo tamanho
   const iso = (s: number) => new Date(s * 1000).toISOString();
@@ -112,20 +112,31 @@ async function gerar(request: Request) {
   // Shopee (ao vivo)
   const appId = process.env.SHOPEE_APP_ID, secret = process.env.SHOPEE_APP_SECRET;
   if (appId && secret) {
-    try { const conv = await fetchConversions(appId, secret, start, end); for (const c of conv) for (const it of c.items) addSale("shopee", it.name, it.category, it.qty, it.commission, it.price * it.qty); }
+    try { const conv = await fetchConversions(appId, secret, start, end); for (const c of conv) if (!isCancelada(c.status)) for (const it of c.items) addSale("shopee", it.name, it.category, it.qty, it.commission, it.price * it.qty); }
     catch (e) { errors.shopee = e instanceof Error ? e.message : String(e); }
   } else errors.shopee = "sem credenciais";
 
   // ML janela atual + Amazon recortada pra janela (pro-rata nos buckets que só encostam)
-  try { const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "ml").gte("sold_at", iso(start)).lte("sold_at", iso(end)).order("external_id")); for (const r of data) addSale("ml", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
+  try { const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "ml").gte("sold_at", iso(start)).lte("sold_at", iso(end)).order("external_id")); for (const r of data) if (!isCancelada(r.status)) addSale("ml", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
   catch (e) { errors.ml = e instanceof Error ? e.message : String(e); }
-  try { const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "amazon").order("external_id")); for (const r of windowAmazonRows(data, start, end)) addSale("amazon", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0); }
+  try {
+    const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("*").eq("source", "amazon").order("external_id"));
+    // Amazon pelo diário (07/Nov): produtos do mês reescalados pro total real da janela
+    const brtDia = (sec: number) => new Date((sec - 3 * 3600) * 1000).toISOString().slice(0, 10);
+    const [{ data: dias }, { data: primeiro }] = await Promise.all([
+      supabase.from("afiliado_etiquetas_diario").select("dia,cliques,vendas,comissao").eq("fonte", "amazon").eq("tag", AMAZON_LOJA_DIARIA).gte("dia", brtDia(start)).lte("dia", brtDia(end)),
+      supabase.from("afiliado_etiquetas_diario").select("dia").eq("fonte", "amazon").eq("tag", AMAZON_LOJA_DIARIA).order("dia").limit(1),
+    ]);
+    const proRata = windowAmazonRows(data, start, end);
+    const peloDiario = amazonPeloDiario(proRata, (dias ?? []) as AmazonDiaRow[], (primeiro?.[0] as { dia: string } | undefined)?.dia ?? null, start);
+    for (const r of (peloDiario ? peloDiario.rows : proRata)) addSale("amazon", r.product_name, r.category, Number(r.units) || 0, Number(r.commission) || 0, Number(r.gross_value) || 0);
+  }
   catch (e) { errors.amazon = e instanceof Error ? e.message : String(e); }
 
   // ML janela anterior (só p/ variação)
   if (!hoje) try {
-    const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("product_name,category,units").eq("source", "ml").gte("sold_at", iso(prevStart)).lt("sold_at", iso(start)).order("external_id"));
-    for (const r of data) { const { product } = normalize(r.product_name, r.category); prevUnits.set(product, (prevUnits.get(product) ?? 0) + (Number(r.units) || 0)); }
+    const data = await fetchPaged<AffiliateSaleRow>(() => supabase.from("affiliate_sales").select("product_name,category,units,status").eq("source", "ml").gte("sold_at", iso(prevStart)).lt("sold_at", iso(start)).order("external_id"));
+    for (const r of data) { if (isCancelada(r.status)) continue; const { product } = normalize(r.product_name, r.category); prevUnits.set(product, (prevUnits.get(product) ?? 0) + (Number(r.units) || 0)); }
   } catch { /* variação opcional */ }
 
   // Anúncios (todos os grupos) — dedup por link+dia (o dispatcher cross-posta a mesma oferta)

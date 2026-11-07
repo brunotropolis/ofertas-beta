@@ -12,7 +12,7 @@ import MetricasClient from "./metricas-client";
 
 interface Agg {
   kpis: {
-    commission: number; conversions: number; items: number; gmv: number; ticket: number; clicks: number;
+    commission: number; commissionConfirmed?: number; conversions: number; items: number; gmv: number; ticket: number; clicks: number;
     byStatusCount: Record<string, number>;
     byStatusCommission: Record<string, number>;
   };
@@ -27,16 +27,16 @@ interface VarItem { product: string; atual: number; anterior: number; delta: num
 interface Variacao { basis: string; subiram: VarItem[]; cairam: VarItem[] }
 interface AdProduto { product: string; ads: number; units: number; commission: number; conv: number | null; exampleUrl: string | null }
 interface Produto { product: string; category: string; units: number; commission: number; gmv: number; clicks: number; ads: number }
-interface Funnel { clicks: number; buyers: number; orders: number; gmv: number; commission: number; comm_marketplace: number; comm_seller: number; comm_brand: number; synced_at: string | null }
+interface Funnel { stale?: boolean; clicks: number; buyers: number; orders: number; gmv: number; commission: number; comm_marketplace: number; comm_seller: number; comm_brand: number; synced_at: string | null }
 interface SourceResult {
-  ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean;
+  ok: boolean; error?: string; live?: boolean; lastSync?: string | null; snapshot?: boolean; diario?: { ultimoDia: string | null } | null;
   period?: { start: string | null; end: string | null };
   agg?: Agg; variacao?: Variacao | null; adsByProduct?: AdProduto[]; produtos?: Produto[]; oportunidades?: Produto[]; funnel?: Funnel | null;
 }
 interface VendasResp {
   period: { days: number };
   sources: { shopee: SourceResult; ml: SourceResult; amazon: SourceResult };
-  combined: { commission: number; conversions: number; items: number; gmv: number };
+  combined: { commission: number; commissionConfirmed?: number; conversions: number; items: number; gmv: number };
   etiquetasMl?: { tag: string; cliques: number; vendas: number; comissao: number }[];
 }
 
@@ -106,7 +106,7 @@ const VerLink = ({ url, name }: { url: string | null; name: string }) => (
 
 function emptyAgg(): Agg {
   return {
-    kpis: { commission: 0, conversions: 0, items: 0, gmv: 0, ticket: 0, clicks: 0, byStatusCount: {}, byStatusCommission: {} },
+    kpis: { commission: 0, commissionConfirmed: 0, conversions: 0, items: 0, gmv: 0, ticket: 0, clicks: 0, byStatusCount: {}, byStatusCommission: {} },
     byProduct: [], byCategory: [], byStore: [], byDay: [], byUtm: [], byDevice: [],
   };
 }
@@ -123,6 +123,7 @@ function mergeAggs(aggs: Agg[]): Agg {
 
   for (const a of aggs) {
     out.kpis.commission += a.kpis.commission;
+    out.kpis.commissionConfirmed = (out.kpis.commissionConfirmed ?? 0) + (a.kpis.commissionConfirmed ?? 0);
     out.kpis.conversions += a.kpis.conversions;
     out.kpis.items += a.kpis.items;
     out.kpis.gmv += a.kpis.gmv;
@@ -209,7 +210,9 @@ export default function VendasClient() {
   const maxDay = agg ? Math.max(1, ...agg.byDay.map((d) => d.commission)) : 1;
   const srcExtra = source !== "todas" && data && data.sources[source].ok ? data.sources[source] : null;
   const isAmazon = source === "amazon";
-  const hasFunnel = !!(srcExtra?.funnel && srcExtra.funnel.clicks > 0 && (source === "ml" || source === "shopee"));
+  const hasFunnel = !!(srcExtra?.funnel && !srcExtra.funnel.stale && srcExtra.funnel.clicks > 0 && (source === "ml" || source === "shopee"));
+  // funil sem robô: velho não aparece como se fosse de agora (07/Nov)
+  const funilVelho = srcExtra?.funnel?.stale && (source === "ml" || source === "shopee") ? srcExtra.funnel.synced_at : null;
   const srcLabel = source !== "todas" ? SOURCE_META[source].label : "Todas";
 
   // ── tabelas reutilizáveis (dash + página cheia) ──
@@ -350,7 +353,8 @@ export default function VendasClient() {
                 <span className="text-[10px] uppercase tracking-wider text-zinc-500">Comissão total (todas)</span>
               </div>
               <p className="text-2xl font-display font-semibold text-white tracking-tightest">{brl(data.combined.commission)}</p>
-              <p className="text-[11px] text-zinc-500 mt-1">{num(data.combined.conversions)} conversões · GMV {brl(data.combined.gmv)}</p>
+              <p className="text-[11px] text-zinc-500 mt-1">confirmada {brl(data.combined.commissionConfirmed ?? 0)} · a confirmar {brl(data.combined.commission - (data.combined.commissionConfirmed ?? 0))}</p>
+              <p className="text-[11px] text-zinc-500">{num(data.combined.conversions)} conversões · vendido {brl(data.combined.gmv)} (sem canceladas)</p>
             </div>
             <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(["shopee", "ml", "amazon"] as const).map((k) => {
@@ -425,6 +429,11 @@ export default function VendasClient() {
             </div>
           ) : (
             <div className="space-y-4">
+              {isAmazon && srcExtra?.diario && (
+                <p className="text-[11px] text-sky-400/80 bg-sky-500/10 border border-sky-500/20 rounded-xl px-3 py-2">
+                  Amazon: total, cliques e dias pela série diária do Associados{srcExtra.diario.ultimoDia ? ` (até ${fmtDay(srcExtra.diario.ultimoDia)})` : ""}. A lista de produtos vem do relatório do mês, ajustada pra fechar com esse total.
+                </p>
+              )}
               {isAmazon && srcExtra?.snapshot && (
                 <p className="text-[11px] text-sky-400/80 bg-sky-500/10 border border-sky-500/20 rounded-xl px-3 py-2">
                   A Amazon é agregada por mês no Associados — a janela{srcExtra.period?.start && srcExtra.period?.end ? ` (buckets ${fmtDay(srcExtra.period.start)}–${fmtDay(srcExtra.period.end)})` : ""} é recortada proporcional aos dias (aproximação: mês que só encosta na janela entra pro-rata).
@@ -433,16 +442,20 @@ export default function VendasClient() {
 
               {/* KPIs (Amazon soma Cliques + Conversão clique→compra) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                <Kpi icon={Wallet} label="Comissão" value={brl(agg.kpis.commission)} highlight />
+                <Kpi icon={Wallet} label="Comissão" value={brl(agg.kpis.commission)} highlight
+                  sub={isAmazon ? "ganhos de itens enviados" : `confirmada ${brl(agg.kpis.commissionConfirmed ?? 0)} · a confirmar ${brl(agg.kpis.commission - (agg.kpis.commissionConfirmed ?? 0))}`} />
                 <Kpi icon={ShoppingBag} label="Conversões" value={num(agg.kpis.conversions)} />
                 <Kpi icon={Package} label="Itens" value={num(agg.kpis.items)} />
-                <Kpi icon={TrendingUp} label="GMV" value={brl(agg.kpis.gmv)} />
+                <Kpi icon={TrendingUp} label="Vendido" value={brl(agg.kpis.gmv)} />
                 <Kpi icon={Receipt} label="Ticket méd." value={brl(agg.kpis.ticket)} />
                 {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={MousePointerClick} label="Cliques" value={num(agg.kpis.clicks)} />}
                 {isAmazon && agg.kpis.clicks > 0 && <Kpi icon={Percent} label="Conv. clique→compra" value={pct(agg.kpis.items / agg.kpis.clicks)} accent="sky" />}
                 {hasFunnel && <Kpi icon={MousePointerClick} label="Cliques (conta)" value={num(srcExtra!.funnel!.clicks)} />}
                 {hasFunnel && <Kpi icon={Percent} label="Conv. clique→pedido" value={pct(srcExtra!.funnel!.orders / srcExtra!.funnel!.clicks)} accent="sky" />}
               </div>
+              {funilVelho && (
+                <p className="text-[11px] text-zinc-500 px-1">Funil de cliques desta loja sem atualização desde {fmtSync(funilVelho)}, por isso não aparece.</p>
+              )}
               {hasFunnel && (
                 <p className="text-[11px] text-zinc-400 px-1">
                   Funil da conta na janela: <span className="text-sky-300 font-medium">{num(srcExtra!.funnel!.clicks)} cliques</span> → {num(srcExtra!.funnel!.buyers)} compradores → <span className="text-zinc-200">{num(srcExtra!.funnel!.orders)} pedidos</span>.
@@ -688,7 +701,7 @@ export default function VendasClient() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, highlight, accent }: { icon: React.ElementType; label: string; value: string; highlight?: boolean; accent?: "sky" }) {
+function Kpi({ icon: Icon, label, value, highlight, accent, sub }: { icon: React.ElementType; label: string; value: string; highlight?: boolean; accent?: "sky"; sub?: string }) {
   const tone = accent === "sky";
   return (
     <div className={cn("glass rounded-xl p-3", highlight && "border-orange-500/40", tone && "border-sky-500/40")}>
@@ -700,6 +713,7 @@ function Kpi({ icon: Icon, label, value, highlight, accent }: { icon: React.Elem
         <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-400">{label}</span>
       </div>
       <p className={cn("text-2xl font-display font-bold tracking-tight leading-tight", tone ? "text-sky-300" : "text-white")}>{value}</p>
+      {sub && <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">{sub}</p>}
     </div>
   );
 }

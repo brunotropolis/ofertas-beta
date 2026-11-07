@@ -118,9 +118,18 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
   let gmv = 0;
   let conversions = 0;
   let clicks = 0;
+  let commissionConfirmed = 0;
 
   for (const r of rows) {
     const comm = toNum(r.commission);
+    // status sempre aparece no quadro; cancelada/rejeitada não soma em mais nada (07/Nov)
+    if (r.status) {
+      byStatusCount[r.status] = (byStatusCount[r.status] ?? 0) + 1;
+      byStatusCommission[r.status] = (byStatusCommission[r.status] ?? 0) + comm;
+    }
+    if (isCancelada(r.status)) continue;
+    // sem status (Amazon: ganhos = itens enviados) conta como confirmada
+    if (!r.status || isConfirmada(r.status)) commissionConfirmed += comm;
     const gross = toNum(r.gross_value);
     const units = Number(r.units ?? 0);
     const rowConv = mode === "sale" ? 1 : units; // Amazon não expõe nº de pedidos → usa itens
@@ -130,11 +139,6 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
     items += units;
     conversions += rowConv;
     clicks += Number(r.clicks ?? 0) || 0;
-
-    if (r.status) {
-      byStatusCount[r.status] = (byStatusCount[r.status] ?? 0) + 1;
-      byStatusCommission[r.status] = (byStatusCommission[r.status] ?? 0) + comm;
-    }
 
     if (r.sold_at) {
       const day = brtDay(r.sold_at);
@@ -190,6 +194,7 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
   return {
     kpis: {
       commission,
+      commissionConfirmed,
       conversions,
       items,
       gmv,
@@ -204,5 +209,64 @@ export function aggregateRows(rows: AffiliateSaleRow[], mode: "sale" | "daily"):
     byDay,
     byUtm,
     byDevice,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Janela em dias BRT (07/Nov): "últimos N dias" = hoje + N-1 dias anteriores,
+// começando à meia-noite BRT. Mesma régua pras 3 lojas (antes: Shopee N×24h,
+// ML perdia o 1º dia e a Amazon ganhava o 1º dia inteiro).
+// ─────────────────────────────────────────────────────────────────────────────
+export function inicioJanelaBRT(days: number, nowSec = Math.floor(Date.now() / 1000)): number {
+  const hojeBRT = new Date((nowSec - 3 * 3600) * 1000).toISOString().slice(0, 10);
+  const meiaNoite = Math.floor(Date.parse(hojeBRT + "T00:00:00-03:00") / 1000);
+  return meiaNoite - (Math.max(1, days) - 1) * 86400;
+}
+
+/** Venda cancelada/rejeitada não entra em comissão, itens nem valor vendido (só no quadro de status). */
+export const isCancelada = (status: string | null | undefined) => /^CANCEL/i.test(status ?? "");
+/** Comissão já confirmada pela loja (o resto é "a confirmar"). */
+export const isConfirmada = (status: string | null | undefined) => /^(CONFIRMED|COMPLETED)$/i.test(status ?? "");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Amazon pelo DIÁRIO (07/Nov). O mês guardado em affiliate_sales é 1 bloco por
+// produto; recortar a janela "por igual" (pro-rata) erra quando o mês é desigual
+// (30d em 07/11: R$ 6.008 no dash × R$ 5.347 real). A série por dia da loja
+// principal está em afiliado_etiquetas_diario (fonte amazon, tag 0c-20, desde
+// 03/05; a soma do mês bate com o bloco). Total/cliques/itens/dia saem do diário;
+// a lista de produtos continua do mês, reescalada pra fechar com o total do diário.
+// ─────────────────────────────────────────────────────────────────────────────
+export const AMAZON_LOJA_DIARIA = "manualdorec0c-20";
+export interface AmazonDiaRow { dia: string; cliques: number; vendas: number; comissao: number | string }
+export interface AmazonDiario { commission: number; clicks: number; items: number; byDay: { day: string; commission: number; conversions: number }[]; ultimoDia: string | null }
+
+/**
+ * dias = série diária da loja 0c-20 dentro da janela; primeiroDiaSerie = 1º dia que existe na série.
+ * Se a série não cobre o começo da janela, devolve null (fica o pro-rata antigo).
+ */
+export function amazonPeloDiario(
+  windowRows: AffiliateSaleRow[], dias: AmazonDiaRow[], primeiroDiaSerie: string | null, startSec: number,
+): { rows: AffiliateSaleRow[]; diario: AmazonDiario } | null {
+  const startDay = new Date((startSec - 3 * 3600) * 1000).toISOString().slice(0, 10);
+  if (!primeiroDiaSerie || primeiroDiaSerie > startDay) return null;
+  const commission = dias.reduce((s, d) => s + toNum(d.comissao), 0);
+  const clicks = dias.reduce((s, d) => s + (Number(d.cliques) || 0), 0);
+  const items = dias.reduce((s, d) => s + (Number(d.vendas) || 0), 0);
+  const principal = windowRows.filter((r) => r.store === AMAZON_LOJA_DIARIA);
+  const outras = windowRows.filter((r) => r.store !== AMAZON_LOJA_DIARIA);
+  const base = principal.reduce((s, r) => s + toNum(r.commission), 0);
+  const f = base > 0 ? commission / base : 0;
+  const escaladas = principal.map((r) => ({
+    ...r,
+    commission: toNum(r.commission) * f,
+    gross_value: toNum(r.gross_value) * f,
+    units: Math.round(Number(r.units ?? 0) * f),
+    clicks: r.clicks == null ? r.clicks : Math.round(Number(r.clicks) * f),
+  }));
+  const byDay = dias.map((d) => ({ day: d.dia, commission: toNum(d.comissao), conversions: Number(d.vendas) || 0 }))
+    .sort((a, b) => a.day.localeCompare(b.day));
+  return {
+    rows: [...escaladas, ...outras],
+    diario: { commission, clicks, items, byDay, ultimoDia: byDay.length ? byDay[byDay.length - 1].day : null },
   };
 }
