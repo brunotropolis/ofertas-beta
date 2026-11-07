@@ -73,6 +73,7 @@ const SOURCE_META: Record<Exclude<SourceKey, "todas">, { label: string; dot: str
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   PENDING:   { label: "Pendente",   cls: "bg-amber-500/10 text-amber-400" },
   CONFIRMED: { label: "Confirmada", cls: "bg-emerald-500/10 text-emerald-400" },
+  COMPLETED: { label: "Confirmada", cls: "bg-emerald-500/10 text-emerald-400" },
   PAID:      { label: "Paga",       cls: "bg-emerald-500/10 text-emerald-400" },
   CANCELLED: { label: "Cancelada",  cls: "bg-red-500/10 text-red-400" },
   UNKNOWN:   { label: "Outro",      cls: "bg-zinc-800 text-zinc-400" },
@@ -693,7 +694,7 @@ export default function VendasClient() {
 
           <p className="text-[11px] text-zinc-600 text-center flex items-center justify-center gap-1.5">
             <MousePointerClick className="w-3 h-3" />
-            Shopee/ML: comissões pendentes podem mudar de status. Amazon: agregada por mês (relatório do Associados), recortada pro-rata pela janela.
+            Período = hoje + dias anteriores, contados em dia de Brasília. Shopee/ML: pendente ainda pode virar confirmada ou cancelada; cancelada não entra na comissão nem no vendido. Amazon: total e dias pela série diária do Associados (atualiza a cada 2 dias).
           </p>
         </div>
       ))}
