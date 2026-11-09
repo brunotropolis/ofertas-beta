@@ -350,7 +350,9 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       .select("id", { count: "exact", head: true })
       .in("status", ["pending", "publishing"])
       .is("created_by", null)
-      .contains("campaign_ids", [c.id]);
+      .contains("campaign_ids", [c.id])
+      // 09/Nov: item agendado pro futuro (aviso do 11/11) não ocupa o buffer — travou as Maternas por ~50 min
+      .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`);
     const pending = pendingAuto ?? 0;
     const buffer = c.auto_buffer ?? 6;
     const today = autoToday ?? 0;
