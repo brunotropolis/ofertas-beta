@@ -210,7 +210,8 @@ async function amazonInfo(ctx, asin) {
 }
 
 async function mlCreateLink(ctx, productUrl) {
-  const { cookie, csrf, tag } = ctx.cfg.ml;
+  const { cookie, csrf } = ctx.cfg.ml;
+  const tag = ctx._mlTag || ctx.cfg.ml.tag; // 09/Nov: Buscador Geek usa a etiqueta padrão, não a das Maternas
   const r = await ctx.http({
     url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink", method: "POST",
     headers: { accept: "application/json", "content-type": "application/json", origin: "https://www.mercadolivre.com.br", referer: "https://www.mercadolivre.com.br/afiliados/linkbuilder", "user-agent": UA, "x-csrf-token": csrf, cookie },
@@ -218,6 +219,7 @@ async function mlCreateLink(ctx, productUrl) {
   });
   const j = typeof r.body === "string" ? JSON.parse(r.body) : r.body;
   if (r.status === 401) throw new Error("ML_UNAUTHORIZED");
+  ctx._mlLast = j?.urls?.[0] || null; // título do produto + long_url (vitrine com ele em 1º, de onde sai a foto)
   return j?.urls?.[0]?.short_url || null;
 }
 
@@ -226,7 +228,13 @@ async function productLink(ctx, links) {
   for (const l of links) {
     const plat = platformOf(l);
     if (!plat) continue;
-    const { url, body } = await resolve(ctx, l);
+    const r0 = await resolve(ctx, l);
+    const body = r0.body;
+    let url = r0.url;
+    // 09/Nov: tinyurl do canal de afiliados do ML cai na verificação de conta do ML (?go=<produto>) ou no
+    // redirecionador do Google (?q=<produto>) → pega o produto de dentro
+    const emb = url.match(/[?&](?:go|q)=([^&]+)/);
+    if (emb && /account-verification|google\.com\/url/.test(url)) { try { url = decodeURIComponent(emb[1]); } catch { /* segue */ } }
     const p2 = platformOf(url);
     if (p2 === "amazon") {
       const asin = (url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/) || [])[1];
@@ -246,7 +254,8 @@ async function productLink(ctx, links) {
     }
     if (p2 === "ml") {
       let prod = null, mlImage = null;
-      if (/\/p\/MLB\d+|produto\.mercadolivre\.com\.br\/MLB-?\d+|\/MLB-\d+/.test(url)) prod = url.split(/[?#]/)[0];
+      if (/\/p\/MLB\d+|produto\.mercadolivre\.com\.br\/MLB-?\d+|\/MLB-\d+|\/up\/MLBU\d+/.test(url)) prod = url.split(/[?#]/)[0];
+      else if (/mercadolivre\.com\.br\/[a-z0-9-]{10,}/i.test(url) && !/\/social\/|account-verification/.test(url)) prod = url.split(/[?#]/)[0]; // página de produto com nome na URL
       else if (/\/social\//.test(url) && body) {
         // vitrine do afiliado → 1º card (produto em destaque do link)
         const m = body.match(/"polycards":\[\{[\s\S]*?"url":"([^"]+)"/);
@@ -258,7 +267,20 @@ async function productLink(ctx, links) {
       const aff = await mlCreateLink(ctx, prod);
       if (!aff) continue;
       const ref = (prod.match(/MLB-?(\d+)/) || [])[1] || prod;
-      return { platform: "ml", ref, url: prod, affiliate_url: aff, image: mlImage };
+      // 09/Nov: link direto de produto (canal de afiliados do ML) não traz foto → a vitrine do nosso link
+      // (long_url do createLink) abre com o produto em 1º; a foto sai do 1º card, como no caso /social/
+      let tituloMl = null;
+      if (ctx._mlLast) {
+        tituloMl = ctx._mlLast.title || null;
+        if (!mlImage && ctx._mlLast.long_url) {
+          try {
+            const v = await ctx.http({ url: ctx._mlLast.long_url, headers: { "user-agent": UA } });
+            const pic = String(v.body || "").match(/"polycards":\[\{[\s\S]*?"pictures":\[\{"id":"([^"]+)"/);
+            if (pic) mlImage = `https://http2.mlstatic.com/D_${pic[1]}-O.jpg`;
+          } catch { /* sem foto: fica no painel */ }
+        }
+      }
+      return { platform: "ml", ref, url: prod, affiliate_url: aff, image: mlImage, officialTitle: tituloMl };
     }
   }
   return null;
@@ -315,11 +337,16 @@ async function processarPosts(ctx, res, fresh, origem) {
   for (const p of fresh) {
     if (ESGOTADO.test(p.text)) { res.esgotado++; continue; }
     if (PRA_AFILIADO.test(p.text)) { res.pra_afiliado = (res.pra_afiliado || 0) + 1; continue; }
-    const kind = classify(p);
+    let kind = classify(p);
+    // item de lista (comunidade Amazon / canal do ML): é produto quando traz link de loja, mesmo sem "R$"
+    if (p.item) kind = p.links.some(platformOf) ? "produto" : "ruido";
     if (kind === "ruido") { res.ruido++; continue; }
     try {
       if (kind === "produto") {
-        if (!nicheOk(p.text, ctx.kw)) { res.fora_nicho++; continue; }
+        // 09/Nov: a origem pode separar por perfil (WhatsApp: bebê > Ofertas Maternas; tecnologia/casa/games > Buscador Geek)
+        const perfil = origem.perfilDe ? origem.perfilDe(p, ctx) : (nicheOk(p.text, ctx.kw) ? "ofertas-maternas" : null);
+        if (!perfil) { res.fora_nicho++; continue; }
+        ctx._mlTag = perfil === "buscador-geek" ? (ctx.cfg.ml.tagGeek || ctx.cfg.ml.tag) : ctx.cfg.ml.tag;
         const link = await productLink(ctx, p.links);
         if (link && link.esgotado) { res.esgotado++; continue; }
         if (!link) {
@@ -330,7 +357,8 @@ async function processarPosts(ctx, res, fresh, origem) {
         }
         const nomeOficial = link.officialTitle || link.amazon?.title || "";
         if (PROIBIDO.test(p.text) || PROIBIDO.test(nomeOficial)) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`proibido: ${origem.canal}/${p.id}`); continue; }
-        if (nomeOficial && !nomeBate(titleOf(p.text) || "", nomeOficial)) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`nome não bate: ${origem.canal}/${p.id} "${(titleOf(p.text) || "").slice(0, 40)}" x "${nomeOficial.slice(0, 40)}"`); continue; }
+        const textoNome = p.item ? p.text.split(/\n/).slice(1).join(" \n") : p.text; // item de lista: 1ª linha é a categoria
+        if (nomeOficial && !nomeBate(titleOf(textoNome) || "", nomeOficial)) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`nome não bate: ${origem.canal}/${p.id} "${(titleOf(p.text) || "").slice(0, 40)}" x "${nomeOficial.slice(0, 40)}"`); continue; }
         let { cur, orig } = pricesOf(p.text);
         const precoLoja = link.amazon?.price ?? link.lojaPreco ?? null;
         // post que cita cupom / programe e poupe / Pix / "na tela de pagamento" mostra o preço FINAL, abaixo da página
@@ -345,11 +373,15 @@ async function processarPosts(ctx, res, fresh, origem) {
           for (const [k, v] of Object.entries(link.amazon.promo)) if (v !== undefined) promo[k] = v;
           promo.checked_at = new Date().toISOString();
         }
+        // lista de "mais vendidos" (iPhone, PS5, livro do momento) não é promoção: item de lista só entra com desconto
+        if (p.item && !(orig && cur && orig > cur * 1.05) && !/%\s*off|cupom|desconto/i.test(p.text)) { res.sem_desconto = (res.sem_desconto || 0) + 1; continue; }
+        if (origem.exclusiva) { const ex = origem.exclusiva(p); if (ex) promo.exclusiva = ex; }
+        const tituloLista = p.item && link.officialTitle ? tituloCurto(link.officialTitle) : null;
         res.enviados.push({
-          source: origem.source, source_channel: origem.canal, kind: "produto", perfil: "ofertas-maternas",
+          source: origem.source, source_channel: origem.canal, kind: "produto", perfil,
           source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
           platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
-          title: titleOf(p.text) || link.officialTitle || null, price_current: cur, price_original: orig,
+          title: tituloLista || titleOf(textoNome) || link.officialTitle || null, price_current: cur, price_original: orig,
           image_url: link.image || null, coupon_code: codes[0] || null, // nunca a foto do post (tem a marca do canal) — 10/Out
           extra_text: null,
           coupon_meta: { post: origem.postUrl(p), foto: link.image ? "loja" : "telegram", codes: codes.length ? codes : undefined },
@@ -409,9 +441,58 @@ async function runLeitorWhatsApp(ctx) {
     const fresh = posts.filter((p) => (last ? p.id > last : now - p.time < cfg.firstRunHours * 3600_000));
     if (posts.length) state.wa[f.id] = Math.max(last || 0, ...posts.map((p) => p.id));
     res.novos += fresh.length;
-    await processarPosts(ctx, res, fresh, { source: "whatsapp", canal: f.nome, postUrl: () => null });
+    // 09/Nov: mensagem com vários produtos (lista por categoria) vira um post por produto
+    const itens = [];
+    for (const p of fresh) {
+      const l = quebrarLista(p.text);
+      if (!l) { itens.push(p); continue; }
+      l.forEach((t, i) => itens.push({ ...p, id: p.id * 100 + i, text: t, links: [...t.matchAll(URL_RE)].map((x) => x[0]), item: true }));
+    }
+    res.itens = (res.itens || 0) + itens.length;
+    await processarPosts(ctx, res, itens, { source: "whatsapp", canal: f.nome, postUrl: () => null, perfilDe: perfilWhatsApp, exclusiva: prazoExclusiva });
   }
   return res;
 }
+
+// ── 6b. Ofertas exclusivas das fontes de afiliado (09/Nov) ────────────────
+const GEEK_NICHO = /eletr[oô]n|inform[aá]tic|tecnolog|celular|smartphone|iphone|samsung|xiaomi|motorola|notebook|computador|\bpc\b|monitor|teclado|mouse|headset|headphone|fone|caixa de som|\btv\b|smart ?tv|fire tv|echo|alexa|kindle|tablet|smartwatch|rel[oó]gio intelig|c[aâ]mera|gamer|\bgames?\b|playstation|\bps5\b|xbox|nintendo|switch|console|lego|funko|brinquedo|hot wheels|boneco|casa e cozinha|\bcasa\b|cozinha|airfryer|air fryer|fritadeira|cafeteira|liquidificador|aspirador|rob[oô] aspirador|eletrodom|lava e seca|geladeira|micro-?ondas|ferramenta|furadeira|parafusadeira|livro|mang[aá]|\bhq\b|quadrinho/i;
+const FORA_GEEK = /beleza|maquiagem|perfume|skincare|cabelo|moda|roupa|cal[cç]ado|t[eê]nis|bebida|vinho|cerveja|alimento|mercado|\bpet\b|ra[cç][aã]o/i;
+function perfilWhatsApp(p, ctx) {
+  if (nicheOk(p.text, ctx.kw)) return "ofertas-maternas";
+  const cab = p.text.split("\n")[0] || "";
+  // categoria da lista (1ª linha do item) fora do nicho geek (beleza, moda, bebida, pet...) → não posta
+  if (FORA_GEEK.test(cab) && !GEEK_NICHO.test(cab)) return null;
+  return GEEK_NICHO.test(p.text) ? "buscador-geek" : null;
+}
+// "Válida de 09/11 a 30/11" (ou "até 12/11") → janela em BRT; sem data = vale só no dia em que chegou
+function prazoExclusiva(p) {
+  const ano = new Date(p.time - 3 * 3600_000).getUTCFullYear();
+  // 00:00 BRT = 03:00 UTC; 23:59 BRT = 02:59 UTC do dia seguinte
+  const dia = (dd, mm, fimDoDia) => new Date(Date.UTC(ano, +mm - 1, +dd + (fimDoDia ? 1 : 0), fimDoDia ? 2 : 3, fimDoDia ? 59 : 0)).toISOString();
+  const m = p.text.match(/v[aá]lid[oa]\s+de\s+(\d{1,2})\/(\d{1,2})\s+a(?:t[eé])?\s+(\d{1,2})\/(\d{1,2})/i);
+  const ate = p.text.match(/(?:v[aá]lid[oa]\s+)?at[eé]\s+(\d{1,2})\/(\d{1,2})/i);
+  const hoje = new Date(p.time - 3 * 3600_000);
+  const inicio = new Date(p.time).toISOString();
+  if (m) { const ini = dia(m[1], m[2], false); return { inicio: ini > inicio ? ini : inicio, fim: dia(m[3], m[4], true), preco_promo: null, fonte: p.channel }; }
+  if (ate) return { inicio, fim: dia(ate[1], ate[2], true), preco_promo: null, fonte: p.channel };
+  return { inicio, fim: dia(hoje.getUTCDate(), hoje.getUTCMonth() + 1, true), preco_promo: null, fonte: p.channel };
+}
+function quebrarLista(text) {
+  if ((text.match(URL_RE) || []).length < 2) return null;
+  const itens = []; let cat = ""; let cur = null;
+  for (const raw of text.split("\n")) {
+    const l = raw.trim();
+    if (!l) continue;
+    const ehItem = /^(🔹|🔸|📦|⚡|▪️|•)/u.test(l);
+    const ehCat = !ehItem && !/https?:|R\$/.test(l) && l.length < 70 && /^\p{Extended_Pictographic}/u.test(l);
+    if (ehItem) { if (cur) itens.push(cur); cur = [cat, l]; continue; }
+    if (ehCat && (!cur || cur.some((x) => /https?:/.test(x)))) { if (cur) itens.push(cur); cur = null; cat = l; continue; }
+    if (cur) cur.push(l);
+  }
+  if (cur) itens.push(cur);
+  const bons = itens.map((x) => x.filter(Boolean).join("\n")).filter((t) => /https?:\/\//.test(t));
+  return bons.length >= 2 ? bons : null;
+}
+function tituloCurto(t) { let s = String(t).split(/\s[|–]\s/)[0].trim(); if (s.length > 110) s = s.slice(0, 110).replace(/[\s,;:-]+\S*$/, "") + "…"; return s; }
 
 if (typeof module !== "undefined") module.exports = { runLeitor, runLeitorWhatsApp, processarPosts, parseChannel, classify, extractCodes, titleOf, pricesOf };
