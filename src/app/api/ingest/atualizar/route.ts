@@ -53,13 +53,33 @@ export async function GET(request: Request) {
     .eq("campeao", true)
     .in("status", ["draft", "queued", "published"])
     .limit(200);
-  if (perfilId) { q = q.eq("perfil_id", perfilId); qc = qc.eq("perfil_id", perfilId); }
-  const [{ data: recentes, error }, { data: campeoes }] = await Promise.all([q, qc]);
+  // oferta exclusiva (planilha/comunidade, 09/Nov) entra enquanto a janela não fechou, mesmo cadastrada há dias
+  let qe = d
+    .from("offers")
+    .select("id, url, source_ref, price_current, promo_meta, status, created_at")
+    .eq("platform", "amazon")
+    .eq("kind", "produto")
+    .in("status", ["draft", "queued"])
+    .not("promo_meta->exclusiva", "is", null)
+    .limit(600);
+  if (perfilId) { q = q.eq("perfil_id", perfilId); qc = qc.eq("perfil_id", perfilId); qe = qe.eq("perfil_id", perfilId); }
+  const [{ data: recentes, error }, { data: campeoes }, { data: exclusivasTodas }] = await Promise.all([q, qc, qe]);
+  // só as exclusivas cuja janela abre nas próximas 2h ou já está aberta (e ainda não fechou)
+  const agora = Date.now();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exclusivas = ((exclusivasTodas ?? []) as any[]).filter((o) => {
+    const ex = o.promo_meta?.exclusiva || {};
+    const ini = ex.inicio ? new Date(ex.inicio).getTime() : 0;
+    const fim = ex.fim ? new Date(ex.fim).getTime() : Infinity;
+    return ini - agora < 2 * 3600_000 && fim > agora;
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vistos = new Set(((recentes ?? []) as any[]).map((o) => o.id));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = [...((campeoes ?? []) as any[]).filter((o) => !vistos.has(o.id)), ...((recentes ?? []) as any[])];
+  const extras = [...((campeoes ?? []) as any[]), ...exclusivas].filter((o) => { const novo = !vistos.has(o.id); vistos.add(o.id); return novo; });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = [...extras, ...((recentes ?? []) as any[])];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itens = ((data ?? []) as any[]).map((o) => ({
     id: o.id,

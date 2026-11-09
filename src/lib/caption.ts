@@ -30,6 +30,8 @@ export interface PromoMeta {
   vendidos?: string | null; // "+100mil" / "+800"
   loja_oficial?: boolean;
   cupom_anuncio?: string | null; // ML: "20% OFF com Cupom"
+  // oferta exclusiva / antecipada (planilha da Amazon, comunidade Amazon, canal de afiliados do ML; 09/Nov)
+  exclusiva?: { inicio?: string | null; fim?: string | null; preco_promo?: number | null; fonte?: string | null } | null;
   frete_gratis?: boolean;
   chega_amanha?: boolean;
   full?: boolean;
@@ -171,6 +173,27 @@ function chamada(offer: CaptionOffer): string | null {
   return CHAMADAS[hash((offer.title || "") + (offer.price_current ?? "")) % CHAMADAS.length];
 }
 
+// 09/Nov (Bruno: "postadas rápidas e com uma chamada mais agressiva: OFERTA ANTECIPADA, OFERTA EXCLUSIVA,
+// VOCÊ VAI VER AQUI PRIMEIRO"). "Antecipada" só nas 3 primeiras horas da janela da oferta; depois, exclusiva.
+const CHAMADAS_EXCLUSIVA = ["‼️OFERTA EXCLUSIVA‼️", "👀 VOCÊ VÊ AQUI PRIMEIRO 👀", "🔐 OFERTA EXCLUSIVA DO GRUPO 🔐"];
+const ANTECIPADA_MS = 3 * 3600_000;
+export function chamadaExclusiva(offer: CaptionOffer, agora = Date.now()): string | null {
+  const ex = offer.promo_meta?.exclusiva;
+  if (!ex) return null;
+  const ini = ex.inicio ? new Date(ex.inicio).getTime() : NaN;
+  if (Number.isFinite(ini) && agora - ini >= 0 && agora - ini < ANTECIPADA_MS) return "🚨 OFERTA ANTECIPADA 🚨";
+  return CHAMADAS_EXCLUSIVA[hash((offer.title || "") + (offer.price_current ?? "")) % CHAMADAS_EXCLUSIVA.length];
+}
+/** "⏳ Válida até 30/11" (fim da janela em BRT), só quando a oferta tem prazo. */
+function linhaPrazo(offer: CaptionOffer): string | null {
+  const fim = offer.promo_meta?.exclusiva?.fim;
+  if (!fim) return null;
+  const t = new Date(fim).getTime();
+  if (!Number.isFinite(t)) return null;
+  const b = new Date(t - 3 * 3600_000);
+  return `⏳ _Válida até ${String(b.getUTCDate()).padStart(2, "0")}/${String(b.getUTCMonth() + 1).padStart(2, "0")}_`;
+}
+
 /**
  * Corpo do post de PRODUTO (estilo maternidade). `creative` = 2 linhas da IA (ou null).
  * Fralda usa o cabeçalho do grupo no lugar das linhas da IA.
@@ -183,8 +206,10 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   // boa, ✅ no nome, preço "*Por: R$X*" sem %, frase da IA só quando curta e sem chamada.
   const parts: string[] = [];
   const fralda = isFralda(offer.title);
-  const ch = fralda ? null : chamada(offer);
-  if (fralda) parts.push("OFERTAS DE FRALDAS 🚼");
+  const chEx = chamadaExclusiva(offer);
+  const ch = chEx ?? (fralda ? null : chamada(offer));
+  if (chEx) parts.push(chEx);
+  else if (fralda) parts.push("OFERTAS DE FRALDAS 🚼");
   else if (ch) parts.push(ch);
   if (offer.title) parts.push(`*✅ ${offer.title.trim()}*`);
   const linhasIa = (creative || "").split("\n").map((l) => l.trim()).filter(Boolean);
@@ -192,6 +217,8 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   if (!fralda && !ch && frase && frase.length <= 90) parts.push(frase);
   const pb = priceBlock(offer);
   if (pb) parts.push(offer.promo_meta?.menor_30d ? `${pb}\n📉 _Menor preço dos últimos 30 dias_` : pb);
+  const prazo = linhaPrazo(offer);
+  if (prazo) parts.push(prazo);
   const ps = provaSocial(offer);
   if (ps) parts.push(ps);
   if (offer.promo_meta?.prime_exclusive) parts.push(`_Exclusivo para Membros Prime_`);

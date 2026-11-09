@@ -238,6 +238,72 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   return escolhidos;
 }
 
+// ── Ofertas exclusivas (09/Nov) ──────────────────────────────────────────────────────────────────────────
+// promo_meta.exclusiva = { inicio, fim, preco_promo, fonte }. Só posta dentro da janela (inicio ≤ agora < fim − 30 min).
+// Amazon: só depois que o Amazon Refresh conferiu o preço já dentro da janela e ele bate com o da promoção (+5%).
+// Teto por campanha/dia: Ofertas Maternas 10, Buscador Geek 15 (Bruno, 09/Nov). Entre uma exclusiva e outra, 20 min.
+const PERFIL_MATERNAS = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97";
+const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? 10 : 15);
+const EXCLUSIVA_GAP_MS = 20 * 60_000;
+const EXCLUSIVA_FIM_MARGEM_MS = 30 * 60_000;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function exclusivaNoAr(o: any, agora = Date.now()): boolean {
+  const ex = o?.promo_meta?.exclusiva;
+  if (!ex) return false;
+  const ini = ex.inicio ? new Date(ex.inicio).getTime() : 0;
+  const fim = ex.fim ? new Date(ex.fim).getTime() : Infinity;
+  if (!(agora >= ini && agora < fim - EXCLUSIVA_FIM_MARGEM_MS)) return false;
+  if (o.promo_meta?.esgotado) return false;
+  if (o.platform === "amazon" && ex.preco_promo) {
+    const conferido = new Date(o.promo_meta?.checked_at ?? 0).getTime();
+    if (!(conferido >= ini && agora - conferido < 3 * 3600_000)) return false; // preço conferido já dentro da janela
+    if (o.price_current == null || o.price_current > ex.preco_promo * 1.05) return false; // promoção ainda não está no ar
+  }
+  return true;
+}
+
+async function furarComExclusiva(db: DB, c: AutoCampaign, dayStart: string): Promise<string> {
+  const { data: hoje } = await db
+    .from("publication_queue")
+    .select("status, created_at, offer:offers(url, title, promo_meta)")
+    .contains("campaign_ids", [c.id])
+    .gte("created_at", dayStart)
+    .limit(500);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ex = ((hoje ?? []) as any[]).filter((r) => r.offer?.promo_meta?.exclusiva);
+  if (ex.some((r) => r.status === "pending" || r.status === "publishing")) return "ja tem exclusiva na fila";
+  if (ex.length >= EXCLUSIVA_TETO(c)) return "teto de exclusivas";
+  const ultima = Math.max(0, ...ex.map((r) => new Date(r.created_at).getTime()));
+  if (Date.now() - ultima < EXCLUSIVA_GAP_MS) return "intervalo";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const feitos = ((hoje ?? []) as any[]).map((r) => r.offer).filter(Boolean);
+  const ids = new Set(feitos.map((o) => idProduto(o.url)).filter(Boolean));
+  const nomes = new Set(feitos.map((o) => chaveProduto(o.title)));
+
+  const { data: cands } = await db.from("offers")
+    .select("id, title, url, platform, price_current, price_original, promo_meta")
+    .eq("perfil_id", c.perfil_id!).eq("status", "draft").eq("kind", "produto")
+    .not("image_url", "is", null).not("affiliate_url", "is", null)
+    .not("promo_meta->exclusiva", "is", null)
+    .limit(1000);
+  const agora = Date.now();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vivos = ((cands ?? []) as any[]).filter((o) => exclusivaNoAr(o, agora)
+    && !(idProduto(o.url) && ids.has(idProduto(o.url))) && !nomes.has(chaveProduto(o.title)));
+  if (!vivos.length) return "sem exclusiva no ar";
+  // janela recém-aberta primeiro (é a "antecipada"), depois maior desconto
+  const recem = (o: { promo_meta: { exclusiva: { inicio?: string } } }) => agora - new Date(o.promo_meta.exclusiva.inicio ?? 0).getTime() < 3 * 3600_000 ? 1 : 0;
+  vivos.sort((a, b) => recem(b) - recem(a) || desconto(b) - desconto(a));
+  const o = vivos[0];
+  const { data: primeiro } = await db.from("publication_queue").select("position")
+    .in("status", ["pending", "publishing"]).order("position", { ascending: true }).limit(1).maybeSingle();
+  const pos = ((primeiro?.position ?? 1) as number) - 1;
+  const { error } = await db.from("publication_queue").insert({ offer_id: o.id, campaign_ids: [c.id], position: pos, status: "pending", created_by: null });
+  if (error) return `insert falhou: ${error.message}`;
+  await db.from("offers").update({ status: "queued" }).eq("id", o.id);
+  return "ok";
+}
+
 export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
   const result: AutoEnqueueResult = { campaigns_checked: 0, enqueued: 0, skipped: [] };
 
@@ -314,6 +380,16 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
             result.skipped.push({ campaign: c.name, reason: "cupom fresco furou a fila" });
           }
         }
+      }
+    }
+
+    // Oferta EXCLUSIVA (09/Nov, Bruno: "postadas rápidas e com chamada agressiva"): planilha da Amazon, comunidade
+    // Amazon e canal de afiliados do ML. Fura a fila quando a janela dela abre, até o teto do dia por campanha.
+    if (cat0 === "geral" && today + pending < c.auto_daily_cap) {
+      const motivo = await furarComExclusiva(db, c, dayStart);
+      if (motivo === "ok") {
+        result.enqueued++;
+        result.skipped.push({ campaign: c.name, reason: "exclusiva furou a fila" });
       }
     }
 

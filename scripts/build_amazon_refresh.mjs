@@ -24,8 +24,12 @@ const jsCode = `// GERADO por ofertas-beta/scripts/build_amazon_refresh.mjs — 
 const h = this.helpers;
 const SECRET = ${JSON.stringify(ingestSecret)};
 const BASE = 'https://app.buscadorgeek.com.br/api/ingest/atualizar';
-const lista = await h.httpRequest({ url: BASE + '?perfil=ofertas-maternas&dias=3', headers: { 'x-ingest-secret': SECRET }, json: true });
-const itens = (lista && lista.itens) || [];
+// 09/Nov: os dois perfis (Ofertas Maternas + Buscador Geek); as ofertas exclusivas vêm junto até a janela fechar
+const itens = [];
+for (const perfil of ['ofertas-maternas', 'buscador-geek']) {
+  const lista = await h.httpRequest({ url: BASE + '?perfil=' + perfil + '&dias=3', headers: { 'x-ingest-secret': SECRET }, json: true });
+  itens.push(...((lista && lista.itens) || []));
+}
 if (!itens.length) return [{ json: { conferidos: 0 } }];
 
 const tok = await h.httpRequest({ url: 'https://api.amazon.com/auth/o2/token', method: 'POST', headers: { 'content-type': 'application/json' },
