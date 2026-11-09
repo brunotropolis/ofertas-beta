@@ -8,6 +8,7 @@ import { Logo } from "./logo";
 import { Header } from "./header";
 import { ProfileSelector } from "./profile-selector";
 import {
+  Zap,
   Megaphone,
   Tag,
   List,
@@ -38,6 +39,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Postagens",
     items: [
       { href: "/ofertas", label: "Nova oferta", icon: Tag },
+      { href: "/exclusivas", label: "Amazon exclusivas", icon: Zap },
       { href: "/carrossel", label: "Carrossel", icon: GalleryHorizontal },
       { href: "/publicacoes", label: "Publicações", icon: List },
       { href: "/fila", label: "Fila", icon: Clock },
