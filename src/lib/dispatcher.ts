@@ -222,6 +222,20 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
   // nunca a imagem de post do Telegram (telesco.pe) — vem com a marca do canal de origem (10/Out)
   if (offer.image_url && !/telesco.pe|telegram.org/i.test(offer.image_url)) preview.image = { url: offer.image_url };
 
+  // 09/Nov: canal (@newsletter) sai como IMAGEM com legenda (foto grande, Bruno pediu); o card de link no canal
+  // só mostra miniatura pequena. Sem foto ou se a imagem falhar, cai no card de sempre.
+  if (chatId.endsWith("@newsletter") && preview.image?.url) {
+    const img: string = preview.image.url;
+    const mimetype = /\.png(\?|$)/i.test(img) ? "image/png" : "image/jpeg";
+    const r = await fetch(`${perfil.waha_url}/api/sendImage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": WAHA_KEY },
+      body: JSON.stringify({ session: perfil.waha_session, chatId, caption: text, file: { mimetype, url: img, filename: mimetype === "image/png" ? "oferta.png" : "oferta.jpg" } }),
+      signal: AbortSignal.timeout(60_000),
+    }).catch(() => null);
+    if (r?.ok) return;
+  }
+
   const res = await fetch(`${perfil.waha_url}/api/send/link-custom-preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Api-Key": WAHA_KEY },
