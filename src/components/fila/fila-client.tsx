@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Clock, Trash2, Send, RefreshCw, AlertTriangle, CheckCircle2, Loader2, Tag, GripVertical, Lock, History,
+  Clock, Trash2, Send, RefreshCw, AlertTriangle, CheckCircle2, Loader2, Tag, GripVertical, Lock, History, CalendarClock,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,8 @@ interface Offer {
   affiliate_url: string | null;
   url: string;
   ai_caption: string | null;
+  extra_text?: string | null;
+  promo_meta?: { aviso?: { descricao?: string } } | null;
 }
 
 interface QueueItem {
@@ -181,6 +183,10 @@ export default function FilaClient() {
   }
 
   const activeCount = campaigns.filter((c) => c.is_active).length;
+  // 09/Nov: avisos agendados (aba Agendamento) ficam numa coluna à parte; os produtos são o principal da fila
+  const ehAviso = (i: QueueItem) => !!i.offer?.promo_meta?.aviso;
+  const produtos = items.filter((i) => !ehAviso(i));
+  const agendados = items.filter(ehAviso).sort((a, b) => String(a.scheduled_at ?? "").localeCompare(String(b.scheduled_at ?? "")));
 
   return (
     <div>
@@ -220,7 +226,7 @@ export default function FilaClient() {
         <div className="glass rounded-2xl p-12 text-center">
           <Loader2 className="w-6 h-6 mx-auto text-zinc-500 animate-spin" />
         </div>
-      ) : items.length === 0 ? (
+      ) : produtos.length === 0 && agendados.length === 0 ? (
         <div className="glass rounded-2xl p-12 text-center">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-zinc-900/70 border border-zinc-800/60 mb-4">
             <Clock className="w-7 h-7 text-zinc-600" strokeWidth={1.5} />
@@ -232,6 +238,14 @@ export default function FilaClient() {
           </p>
         </div>
       ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
+        <section className="min-w-0">
+        <div className="flex items-center gap-2 mb-3">
+          <Tag className="w-4 h-4 text-orange-400" strokeWidth={2} />
+          <h2 className="text-sm font-semibold text-white tracking-tight">Produtos na fila</h2>
+          <span className="text-xs text-zinc-500 tabular-nums">{produtos.filter((i) => i.status !== "error").length}</span>
+        </div>
+        {produtos.length === 0 && <div className="glass rounded-2xl p-8 text-center text-sm text-zinc-500">Nenhum produto na fila agora.</div>}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -239,9 +253,9 @@ export default function FilaClient() {
           onDragEnd={handleDragEnd}
           onDragCancel={() => { dragging.current = false; }}
         >
-          <SortableContext items={items.filter((i) => i.status !== "error").map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={produtos.filter((i) => i.status !== "error").map((i) => i.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-3">
-              {items.filter((i) => i.status !== "error").map((item) => (
+              {produtos.filter((i) => i.status !== "error").map((item) => (
                 <SortableRow
                   key={item.id}
                   item={item}
@@ -256,14 +270,14 @@ export default function FilaClient() {
             </div>
           </SortableContext>
           {/* itens com erro não saem sozinhos: ficam recolhidos no fim (publicar de novo ou excluir) */}
-          {items.some((i) => i.status === "error") && (
+          {produtos.some((i) => i.status === "error") && (
             <details className="mt-5 group">
               <summary className="cursor-pointer select-none text-xs text-red-300/80 hover:text-red-300 px-1 mb-3 list-none flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" /> Com erro ({items.filter((i) => i.status === "error").length}) — clique pra ver
+                <AlertTriangle className="w-3.5 h-3.5" /> Com erro ({produtos.filter((i) => i.status === "error").length}) — clique pra ver
               </summary>
-              <SortableContext items={items.filter((i) => i.status === "error").map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={produtos.filter((i) => i.status === "error").map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-3 opacity-80">
-                  {items.filter((i) => i.status === "error").map((item) => (
+                  {produtos.filter((i) => i.status === "error").map((item) => (
                     <SortableRow
                       key={item.id}
                       item={item}
@@ -280,6 +294,9 @@ export default function FilaClient() {
             </details>
           )}
         </DndContext>
+        </section>
+        <AgendadosLateral itens={agendados} campaignName={campaignName} />
+        </div>
       )}
     </div>
   );
@@ -439,5 +456,48 @@ function SortableRow({
         </button>
       </div>
     </div>
+  );
+}
+
+// Coluna lateral: posts agendados (avisos com arte). Só leitura aqui; editar/cancelar na aba Agendamento.
+function AgendadosLateral({ itens, campaignName }: { itens: QueueItem[]; campaignName: (id: string) => string }) {
+  return (
+    <aside className="lg:sticky lg:top-6 rounded-2xl border border-dashed border-zinc-700/70 bg-zinc-950/40 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="w-4 h-4 text-zinc-400" strokeWidth={1.75} />
+          <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Agendados</h2>
+          <span className="text-xs text-zinc-500 tabular-nums">{itens.length}</span>
+        </div>
+        <Link href="/agendamento" className="text-[11px] text-orange-300 hover:text-orange-200">editar</Link>
+      </div>
+      {itens.length === 0 ? (
+        <p className="text-xs text-zinc-500">Nenhum aviso agendado.</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {itens.map((i) => {
+            const quando = i.scheduled_at ? fmtShort(i.scheduled_at) : null;
+            const linha = (i.offer?.extra_text || i.offer?.title || "").replace(/\*/g, "").split("\n").find((l) => l.trim()) || "Aviso";
+            return (
+              <li key={i.id} className="flex gap-2.5 items-start">
+                {i.offer?.image_url
+                  ? <img src={i.offer.image_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 opacity-90" />
+                  : <div className="w-10 h-10 rounded-lg bg-zinc-800 shrink-0" />}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <span className="font-semibold text-zinc-200 tabular-nums">{quando ? quando.time : "--:--"}</span>
+                    {quando?.day && <span className="text-zinc-500">{quando.day}</span>}
+                    {i.status === "publishing" && <span className="text-sky-300">saindo</span>}
+                    {i.status === "error" && <span className="text-red-300">erro</span>}
+                  </div>
+                  <p className="text-xs text-zinc-400 line-clamp-2">{linha}</p>
+                  <p className="text-[10px] text-zinc-600 truncate">{i.campaign_ids.map(campaignName).join(", ")}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </aside>
   );
 }

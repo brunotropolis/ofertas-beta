@@ -229,7 +229,9 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
       session: perfil.waha_session,
       chatId,
       text,
-      linkPreviewHighQuality: true,
+      // 09/Nov: canal (@newsletter) não mostra a foto "alta qualidade" (vai como arquivo à parte, thumbnailDirectPath);
+      // sem HQ a WAHA embute a miniatura na mensagem (jpegThumbnail) e o canal mostra. Grupos seguem em HQ.
+      linkPreviewHighQuality: !chatId.endsWith("@newsletter"),
       preview,
     }),
   });

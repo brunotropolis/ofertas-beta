@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       error_message,
       created_at,
       created_by,
-      offer:offers(id, title, image_url, price_current, price_original, discount_pct, platform, affiliate_url, url, ai_caption, perfil_id)
+      offer:offers(id, title, image_url, price_current, price_original, discount_pct, platform, affiliate_url, url, ai_caption, perfil_id, promo_meta, extra_text)
     `)
     .in("status", ["pending", "publishing", "error"])
     .order("position", { ascending: true })
