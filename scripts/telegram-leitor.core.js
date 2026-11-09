@@ -455,8 +455,8 @@ async function runLeitorWhatsApp(ctx) {
 }
 
 // ── 6b. Ofertas exclusivas das fontes de afiliado (09/Nov) ────────────────
-const GEEK_NICHO = /eletr[oô]n|inform[aá]tic|tecnolog|celular|smartphone|iphone|samsung|xiaomi|motorola|notebook|computador|\bpc\b|monitor|teclado|mouse|headset|headphone|fone|caixa de som|\btv\b|smart ?tv|fire tv|echo|alexa|kindle|tablet|smartwatch|rel[oó]gio intelig|c[aâ]mera|gamer|\bgames?\b|playstation|\bps5\b|xbox|nintendo|switch|console|lego|funko|brinquedo|hot wheels|boneco|casa e cozinha|\bcasa\b|cozinha|airfryer|air fryer|fritadeira|cafeteira|liquidificador|aspirador|rob[oô] aspirador|eletrodom|lava e seca|geladeira|micro-?ondas|ferramenta|furadeira|parafusadeira|livro|mang[aá]|\bhq\b|quadrinho/i;
-const FORA_GEEK = /beleza|maquiagem|perfume|skincare|cabelo|moda|roupa|cal[cç]ado|t[eê]nis|bebida|vinho|cerveja|alimento|mercado|\bpet\b|ra[cç][aã]o/i;
+const GEEK_NICHO = /eletr[oô]n|inform[aá]tic|tecnolog|celular|smartphone|iphone|samsung|xiaomi|motorola|notebook|computador|\bpc\b|monitor|teclado|mouse|headset|headphone|fone|caixa de som|\btv\b|smart ?tv|fire tv|echo|alexa|kindle|tablet|smartwatch|rel[oó]gio intelig|c[aâ]mera|gamer|\bgames?\b|playstation|\bps5\b|xbox|nintendo|switch|console|lego|funko|brinquedo|hot wheels|boneco|casa e cozinha|\bcasa\b|cozinha|airfryer|air fryer|fritadeira|cafeteira|liquidificador|aspirador|rob[oô] aspirador|eletrodom|lava e seca|geladeira|micro-?ondas|ferramenta|furadeira|parafusadeira|mang[aá]|\bhq\b|quadrinho/i;
+const FORA_GEEK = /livros e papelaria|papelaria|autoajuda|beleza|maquiagem|perfume|skincare|cabelo|moda|roupa|cal[cç]ado|t[eê]nis|bebida|vinho|cerveja|alimento|mercado|\bpet\b|ra[cç][aã]o/i;
 function perfilWhatsApp(p, ctx) {
   if (nicheOk(p.text, ctx.kw)) return "ofertas-maternas";
   const cab = p.text.split("\n")[0] || "";

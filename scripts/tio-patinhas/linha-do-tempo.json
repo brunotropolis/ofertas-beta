@@ -149,6 +149,11 @@
       "data": "2026-11-04",
       "tipo": "sistema",
       "o_que": "Link DIRETO da loja de volta, como no manual (amazon.com.br/dp, meli.la, s.shopee.com.br), no lugar do link curto asofertasmaternas.com.br/l/. Perde o clique por grupo (link_cliques para de crescer); a campanha segue marcada no link (tag mrnof*-20, sub_id 0-<campanha>, etiqueta ML). Medir: cliques e conversao da Amazon, que cairam desde 16/10."
+    },
+    {
+      "data": "2026-11-09",
+      "tipo": "regra",
+      "o_que": "Linha de OFERTAS EXCLUSIVAS: planilha semanal da Amazon (por e-mail) + comunidade Amazon (Ofertas e Oportunidades) + canal de afiliados do ML, lidos pelo WhatsApp do Bruno. Cada oferta tem prazo (inicio/fim) e so posta dentro dele; fura a fila quando a janela abre, ate 10/dia nas Maternas e 15/dia no Buscador Geek, com chamada OFERTA ANTECIPADA (3 primeiras horas) ou OFERTA EXCLUSIVA + linha Valida ate. Medir: comissao Amazon das exclusivas x posts normais."
     }
   ]
 }
