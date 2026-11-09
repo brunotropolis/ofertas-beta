@@ -213,7 +213,9 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
   const preview: any = {
     url,
     title: (offer.title || "Oferta").slice(0, 120),
-    description: offer.kind === "cupom"
+    description: (offer.promo_meta as { aviso?: { descricao?: string } } | null)?.aviso
+      ? ((offer.promo_meta as { aviso: { descricao?: string } }).aviso.descricao || "")
+      : offer.kind === "cupom"
       ? `🎟️ ${(offer.coupon_meta?.codes?.length ? offer.coupon_meta.codes : [offer.coupon_code]).filter(Boolean).join(" · ")}`
       : priceLine(offer),
   };
@@ -463,14 +465,18 @@ export async function publishQueueItemForCampaign(
 
   // cupom geral do dia (capturado do Telegram) que vale pro preço — só produto sem cupom próprio
   const o = offer as Offer;
-  if (viaWaha && o.kind !== "cupom" && !o.coupon_code && !o.coupon_meta?.codes?.length) {
+  // 09/Nov: AVISO agendado (arte + texto pronto + link, ex.: aquecimento do 11/11, convite pros grupos).
+  // promo_meta.aviso = { descricao }. Sai com o texto do jeito que foi escrito (extra_text), sem IA, sem cupom do dia,
+  // sem trocar o link. Card do WhatsApp usa a arte (image_url) e o link (affiliate_url).
+  const aviso = (o.promo_meta as { aviso?: { descricao?: string } } | null)?.aviso ?? null;
+  if (!aviso && viaWaha && o.kind !== "cupom" && !o.coupon_code && !o.coupon_meta?.codes?.length) {
     const c = melhorCupom(await loadCuponsDoDia(db), o.platform, o.price_current, o.promo_meta);
     if (c) o.cupom_dia = { code: c.code, regra: c.regra };
   }
   // 04/Nov: post sai com o link DIRETO da loja (como no manual), não mais com o link curto que contava clique
   // por grupo. Desfazer = trocar linkDaLoja por garantirLinkCurto(db, o.id, linkBase, dominio, o.platform, o.kind).
   let linkBase = o.affiliate_url || o.url;
-  if (viaWaha && campaign.perfil_id) {
+  if (viaWaha && campaign.perfil_id && !aviso) {
     const { data: pf } = await db.from("perfis").select("short_domain, slug").eq("id", campaign.perfil_id).maybeSingle();
     // 04/Nov: perfil que não é o Maternas (BRUNOTROPOLIS/geek) usa marca "g": Amazon com a tag principal
     // manualdorec0c-20 (não a mrnofmaternas-20) e Shopee com sub_id 0-g — não mistura com as campanhas do Maternas.
@@ -478,7 +484,8 @@ export async function publishQueueItemForCampaign(
     linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
   }
-  const caption = await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
+  const caption = aviso ? (o.extra_text || "").trim() : await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
+  if (aviso && !caption) throw new Error("aviso sem texto (extra_text)");
   let successes = 0;
   let failures = 0;
 
