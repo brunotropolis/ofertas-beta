@@ -243,7 +243,13 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
 // Amazon: só depois que o Amazon Refresh conferiu o preço já dentro da janela e ele bate com o da promoção (+5%).
 // Teto por campanha/dia: Ofertas Maternas 10, Buscador Geek 15 (Bruno, 09/Nov). Entre uma exclusiva e outra, 20 min.
 const PERFIL_MATERNAS = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97";
-const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? 10 : 15);
+// 11/11 (Bruno: "das 6 da manhã até meia-noite", muita oferta e cupom): janela 6h–24h, teto do dia em dobro na
+// geral e nos cupons, e o dobro de exclusivas. Só nesse dia; no 12 volta sozinho.
+export function ehDia1111(): boolean {
+  const brt = new Date(Date.now() - 3 * 3600_000);
+  return brt.getUTCMonth() === 10 && brt.getUTCDate() === 11;
+}
+const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? (ehDia1111() ? 25 : 10) : 15);
 const EXCLUSIVA_GAP_MS = 20 * 60_000;
 const EXCLUSIVA_FIM_MARGEM_MS = 30 * 60_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -321,6 +327,11 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
   const dayStart = brtDayStartUtcIso();
 
   for (const c of camps) {
+    if (ehDia1111() && c.perfil_id === PERFIL_MATERNAS) {
+      c.auto_window_start = Math.min(c.auto_window_start, 6);
+      c.auto_window_end = 24;
+      if (["geral", "cupons"].includes(c.categoria ?? "geral")) c.auto_daily_cap = c.auto_daily_cap * 2;
+    }
     if (!c.perfil_id) {
       result.skipped.push({ campaign: c.name, reason: "sem perfil_id" });
       continue;
