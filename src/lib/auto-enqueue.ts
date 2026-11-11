@@ -81,7 +81,18 @@ interface Cand {
   id: string; title: string | null; platform: string | null; source: string;
   kind?: string | null; url?: string | null; discount_pct?: number | null; price_current?: number | null; price_original?: number | null;
   coupon_code?: string | null;
+  geek?: boolean;
 }
+
+// 11/11 (Bruno, via Mr. Ocean 10/Nov: "não postar nada no Brunotropolis"; o que serve pro público das mães vai pras
+// Maternas). Do Geek só entra casa, cozinha, eletrônico de uso e utilidade; nada de game, colecionável ou cultura pop.
+// No máximo 1 a cada 4 posts da geral das Maternas. Só no dia; no 12 volta sozinho.
+const PERFIL_MATERNAS = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97";
+const PERFIL_GEEK = "f3887ae2-7b2c-462b-8984-e1e6618a0ba6";
+const GEEK_SERVE_MAE = /air ?fryer|fritadeira|panela|liquidificador|cafeteira|chaleira|sanduicheira|batedeira|mixer|processador de alimento|forno|micro-?ondas|aspirador|mop|ventilador|umidificador|purificador|ferro de passar|vaporizador|secador|chapinha|escova (de dentes|alisadora|secadora)|l[âa]mpada|tomada inteligente|smart plug|plugue|echo (dot|pop|show|spot)|alexa|kindle|power ?bank|carregador|fone|earbuds?|smartwatch|rel[óo]gio inteligente|smart ?band|c[âa]mera de seguran|c[âa]mera wi-?fi|bab[áa] eletr|organizador|garrafa t[ée]rmica|copo t[ée]rmico|toalha|len[çc]ol|travesseiro|edredom|cobertor|balan[çc]a|term[ôo]metro|fita led|luminária|alimentador autom|smart tv|tv \d|tablet|celular|smartphone|caixa de som/i;
+const GEEK_SO_GEEK = /gamer|gaming|game|jogo|playstation|ps[45]|xbox|nintendo|switch|controle|funko|estatueta|colecion|figura|action figure|star wars|marvel|dc|batman|homem[- ]aranha|spider|harry potter|hogwarts|mario|pok[ée]mon|anime|mang[áa]|lego|groot|dragon|mouse|teclado|headset|monitor|ssd|hd externo|placa de v|hub usb|hdmi|suporte|caneca|geek|nerd|programador/i;
+const geekServeMae = (t: string | null) => !!t && GEEK_SERVE_MAE.test(t) && !GEEK_SO_GEEK.test(t);
+const META_GEEK_1111 = 0.25;
 
 // ── Data dupla (10/10, 11/11…): dia de mais venda (ML 2–3,5x nas duplas 7/7, 8/8, 9/9). Decisão Bruno 10/Out:
 // puxa de TODOS os canais do Telegram (os que postam primeiro de manhã) alternando com os nossos coletores,
@@ -124,7 +135,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   // o que o automático já pôs hoje (publicado + na fila)
   const { data: hoje } = await db
     .from("publication_queue")
-    .select("offer:offers(title, platform, kind, source, url, campeao, price_current)")
+    .select("offer:offers(title, platform, kind, source, url, campeao, price_current, perfil_id)")
     .is("created_by", null)
     .contains("campaign_ids", [c.id])
     .gte("created_at", dayStart)
@@ -137,6 +148,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let fraldas = feitos.filter((o) => isFralda(o.title)).length;
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   let mls = feitos.filter((o) => o.platform === "ml").length;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let nGeek = feitos.filter((o: any) => o.perfil_id === PERFIL_GEEK).length;
   const usados = new Set(feitos.map((o) => chaveProduto(o.title)));
   const idsUsados = new Set(feitos.map((o) => idProduto(o.url)).filter(Boolean) as string[]);
   const jaFoi = (o: Cand) => usados.has(chaveProduto(o.title)) || (!!idProduto(o.url) && idsUsados.has(idProduto(o.url)!));
@@ -167,6 +180,13 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   const ordenar = (l: Cand[]) => (dupla ? l.sort((a, b) => desconto(b) - desconto(a)) : l.sort((a, b) => pref(b) - pref(a)));
   const poolCanal = ordenar((canal ?? []) as Cand[]);
   const poolCol = ordenar((coletores ?? []) as Cand[]);
+  if (ehDia1111() && c.perfil_id === PERFIL_MATERNAS) {
+    const { data: doGeek } = await db.from("offers").select(campos).eq("perfil_id", PERFIL_GEEK).eq("status", "draft")
+      .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null).in("source", ["auto", "telegram"])
+      .gte("created_at", new Date(Date.now() - 36 * 3600_000).toISOString()).order("created_at", { ascending: false }).limit(400);
+    const serve = ((doGeek ?? []) as Cand[]).filter((o) => geekServeMae(o.title)).map((o) => ({ ...o, geek: true }));
+    poolCol.push(...ordenar(serve));
+  }
   let nTele = feitos.filter((o) => o.source === "telegram").length;
   let nAuto = feitos.filter((o) => o.source === "auto").length;
   const poolCupom = (cupons ?? []) as Cand[];
@@ -202,7 +222,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     // data dupla: alterna Telegram e coletores (quem tem menos posts hoje vai primeiro)
     const ordem = dupla && nAuto < nTele ? [poolCol, poolCanal] : [poolCanal, poolCol];
     for (const pool of ordem) {
-      const i = pool.findIndex((o) => pred(o) && !jaFoi(o));
+      const geekCheio = nGeek / Math.max(total, 1) >= META_GEEK_1111;
+      const i = pool.findIndex((o) => pred(o) && !jaFoi(o) && !(o.geek && geekCheio));
       if (i >= 0) return pool.splice(i, 1)[0];
     }
     return null;
@@ -234,6 +255,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++;
     if (ehMlCaro(o)) nMlCaro++;
+    if (o.geek) nGeek++;
   }
   return escolhidos;
 }
@@ -242,9 +264,9 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
 // promo_meta.exclusiva = { inicio, fim, preco_promo, fonte }. Só posta dentro da janela (inicio ≤ agora < fim − 30 min).
 // Amazon: só depois que o Amazon Refresh conferiu o preço já dentro da janela e ele bate com o da promoção (+5%).
 // Teto por campanha/dia: Ofertas Maternas 10, Buscador Geek 15 (Bruno, 09/Nov). Entre uma exclusiva e outra, 20 min.
-const PERFIL_MATERNAS = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97";
 // 11/11 (Bruno: "das 6 da manhã até meia-noite", muita oferta e cupom): janela 6h–24h, teto do dia em dobro na
 // geral e nos cupons, e o dobro de exclusivas. Só nesse dia; no 12 volta sozinho.
+export { PERFIL_GEEK };
 export function ehDia1111(): boolean {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCMonth() === 10 && brt.getUTCDate() === 11;
@@ -331,6 +353,10 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       c.auto_window_start = Math.min(c.auto_window_start, 6);
       c.auto_window_end = 24;
       if (["geral", "cupons"].includes(c.categoria ?? "geral")) c.auto_daily_cap = c.auto_daily_cap * 2;
+    }
+    if (ehDia1111() && c.perfil_id === PERFIL_GEEK) {
+      result.skipped.push({ campaign: c.name, reason: "11/11: Brunotropolis parado (Bruno)" });
+      continue;
     }
     if (!c.perfil_id) {
       result.skipped.push({ campaign: c.name, reason: "sem perfil_id" });

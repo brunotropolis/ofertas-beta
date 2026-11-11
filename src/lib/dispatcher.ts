@@ -14,7 +14,7 @@
  *      e) Se todas as campanhas do queue item já foram enviadas → marca queue como published.
  */
 
-import { ehDia1111 } from "./auto-enqueue";
+import { ehDia1111, PERFIL_GEEK } from "./auto-enqueue";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
@@ -663,6 +663,7 @@ export async function tickAll(db: DB): Promise<TickResult> {
 
   for (const campaign of camps) {
     try {
+      if (ehDia1111() && campaign.perfil_id === PERFIL_GEEK) continue; // 11/11: nada no Brunotropolis (Bruno, 10/Nov)
       if (!(await campaignIsDue(db, campaign))) continue;
       result.campaigns_due++;
 
