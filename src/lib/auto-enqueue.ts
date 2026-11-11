@@ -353,6 +353,8 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       c.auto_window_start = Math.min(c.auto_window_start, 6);
       c.auto_window_end = 24;
       if (["geral", "cupons"].includes(c.categoria ?? "geral")) c.auto_daily_cap = c.auto_daily_cap * 2;
+      // fila com folga pra ter produto comum entre cupom/eletro/exclusiva (Bruno 11/11: "mesclar com os produtos padrões")
+      if ((c.categoria ?? "geral") === "geral") c.auto_buffer = Math.max(c.auto_buffer ?? 6, 4);
     }
     if (ehDia1111() && c.perfil_id === PERFIL_GEEK) {
       result.skipped.push({ campaign: c.name, reason: "11/11: Brunotropolis parado (Bruno)" });

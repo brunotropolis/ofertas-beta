@@ -431,7 +431,7 @@ async function pickNextForCampaign(db: DB, campaignId: string): Promise<QueueIte
   const nowIso = new Date().toISOString();
   const { data: items } = await db
     .from("publication_queue")
-    .select("id, offer_id, campaign_ids, scheduled_at, status")
+    .select("id, offer_id, campaign_ids, scheduled_at, status, offer:offers(kind, promo_meta)")
     .in("status", ["pending"])
     .contains("campaign_ids", [campaignId])
     .or(`scheduled_at.is.null,scheduled_at.lte.${nowIso}`)
@@ -442,7 +442,15 @@ async function pickNextForCampaign(db: DB, campaignId: string): Promise<QueueIte
   // 11/Nov: item com horário marcado que já venceu sai primeiro (cupom fresco e exclusiva furam a fila com
   // posição menor e deixavam os agendados parados; cada post leva ~12 min pros 172 grupos)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ordem = [...(items as any[])].sort((a, b) => (a.scheduled_at ? 0 : 1) - (b.scheduled_at ? 0 : 1));
+  let ordem = [...(items as any[])].sort((a, b) => (a.scheduled_at ? 0 : 1) - (b.scheduled_at ? 0 : 1));
+  // 11/Nov (Bruno: "é para mesclar com os nossos produtos padrões"): agendado, cupom e exclusiva não saem dois
+  // seguidos — se o último post foi um deles e tem produto comum na fila, sai o produto comum primeiro.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const especial = (q: any) => !!q?.scheduled_at || q?.offer?.kind === "cupom" || !!q?.offer?.promo_meta?.exclusiva;
+  const { data: ultimo } = await db.from("publication_queue").select("scheduled_at, offer:offers(kind, promo_meta)")
+    .eq("status", "published").contains("campaign_ids", [campaignId])
+    .order("published_at", { ascending: false }).limit(1).maybeSingle();
+  if (especial(ultimo) && ordem.some((q) => !especial(q))) ordem = [...ordem.filter((q) => !especial(q)), ...ordem.filter(especial)];
   for (const item of ordem) {
     const { count } = await db
       .from("publication_log")
