@@ -392,7 +392,19 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       .contains("campaign_ids", [c.id])
       // 09/Nov: item agendado pro futuro (aviso do 11/11) não ocupa o buffer — travou as Maternas por ~50 min
       .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`);
-    const pending = pendingAuto ?? 0;
+    let pending = pendingAuto ?? 0;
+    // 11/11 (Bruno: "mesclar com os produtos padrões"): na geral das Maternas o buffer conta só PRODUTO comum
+    // (cupom fresco, exclusiva e eletro agendado furam a fila e enchiam o buffer — 9 cupons na fila, zero produto)
+    let cuponsNaFila = 0;
+    const maternasGeral1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS && (c.categoria ?? "geral") === "geral";
+    if (maternasGeral1111) {
+      const { data: pend } = await db.from("publication_queue").select("scheduled_at, offer:offers(kind, promo_meta)")
+        .in("status", ["pending", "publishing"]).is("created_by", null).contains("campaign_ids", [c.id]).limit(200);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const l = (pend ?? []) as any[];
+      cuponsNaFila = l.filter((q) => q.offer?.kind === "cupom").length;
+      pending = l.filter((q) => !q.scheduled_at && q.offer?.kind !== "cupom" && !q.offer?.promo_meta?.exclusiva).length;
+    }
     const buffer = c.auto_buffer ?? 6;
     const today = autoToday ?? 0;
 
@@ -404,7 +416,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
     const cat0 = (c.categoria ?? "geral") as Categoria;
     // Maternas: só de manhã (31/Out); grupo de Cupons: o dia todo; data dupla segue com cupom o dia todo
     const cupomAgora = cat0 === "cupons" || (cat0 === "geral" && (brtHour() < 11 || ehDataDupla()));
-    if (cupomAgora && today + pending < c.auto_daily_cap) {
+    if (cupomAgora && today + pending < c.auto_daily_cap && !(maternasGeral1111 && cuponsNaFila >= 2)) {
       const ids = await escolherPorCategoria(db, "cupons", c, 2, dayStart);
       if (ids.length) {
         const { data: frescos } = await db.from("offers").select("id, created_at").in("id", ids)
