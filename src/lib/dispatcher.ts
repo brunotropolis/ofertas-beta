@@ -439,8 +439,11 @@ async function pickNextForCampaign(db: DB, campaignId: string): Promise<QueueIte
     .order("created_at", { ascending: true })
     .limit(20);
   if (!items?.length) return null;
+  // 11/Nov: item com horário marcado que já venceu sai primeiro (cupom fresco e exclusiva furam a fila com
+  // posição menor e deixavam os agendados parados; cada post leva ~12 min pros 172 grupos)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const item of items as any[]) {
+  const ordem = [...(items as any[])].sort((a, b) => (a.scheduled_at ? 0 : 1) - (b.scheduled_at ? 0 : 1));
+  for (const item of ordem) {
     const { count } = await db
       .from("publication_log")
       .select("id", { count: "exact", head: true })
