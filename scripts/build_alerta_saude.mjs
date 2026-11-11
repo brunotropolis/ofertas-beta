@@ -60,10 +60,16 @@ if (r.statusCode >= 300) {
   muda('painel', true, 'Painel do Ofertas não respondeu (' + r.statusCode + ') — disparos podem estar parados', 'Painel do Ofertas voltou a responder');
 } else {
   muda('painel', false, '', 'Painel do Ofertas voltou a responder');
+  // 11/11: Brunotropolis parado de propósito (Bruno, 10/Nov) — não avisa nada dele nesse dia
+  const brt = new Date(Date.now() - 3 * 3600000);
+  const dia1111 = brt.getUTCMonth() === 10 && brt.getUTCDate() === 11;
   for (const p of r.body.perfis || []) {
+    if (dia1111 && /BRUNOTROPOLIS/i.test(p.perfil || '')) continue;
     for (const n of p.numeros || []) {
       const fim = (n.numero || '').slice(-4) || n.tag;
-      muda('num:' + n.url, n.luz === 'vermelho', 'Número final ' + fim + ' (' + p.perfil + ') caiu: ' + n.motivo, 'Número final ' + fim + ' (' + p.perfil + ') voltou e está conectado');
+      // 11/Nov: "Servidor fora do ar" era o vigia sem resposta em 6 s no meio de um envio (os envios seguiam
+      // sem erro) → só avisa se repetir em 2 checagens seguidas (10 min). Sessão desconectada de verdade avisa na hora.
+      (n.motivo === 'Servidor fora do ar' ? mudaConfirmado : muda)('num:' + n.url, n.luz === 'vermelho', 'Número final ' + fim + ' (' + p.perfil + ') caiu: ' + n.motivo, 'Número final ' + fim + ' (' + p.perfil + ') voltou e está conectado');
       if (n.score != null && n.luz !== 'vermelho') muda('score:' + n.url, n.score < 60, 'Número final ' + fim + ': score caiu pra ' + n.score + ' (' + (n.score_motivos || []).join(', ') + ')', 'Número final ' + fim + ': score voltou pra ' + n.score);
     }
     for (const x of p.plataformas || []) {
