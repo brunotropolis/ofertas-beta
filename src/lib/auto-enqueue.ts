@@ -148,6 +148,9 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let fraldas = feitos.filter((o) => isFralda(o.title)).length;
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   let mls = feitos.filter((o) => o.platform === "ml").length;
+  let shopees = feitos.filter((o) => o.platform === "shopee").length;
+  // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
+  const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let nGeek = feitos.filter((o: any) => o.perfil_id === PERFIL_GEEK).length;
   const usados = new Set(feitos.map((o) => chaveProduto(o.title)));
@@ -240,6 +243,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       if (i >= 0) { o = poolCampeao.splice(i, 1)[0]; nCampeoes++; }
     }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
+    if (!o && shopees / t < metaShopee1111) o = pega((x) => x.platform === "shopee");
     if (!o && mls / t < META_ML && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
     if (!o && mls / t < META_ML) o = pega((x) => x.platform === "ml");
     if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
@@ -253,7 +257,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const pid = idProduto(o.url);
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
-    total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++;
+    total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;
   }
