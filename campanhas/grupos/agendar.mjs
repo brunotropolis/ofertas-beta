@@ -13,7 +13,7 @@ const H = { apikey: K, Authorization: `Bearer ${K}`, "content-type": "applicatio
 const PERFIL = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97", GERAL = "c3fa658f-fb1d-4a65-a978-3576506e62a0";
 const [ini, dias = "30"] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const DRY = process.argv.includes("--dry");
-const LINK = { f: "https://app.buscadorgeek.com.br/api/entrar/ofertas-maternas?cat=fraldas", k: "https://app.buscadorgeek.com.br/api/entrar/ofertas-maternas?cat=cupons" };
+const LINK = { f: "https://asofertasmaternas.com.br/l/fraldas", k: "https://asofertasmaternas.com.br/l/cupons" }; // 12/11: link curto (slug no KV do utm-redirector, destino = /api/entrar?cat=)
 const HORA = { f: "10:40", k: "15:40" };
 const T = {
   f: [
