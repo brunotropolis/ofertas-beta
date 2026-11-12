@@ -40,7 +40,7 @@ for (let d = 0; d < +dias; d++) {
     const v = d % 5, [titulo, texto] = T[g][v], link = LINK[g];
     const ref = `aviso_grupos_${g}_${dia}`;
     const oferta = { source: "manual", source_ref: ref, platform: null, kind: "produto", status: "queued", url: link, affiliate_url: link,
-      title: titulo, image_url: `https://app.buscadorgeek.com.br/avisos/grupos/${g}${v + 1}.jpg`, extra_text: texto.replace("{LINK}", link),
+      title: titulo, image_url: `https://app.buscadorgeek.com.br/avisos/grupos/${g}${v + 1}.jpg?v=2`, extra_text: texto.replace("{LINK}", link),
       perfil_id: PERFIL, source_channel: "aviso grupos", expires_at: new Date(quando.getTime() + 24 * 3600_000).toISOString(),
       promo_meta: { aviso: { descricao: g === "f" ? "convite grupo de fraldas" : "convite grupo de cupons", campanha: "grupos secundários" } } };
     if (DRY) { console.log("dry", ref, quando.toISOString(), oferta.image_url.slice(-6)); n++; continue; }
