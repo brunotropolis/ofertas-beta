@@ -10,7 +10,11 @@ type Any = any;
 // Reserva se algo falhar: convite fixo de um grupo com espaço (ninguém fica sem grupo)
 const RESERVA: Record<string, string> = {
   "ofertas-maternas": "https://chat.whatsapp.com/F6adXJyutoYHCaWbDqP3Wh", // As Ofertas Maternas #10 (SendFlow sai do ar, 22/Out)
+  // 12/Nov (Bruno: aviso diário dos grupos secundários na geral): ?cat=fraldas | ?cat=cupons
+  "ofertas-maternas:fraldas": "https://chat.whatsapp.com/C1zkUTe8zf33vVAsBlVOQt", // #1 OFERTAS MATERNAS | FRALDAS
+  "ofertas-maternas:cupons": "https://chat.whatsapp.com/Fp97mztHTAP7SM5TKkBSwM", // #1 OFERTAS MATERNAS | CUPONS
 };
+const CATS = new Set(["geral", "fraldas", "cupons", "enxoval"]);
 const LIMITE = 900; // grupo com mais que isso não recebe gente nova (WhatsApp aceita 1.024)
 
 /**
@@ -22,9 +26,11 @@ const LIMITE = 900; // grupo com mais que isso não recebe gente nova (WhatsApp 
  */
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const json = new URL(request.url).searchParams.get("json") === "1";
+  const sp = new URL(request.url).searchParams;
+  const json = sp.get("json") === "1";
+  const cat = CATS.has(sp.get("cat") ?? "") ? (sp.get("cat") as string) : "geral";
   const responder = (url: string) => (json ? NextResponse.json({ url }) : NextResponse.redirect(url, 302));
-  const reserva = RESERVA[slug] ?? "https://asofertasmaternas.com.br";
+  const reserva = (cat !== "geral" && RESERVA[`${slug}:${cat}`]) || RESERVA[slug] || "https://asofertasmaternas.com.br";
 
   try {
     const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } }) as Any;
@@ -34,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     const desde = new Date(Date.now() - 3 * 3600_000).toISOString();
     const [lista, retrato, cliques] = await Promise.all([
       (async () => {
-        const { data: camps } = await db.from("campaigns").select("id").eq("perfil_id", perfil.id).eq("categoria", "geral").eq("is_active", true);
+        const { data: camps } = await db.from("campaigns").select("id").eq("perfil_id", perfil.id).eq("categoria", cat).eq("is_active", true);
         const ids = ((camps ?? []) as Any[]).map((c) => c.id);
         if (!ids.length) return [] as Any[];
         const { data: grupos } = await db.from("campaign_groups").select("group_jid, invite_code")

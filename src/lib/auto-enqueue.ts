@@ -63,7 +63,27 @@ function brtHour(): number {
 // 22/Out (Bruno: "vamos retornar o que estava funcionando"): mix da operação MANUAL que vendia ~2x mais
 // (grupo #2, 07–16/10: ML 45%, Amazon 33%, fralda 20%, Shopee o resto; 41% com cupom; preço mediano R$46).
 // Era (08/Out): fralda 35% + Amazon 45%, só @promocaozinha.
-const META_FRALDA = 0.20;
+// 12/Nov (Bruno, via Tio Patinhas: "postar menos fraldas... ofertas que vendem bem"): 3 meses de venda × posts mostraram
+// fralda = 21% da geral e comissão caindo (ago R$3,7 mil > out R$2,1 mil); saúde do bebê 6% dos posts e 8% da venda;
+// amamentação 10% × 6%, brinquedo 6% × 3%. Fralda na geral: meta 13%, teto 15%, só marca forte (Huggies/Pampers);
+// o resto das fraldas fica pro grupo de Fraldas. Era 20% (22/Out).
+const META_FRALDA = 0.13;
+const TETO_FRALDA = 0.15;
+const FRALDA_BOA = /huggies|pampers/i;
+const META_SAUDE = 0.10;
+const SAUDE = /aspirador nasal|sugador nasal|term[oô]metro|nebuliz|inalador|esteriliz|aquecedor de mamadeira|umidificador|bepantol|pomada|assadura|desitin|weleda|hipogl|bab[aá] eletr|monitor de beb|ru[ií]do branco/i;
+const META_LENCO = 0.06;
+const LENCO = /len[çc]os? umedecid|toalhas? umedecid/i;
+const TETO_AMAMENTA = 0.06;
+const AMAMENTA = /mamadeira|bomba (de |tira )|tira ?leite|extrator|amamenta|chupeta|mordedor|copo de transi|prato|potinho|babador|cadeira de alimenta/i;
+const TETO_BRINQUEDO = 0.04;
+const BRINQUEDO = /brinquedo|pel[uú]cia|chocalho|boneca|blocos|m[oó]bile|montessori|quebra-?cabe/i;
+// 12/Nov (Bruno: "pelo menos umas 3x por dia... eletrodomésticos, eletrônicos ou coisas pra maternidade, tipo babá
+// eletrônica, airfryer, aspirador nasal"): 1 a cada 12 posts da geral (70/dia → ~6; fim de semana 30 → 3). Vem dos
+// coletores das Maternas e, se faltar, do Geek (só o que serve pra mãe — GEEK_SERVE_MAE).
+const GADGET_A_CADA = 12;
+const GADGET = /bab[aá] eletr|air ?fryer|fritadeira|aspirador nasal|sugador nasal|esteriliz|aquecedor de mamadeira|umidificador|purificador|liquidificador|mixer|processador de alimento|aspirador (de )?p[oó]|aspirador vertical|rob[oô] aspirador|aspirador rob|panela el[eé]trica|cafeteira|ventilador|term[oô]metro (digital|infravermelho|de testa)|nebuliz|monitor de beb|c[aâ]mera (de seguran|wi-?fi|para beb)|extrator de leite|bomba (de |tira )?leite el|ru[ií]do branco|sanduicheira|batedeira|micro-?ondas|forno el[eé]trico/i;
+const ehGadget = (t: string | null) => !!t && GADGET.test(t) && !GEEK_SO_GEEK_RE.test(t);
 const META_ML = 0.45;
 const META_AMAZON = 0.33;
 const CANAL_REF = "@promocaozinha"; // canal do Telegram mais parecido com o grupo real
@@ -90,6 +110,7 @@ interface Cand {
 const PERFIL_MATERNAS = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97";
 const PERFIL_GEEK = "f3887ae2-7b2c-462b-8984-e1e6618a0ba6";
 const GEEK_SERVE_MAE = /air ?fryer|fritadeira|panela|liquidificador|cafeteira|chaleira|sanduicheira|batedeira|mixer|processador de alimento|forno|micro-?ondas|aspirador|mop|ventilador|umidificador|purificador|ferro de passar|vaporizador|secador|chapinha|escova (de dentes|alisadora|secadora)|l[âa]mpada|tomada inteligente|smart plug|plugue|echo (dot|pop|show|spot)|alexa|kindle|power ?bank|carregador|fone|earbuds?|smartwatch|rel[óo]gio inteligente|smart ?band|c[âa]mera de seguran|c[âa]mera wi-?fi|bab[áa] eletr|organizador|garrafa t[ée]rmica|copo t[ée]rmico|toalha|len[çc]ol|travesseiro|edredom|cobertor|balan[çc]a|term[ôo]metro|fita led|luminária|alimentador autom|smart tv|tv \d|tablet|celular|smartphone|caixa de som/i;
+const GEEK_SO_GEEK_RE = /gamer|gaming|monitor gamer|light ?bar|retrovisor|espelho/i;
 const GEEK_SO_GEEK = /gamer|gaming|game|jogo|playstation|ps[45]|xbox|nintendo|switch|controle|funko|estatueta|colecion|figura|action figure|star wars|marvel|dc|batman|homem[- ]aranha|spider|harry potter|hogwarts|mario|pok[ée]mon|anime|mang[áa]|lego|groot|dragon|mouse|teclado|headset|monitor|ssd|hd externo|placa de v|hub usb|hdmi|suporte|caneca|geek|nerd|programador/i;
 const geekServeMae = (t: string | null) => !!t && GEEK_SERVE_MAE.test(t) && !GEEK_SO_GEEK.test(t);
 const META_GEEK_1111 = 0.25;
@@ -149,6 +170,11 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   let mls = feitos.filter((o) => o.platform === "ml").length;
   let shopees = feitos.filter((o) => o.platform === "shopee").length;
+  let nSaude = feitos.filter((o) => SAUDE.test(o.title || "")).length;
+  let nLenco = feitos.filter((o) => LENCO.test(o.title || "")).length;
+  let nAmamenta = feitos.filter((o) => AMAMENTA.test(o.title || "")).length;
+  let nBrinq = feitos.filter((o) => BRINQUEDO.test(o.title || "")).length;
+  let nGadget = feitos.filter((o) => ehGadget(o.title)).length;
   // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
   const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,6 +216,14 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const serve = ((doGeek ?? []) as Cand[]).filter((o) => geekServeMae(o.title)).map((o) => ({ ...o, geek: true }));
     poolCol.push(...ordenar(serve));
   }
+  // gadget do Geek (todo dia, só pro posto de eletro/gadget; não entra no resto do mix)
+  const poolGadgetGeek: Cand[] = [];
+  if (c.perfil_id === PERFIL_MATERNAS) {
+    const { data: gk } = await db.from("offers").select(campos).eq("perfil_id", PERFIL_GEEK).eq("status", "draft")
+      .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null).in("source", ["auto", "telegram"])
+      .gte("created_at", new Date(Date.now() - 48 * 3600_000).toISOString()).order("created_at", { ascending: false }).limit(400);
+    poolGadgetGeek.push(...((gk ?? []) as Cand[]).filter((o) => geekServeMae(o.title) && ehGadget(o.title)).map((o) => ({ ...o, geek: true })));
+  }
   let nTele = feitos.filter((o) => o.source === "telegram").length;
   let nAuto = feitos.filter((o) => o.source === "auto").length;
   const poolCupom = (cupons ?? []) as Cand[];
@@ -221,12 +255,20 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nCupons = feitos.filter((o) => o.kind === "cupom").length;
 
   const escolhidos: Cand[] = [];
+  // tetos da geral (12/Nov): fralda fraca nunca; fralda forte até 15%; amamentação até 6%; brinquedo até 4%
+  const permitido = (o: Cand) => {
+    const t = Math.max(total, 1); const tt = o.title || "";
+    if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
+    if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
+    if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
+    return true;
+  };
   const pega = (pred: (o: Cand) => boolean): Cand | null => {
     // data dupla: alterna Telegram e coletores (quem tem menos posts hoje vai primeiro)
     const ordem = dupla && nAuto < nTele ? [poolCol, poolCanal] : [poolCanal, poolCol];
     for (const pool of ordem) {
       const geekCheio = nGeek / Math.max(total, 1) >= META_GEEK_1111;
-      const i = pool.findIndex((o) => pred(o) && !jaFoi(o) && !(o.geek && geekCheio));
+      const i = pool.findIndex((o) => pred(o) && permitido(o) && !jaFoi(o) && !(o.geek && geekCheio));
       if (i >= 0) return pool.splice(i, 1)[0];
     }
     return null;
@@ -242,7 +284,13 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       const i = poolCampeao.findIndex((x) => !jaFoi(x));
       if (i >= 0) { o = poolCampeao.splice(i, 1)[0]; nCampeoes++; }
     }
+    if (!o && nGadget < Math.ceil(t / GADGET_A_CADA)) {
+      o = pega((x) => ehGadget(x.title));
+      if (!o) { const i = poolGadgetGeek.findIndex((x) => !jaFoi(x)); if (i >= 0) o = poolGadgetGeek.splice(i, 1)[0]; }
+    }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
+    if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
+    if (!o && nLenco / t < META_LENCO) o = pega((x) => LENCO.test(x.title || ""));
     if (!o && shopees / t < metaShopee1111) o = pega((x) => x.platform === "shopee");
     if (!o && mls / t < META_ML && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
     if (!o && mls / t < META_ML) o = pega((x) => x.platform === "ml");
@@ -257,6 +305,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const pid = idProduto(o.url);
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
+    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; }
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;
