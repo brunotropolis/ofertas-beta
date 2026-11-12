@@ -83,6 +83,8 @@ const BRINQUEDO = /brinquedo|pel[uú]cia|chocalho|boneca|blocos|m[oó]bile|monte
 // coletores das Maternas e, se faltar, do Geek (só o que serve pra mãe — GEEK_SERVE_MAE).
 const GADGET_A_CADA = 12;
 const GADGET = /bab[aá] eletr|air ?fryer|fritadeira|aspirador nasal|sugador nasal|esteriliz|aquecedor de mamadeira|umidificador|purificador|liquidificador|mixer|processador de alimento|aspirador (de )?p[oó]|aspirador vertical|rob[oô] aspirador|aspirador rob|panela el[eé]trica|cafeteira|ventilador|term[oô]metro (digital|infravermelho|de testa)|nebuliz|monitor de beb|c[aâ]mera (de seguran|wi-?fi|para beb)|extrator de leite|bomba (de |tira )?leite el|ru[ií]do branco|sanduicheira|batedeira|micro-?ondas|forno el[eé]trico/i;
+/** tipo do aparelho (1ª palavra do que casou: "termometro", "baba", "air"...) — não repetir o mesmo tipo no dia */
+const tipoGadget = (t: string | null) => ((t || "").match(GADGET)?.[0] || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/\s+/)[0];
 const ehGadget = (t: string | null) => !!t && GADGET.test(t) && !GEEK_SO_GEEK_RE.test(t);
 const META_ML = 0.45;
 const META_AMAZON = 0.33;
@@ -175,6 +177,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nAmamenta = feitos.filter((o) => AMAMENTA.test(o.title || "")).length;
   let nBrinq = feitos.filter((o) => BRINQUEDO.test(o.title || "")).length;
   let nGadget = feitos.filter((o) => ehGadget(o.title)).length;
+  const tiposGadget = new Set(feitos.filter((o) => ehGadget(o.title)).map((o) => tipoGadget(o.title)));
   // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
   const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -285,8 +288,13 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       if (i >= 0) { o = poolCampeao.splice(i, 1)[0]; nCampeoes++; }
     }
     if (!o && nGadget < Math.ceil(t / GADGET_A_CADA)) {
-      o = pega((x) => ehGadget(x.title));
+      // tipo novo primeiro (Maternas, depois Geek); só repete tipo se não tiver nenhum outro
+      const novo = (x: Cand) => ehGadget(x.title) && !tiposGadget.has(tipoGadget(x.title));
+      o = pega(novo);
+      if (!o) { const i = poolGadgetGeek.findIndex((x) => !jaFoi(x) && novo(x)); if (i >= 0) o = poolGadgetGeek.splice(i, 1)[0]; }
+      if (!o) o = pega((x) => ehGadget(x.title));
       if (!o) { const i = poolGadgetGeek.findIndex((x) => !jaFoi(x)); if (i >= 0) o = poolGadgetGeek.splice(i, 1)[0]; }
+      if (o) tiposGadget.add(tipoGadget(o.title));
     }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
     if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
