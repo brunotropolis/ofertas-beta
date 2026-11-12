@@ -84,7 +84,7 @@ const BRINQUEDO = /brinquedo|pel[uú]cia|chocalho|boneca|blocos|m[oó]bile|monte
 const GADGET_A_CADA = 12;
 const GADGET = /bab[aá] eletr|air ?fryer|fritadeira|aspirador nasal|sugador nasal|esteriliz|aquecedor de mamadeira|umidificador|purificador|liquidificador|mixer|processador de alimento|aspirador (de )?p[oó]|aspirador vertical|rob[oô] aspirador|aspirador rob|panela el[eé]trica|cafeteira|ventilador|term[oô]metro (digital|infravermelho|de testa)|nebuliz|monitor de beb|c[aâ]mera (de seguran|wi-?fi|para beb)|extrator de leite|bomba (de |tira )?leite el|ru[ií]do branco|sanduicheira|batedeira|micro-?ondas|forno el[eé]trico/i;
 /** tipo do aparelho (1ª palavra do que casou: "termometro", "baba", "air"...) — não repetir o mesmo tipo no dia */
-const tipoGadget = (t: string | null) => ((t || "").match(GADGET)?.[0] || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/\s+/)[0];
+const tipoGadget = (t: string | null) => ((t || "").match(GADGET)?.[0] || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/\s+/)[0].replace(/^air$/, "fritadeira").replace(/^sugador$/, "aspirador");
 const ehGadget = (t: string | null) => !!t && GADGET.test(t) && !GEEK_SO_GEEK_RE.test(t);
 const META_ML = 0.45;
 const META_AMAZON = 0.33;
