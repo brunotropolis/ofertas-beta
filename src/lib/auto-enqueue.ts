@@ -112,7 +112,7 @@ const META_CUPOM_DIA = 0;
 // 29/Out (Tio Patinhas, Bruno: "pode mandar ver"): lista foi de 19 pra 35 campeões e passa a valer também no
 // fim de semana (com 19 só chegava a ~12% dos posts; o manual repetia em mais da metade dos posts de Amazon).
 const META_CAMPEAO = 0.20;
-const CAMPEAO_INTERVALO_MS = 3 * 86400_000; // o mesmo campeão no máx. a cada 3 dias
+const CAMPEAO_INTERVALO_MS = 1 * 86400_000; // o mesmo campeão no máx. 1x por dia (era 3 dias até 12/11, Tio Patinhas: saía ~4% contra meta de 20%)
 const CAMPEAO_PRECO_FRESCO_MS = 6 * 3600_000; // Amazon: só reposta com preço conferido nas últimas 6h
 const META_ML_CARO = 0.12;
 const BEBE_CARO = /cadeira (de|para) (carro|auto)|cadeirinha|beb[eê] conforto|bab[aá] eletr|carrinho de beb|carrinho (de )?passeio|ber[çc]o|banheira|cercadinho|andador|canguru|monitor/i;
@@ -197,7 +197,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const ids = await escolherPorCategoria(db, "cupons", c, n, dayStart);
     for (const id of ids) poolCupom.push({ id, kind: "cupom", title: null, platform: null, source: "telegram" });
   }
-  // campeões: todo dia, fora do intervalo de 3 dias, não esgotado; Amazon só com preço conferido há pouco.
+  // campeões: todo dia, fora do intervalo de 1 dia, não esgotado; Amazon só com preço conferido há pouco.
   // O que saiu há mais tempo vai primeiro.
   const poolCampeao: Cand[] = [];
   if (!dupla) {
