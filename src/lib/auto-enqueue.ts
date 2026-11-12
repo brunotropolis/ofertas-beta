@@ -281,7 +281,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       if (i >= 0) { o = poolCupom.splice(i, 1)[0]; nCupons++; }
     }
     if (!o && poolCampeao.length && nCampeoes / t < META_CAMPEAO) {
-      const i = poolCampeao.findIndex((x) => !jaFoi(x));
+      const i = poolCampeao.findIndex((x) => !jaFoi(x) && permitido(x)); // 12/Nov: teto de fralda vale pro campeão também
       if (i >= 0) { o = poolCampeao.splice(i, 1)[0]; nCampeoes++; }
     }
     if (!o && nGadget < Math.ceil(t / GADGET_A_CADA)) {
