@@ -154,6 +154,11 @@
       "data": "2026-11-09",
       "tipo": "regra",
       "o_que": "Linha de OFERTAS EXCLUSIVAS: planilha semanal da Amazon (por e-mail) + comunidade Amazon (Ofertas e Oportunidades) + canal de afiliados do ML, lidos pelo WhatsApp do Bruno. Cada oferta tem prazo (inicio/fim) e so posta dentro dele; fura a fila quando a janela abre, ate 10/dia nas Maternas e 15/dia no Buscador Geek, com chamada OFERTA ANTECIPADA (3 primeiras horas) ou OFERTA EXCLUSIVA + linha Valida ate. Medir: comissao Amazon das exclusivas x posts normais."
+    },
+    {
+      "data": "2026-11-12",
+      "tipo": "sistema",
+      "o_que": "Campeoes: cada campeao pode sair 1x por dia (era 1x a cada 3 dias; saia ~4% dos posts contra meta de 20%). Entraram na lista: baba eletronica Motorola VM482 (ML), Bepantol Baby 120g (ML), lenco Pampers Caricia 576 (Shopee), Huggies Maxima Protecao XG (Shopee). Cupons sem mudanca. Medir: % de campeoes nos posts (alvo 15-20%) e comissao 12-18/11 x 05-11/11, Amazon/dia e venda dos campeoes."
     }
   ]
 }
