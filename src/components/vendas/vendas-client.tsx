@@ -47,10 +47,11 @@ const CAMPANHAS = [
   { k: "f", nome: "Fraldas", amazon: "mrnoffraldas-20", ml: "mrnoffraldas" },
   { k: "c", nome: "Cupons", amazon: "mrnofcupons-20", ml: "mrnofcupons" },
   { k: "e", nome: "Enxoval", amazon: "mrnofenxoval-20", ml: "mrnofenxoval" },
+  { k: "g", nome: "Buscador Geek", amazon: "buscadorgeek-20", ml: "buscadorgeek" },
 ] as const;
 function lerUtm(utm: string): { grupo: string; camp: string } | null {
   // Shopee junta os sub_ids com "-" e completa com traços vazios ("51-m---"), por isso limpa as pontas
-  const m = utm.replace(/^-+|-+$/g, "").match(/^(x?\d+)-([mfce])$/);
+  const m = utm.replace(/^-+|-+$/g, "").match(/^(x?\d+)-([mfceg])$/);
   if (!m) return null;
   const c = CAMPANHAS.find((x) => x.k === m[2]);
   return { grupo: m[1].startsWith("x") ? "outro grupo" : `Grupo #${m[1]}`, camp: c?.nome ?? m[2] };

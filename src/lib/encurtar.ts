@@ -80,7 +80,7 @@ async function registrar(db: DB, offerId: string, link: string, shortDomain: str
 // grupo (encurtador); a campanha segue marcada dentro do próprio link (tag Amazon, sub_id Shopee, etiqueta ML).
 // Desfazer: no dispatcher, voltar a chamar garantirLinkCurto no lugar de linkDaLoja.
 // ─────────────────────────────────────────────────────────────────────────────
-const AMAZON_TAG_CAMPANHA: Record<string, string> = { m: "mrnofmaternas-20", f: "mrnoffraldas-20", c: "mrnofcupons-20", e: "mrnofenxoval-20" };
+const AMAZON_TAG_CAMPANHA: Record<string, string> = { m: "mrnofmaternas-20", f: "mrnoffraldas-20", c: "mrnofcupons-20", e: "mrnofenxoval-20", g: "buscadorgeek-20" }; // g = Buscador Geek (16/Nov)
 const ML_VITRINE_CURTO = "https://meli.la/2Axm7cw"; // vitrine social/manualdorecemnascido (link da equipe, conta Manual RN)
 
 async function shopeeLinkCurto(origem: string, campanha: string): Promise<string | null> {

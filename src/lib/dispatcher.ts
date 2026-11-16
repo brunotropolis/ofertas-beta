@@ -509,8 +509,8 @@ export async function publishQueueItemForCampaign(
   let linkBase = o.affiliate_url || o.url;
   if (viaWaha && campaign.perfil_id && !aviso) {
     const { data: pf } = await db.from("perfis").select("short_domain, slug").eq("id", campaign.perfil_id).maybeSingle();
-    // 04/Nov: perfil que não é o Maternas (BRUNOTROPOLIS/geek) usa marca "g": Amazon com a tag principal
-    // manualdorec0c-20 (não a mrnofmaternas-20) e Shopee com sub_id 0-g — não mistura com as campanhas do Maternas.
+    // 04/Nov: perfil que não é o Maternas (BRUNOTROPOLIS/geek) usa marca "g": Amazon com a tag própria
+    // buscadorgeek-20 (desde 16/Nov; antes era a manualdorec0c-20), Shopee com sub_id 0-g, ML etiqueta buscadorgeek — não mistura com as campanhas do Maternas.
     const cod = pf?.slug && pf.slug !== "ofertas-maternas" ? "g" : CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m";
     linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
