@@ -210,8 +210,11 @@ async function amazonInfo(ctx, asin) {
 }
 
 async function mlCreateLink(ctx, productUrl) {
-  const { cookie, csrf } = ctx.cfg.ml;
-  const tag = ctx._mlTag || ctx.cfg.ml.tag; // 09/Nov: Buscador Geek usa a etiqueta padrão, não a das Maternas
+  // 16/Nov: Buscador Geek gera o link na conta ML própria dele (BRUNOTROPOLIS, sessão vinda da extensão);
+  // sem essa sessão, cai na conta do Manual com a etiqueta padrão (como era desde 09/Nov)
+  const conta = ctx._mlConta === "geek" && ctx.cfg.mlGeek?.cookie ? ctx.cfg.mlGeek : ctx.cfg.ml;
+  const { cookie, csrf } = conta;
+  const tag = ctx._mlTag || conta.tag;
   const r = await ctx.http({
     url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink", method: "POST",
     headers: { accept: "application/json", "content-type": "application/json", origin: "https://www.mercadolivre.com.br", referer: "https://www.mercadolivre.com.br/afiliados/linkbuilder", "user-agent": UA, "x-csrf-token": csrf, cookie },
@@ -346,7 +349,9 @@ async function processarPosts(ctx, res, fresh, origem) {
         // 09/Nov: a origem pode separar por perfil (WhatsApp: bebê > Ofertas Maternas; tecnologia/casa/games > Buscador Geek)
         const perfil = origem.perfilDe ? origem.perfilDe(p, ctx) : (nicheOk(p.text, ctx.kw) ? "ofertas-maternas" : null);
         if (!perfil) { res.fora_nicho++; continue; }
-        ctx._mlTag = perfil === "buscador-geek" ? (ctx.cfg.ml.tagGeek || ctx.cfg.ml.tag) : ctx.cfg.ml.tag;
+        const geek = perfil === "buscador-geek";
+        ctx._mlConta = geek ? "geek" : "manual";
+        ctx._mlTag = geek ? (ctx.cfg.mlGeek?.cookie ? ctx.cfg.mlGeek.tag : (ctx.cfg.ml.tagGeek || ctx.cfg.ml.tag)) : ctx.cfg.ml.tag;
         const link = await productLink(ctx, p.links);
         if (link && link.esgotado) { res.esgotado++; continue; }
         if (!link) {

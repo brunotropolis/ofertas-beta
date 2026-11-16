@@ -66,13 +66,20 @@ try {
   const k = await helpers.httpRequest({ url: 'https://app.buscadorgeek.com.br/api/keywords/collector?slug=ofertas-maternas', headers: { 'x-ingest-secret': INGEST_SECRET }, json: true });
   if (k && Array.isArray(k.keywords)) kw = k.keywords;
 } catch (e) {}
+// 16/Nov: sessão do ML vem da extensão "Sessões de Afiliado" (sempre fresca); a do cofre fica de reserva
+const SESS = ${JSON.stringify(env.EXTENSAO_SECRET || "")};
+const sessaoML = async (perfil) => { try { const r = await helpers.httpRequest({ url: 'https://app.buscadorgeek.com.br/api/extensao/sessao?perfil=' + perfil + '&loja=ml', headers: { 'x-extensao-secret': SESS }, json: true, timeout: 10000 }); return (r && r.cookie) || null; } catch (e) { return null; } };
+const csrfDe = (c, fb) => ((c || '').match(/(?:^|;\\s*)_csrf=([^;]+)/) || [])[1] || fb;
+const mlCookie = (await sessaoML('ofertas-maternas')) || ${JSON.stringify(mlCookie)};
+const geekCookie = await sessaoML('buscador-geek');
 const state = $getWorkflowStaticData('global');
 const res = await ${WA ? 'runLeitorWhatsApp' : 'runLeitor'}({
   http, sha256: sha256utf8, state, kw,
   cfg: {
     channels: ${JSON.stringify(CHANNELS)},
     shopee: { appId: ${JSON.stringify(env.SHOPEE_APP_ID)}, secret: ${JSON.stringify(env.SHOPEE_APP_SECRET)} },
-    ml: { cookie: ${JSON.stringify(mlCookie)}, csrf: 'Mqp1xO_51aAxfOR-BiDjSQnt', tag: 'asofertasmaternas', tagGeek: 'manualmanual20230331072922', social: 'https://www.mercadolivre.com.br/social/manualdorecemnascido' },
+    mlGeek: geekCookie ? { cookie: geekCookie, csrf: csrfDe(geekCookie, ''), tag: 'brunotropolis' } : null,
+    ml: { cookie: mlCookie, csrf: csrfDe(mlCookie, 'Mqp1xO_51aAxfOR-BiDjSQnt'), tag: 'asofertasmaternas', tagGeek: 'manualmanual20230331072922', social: 'https://www.mercadolivre.com.br/social/manualdorecemnascido' },
     amazon: { accessKey: $env.AMAZON_ACCESS_KEY, secretKey: $env.AMAZON_SECRET_KEY, partnerTag: $env.AMAZON_PARTNER_TAG || 'manualdorec0c-20' },
     amazonTag: 'manualdorec0c-20', firstRunHours: 6,
     whatsapp: { url: 'https://waha-leitura.xktssy.easypanel.host', session: 'default', key: ${JSON.stringify(env.WAHA_OFERTAS_API_KEY)}, fontes: ${JSON.stringify(WHATSAPP_FONTES)} },

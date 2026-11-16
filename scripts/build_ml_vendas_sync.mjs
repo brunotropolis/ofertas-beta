@@ -27,7 +27,9 @@ if (!cronSecret) throw new Error("CRON_SECRET não achado no Tick");
 
 const jsCode = `// GERADO por ofertas-beta/scripts/build_ml_vendas_sync.mjs — editar lá e rodar o build.
 const h = this.helpers;
-const COOKIE = ${JSON.stringify(env.ML_COOKIE_MATERNA)};
+// 16/Nov: sessão vem da extensão "Sessões de Afiliado" (painel); a do cofre fica de reserva
+let COOKIE = ${JSON.stringify(env.ML_COOKIE_MATERNA)};
+try { const s = await h.httpRequest({ url: 'https://app.buscadorgeek.com.br/api/extensao/sessao?perfil=ofertas-maternas&loja=ml', headers: { 'x-extensao-secret': ${JSON.stringify(env.EXTENSAO_SECRET || "")} }, json: true, timeout: 10000 }); if (s && s.cookie) COOKIE = s.cookie; } catch (e) {}
 const SECRET = ${JSON.stringify(cronSecret)};
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36';
 const DIAS = 35;
