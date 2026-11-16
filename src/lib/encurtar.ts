@@ -107,10 +107,29 @@ async function shopeeLinkCurto(origem: string, campanha: string): Promise<string
 // cair → null, o post sai com o link longo e a saúde avisa (amazonCurtoStatus).
 export const amazonCurtoStatus: { ok: boolean | null; quando: string | null; erro: string | null } = { ok: null, quando: null, erro: null };
 const cacheAmzn = new Map<string, string>();
+// 16/Nov: a sessão vem primeiro da extensão "Sessões de Afiliado" (gravada criptografada na campanha principal do
+// Maternas, sempre fresca); o env AMAZON_SITESTRIPE_COOKIE fica de reserva. Cache de 10 min pra não ler o banco a cada post.
+let sessaoAmz: { cookie: string | null; em: number } = { cookie: null, em: 0 };
+async function cookieAmazon(): Promise<string | null> {
+  if (Date.now() - sessaoAmz.em < 10 * 60e3) return sessaoAmz.cookie || process.env.AMAZON_SITESTRIPE_COOKIE || null;
+  let c: string | null = null;
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const db = createAdminClient();
+    const { data: pf } = await db.from("perfis").select("id").eq("slug", "ofertas-maternas").maybeSingle();
+    const { data: camp } = pf ? await db.from("campaigns").select("id").eq("perfil_id", pf.id).order("created_at").limit(1).maybeSingle() : { data: null };
+    if (camp) {
+      const { data } = await db.rpc("get_platform_secrets", { p_campaign_id: camp.id, p_platform: "amazon" });
+      c = (Array.isArray(data) ? data[0]?.cookie : null) || null;
+    }
+  } catch { /* banco fora: segue com o env */ }
+  sessaoAmz = { cookie: c, em: Date.now() };
+  return c || process.env.AMAZON_SITESTRIPE_COOKIE || null;
+}
 async function amazonCurto(longo: string): Promise<string | null> {
-  const cookie = process.env.AMAZON_SITESTRIPE_COOKIE;
+  const cookie = await cookieAmazon();
   const marca = (ok: boolean, erro: string | null) => Object.assign(amazonCurtoStatus, { ok, erro, quando: new Date().toISOString() });
-  if (!cookie) { marca(false, "sem login da Amazon no servidor (AMAZON_SITESTRIPE_COOKIE)"); return null; }
+  if (!cookie) { marca(false, "sem login da Amazon no servidor (extensão ou AMAZON_SITESTRIPE_COOKIE)"); return null; }
   const emCache = cacheAmzn.get(longo);
   if (emCache) return emCache;
   try {

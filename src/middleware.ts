@@ -40,8 +40,9 @@ export async function middleware(request: NextRequest) {
   // /api/vendas/import: robô de vendas do ML (n8n) — auth própria x-import-secret = CRON_SECRET.
   // /esqueci-senha + /api/auth/esqueci: pedido de link (só envia pra admin/operator; resposta sempre igual).
   // /api/cliques: o encurtador avisa cada clique — auth própria x-cliques-secret = CLIQUES_SECRET.
+  // /api/extensao/sessao: extensão "Sessões de Afiliado" (16/Nov) — auth própria x-extensao-secret = EXTENSAO_SECRET.
   // /api/entrar/[slug]: distribuidor de leads nos grupos (destino público do asofertasmaternas.com.br); só redireciona.
-  const PUBLIC_PATHS = ["/login", "/redefinir-senha", "/esqueci-senha", "/api/auth/esqueci", "/api/cron", "/api/ingest", "/api/keywords/collector", "/api/vendas/import", "/api/entrar", "/api/cliques"];
+  const PUBLIC_PATHS = ["/login", "/redefinir-senha", "/esqueci-senha", "/api/auth/esqueci", "/api/cron", "/api/ingest", "/api/keywords/collector", "/api/vendas/import", "/api/entrar", "/api/cliques", "/api/extensao/sessao"];
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
