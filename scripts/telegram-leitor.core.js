@@ -283,7 +283,15 @@ async function productLink(ctx, links) {
           } catch { /* sem foto: fica no painel */ }
         }
       }
-      return { platform: "ml", ref, url: prod, affiliate_url: aff, image: mlImage, officialTitle: tituloMl };
+      // 18/Nov: preço do ML na página do produto (og:title "... - R$ 48,90") pra conferir com o post
+      let mlPreco = null;
+      try {
+        const pg = String((await ctx.http({ url: prod, headers: { "user-agent": UA } })).body || "");
+        const og = pg.match(/og:title"\s+content="[^"]*?- R\$ ([\d.]+(?:,\d{1,2})?)"/) ;
+        if (og) mlPreco = +og[1].replace(/\./g, "").replace(",", ".");
+        else { const ip = pg.match(/itemprop="price"\s+content="([\d.]+)"/); if (ip) mlPreco = +ip[1]; }
+      } catch { /* sem preço: o dispatcher confere de novo antes de postar */ }
+      return { platform: "ml", ref, url: prod, affiliate_url: aff, image: mlImage, officialTitle: tituloMl, lojaPreco: mlPreco };
     }
   }
   return null;
@@ -369,8 +377,18 @@ async function processarPosts(ctx, res, fresh, origem) {
         // post que cita cupom / programe e poupe / Pix / "na tela de pagamento" mostra o preço FINAL, abaixo da página
         // (Pampers R$96,80 com cupom x R$143,88 na página = oferta real). Aí a folga é maior; preço falso (10x) cai igual.
         const comCondicao = /cupo[mn]|programe|poupe|pagamento|carrinho|checkout|\bpix\b|[aà] vista|recorr/i.test(p.text);
-        if (cur && precoLoja && precoLoja > cur * (comCondicao ? 1.6 : 1.25) + 2) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`preço não bate: ${origem.canal}/${p.id} post R${cur} x loja R${precoLoja}`); continue; }
         const codes = extractCodes(p.text);
+        // 18/Nov (Bruno: "não podemos mais ter esse tipo de erro"): o post NUNCA sai mais barato que a loja.
+        // Canal posta o preço final com cupom/moedas e o nosso post saía sem o cupom (Pampers R$29,59 x R$53,99).
+        // Agora: preço da loja até 3% acima = ok; acima disso o post sai COM O PREÇO DA LOJA (cupom do canal, se
+        // tiver código, vai junto como economia extra). Loja muito acima (25%, ou 60% com código de cupom) = descarta.
+        const comCupomEscrito = comCondicao && codes.length > 0;
+        if (cur && precoLoja && precoLoja > cur * (comCupomEscrito ? 1.6 : 1.25) + 1) { res.suspeito = (res.suspeito || 0) + 1; (res.suspeitos = res.suspeitos || []).push(`preço não bate: ${origem.canal}/${p.id} post R${cur} x loja R${precoLoja}`); continue; }
+        if (precoLoja && !link.amazon && (!cur || precoLoja > cur * 1.03 || precoLoja < cur)) {
+          res.preco_corrigido = (res.preco_corrigido || 0) + 1;
+          cur = precoLoja;
+          if (orig && orig <= cur * 1.02) orig = null;
+        }
         const promo = { ...promoFlags(p.text) };
         if (link.amazon) {
           // preço que vale é o do anúncio agora (o canal costuma já descontar o programe e poupe)
