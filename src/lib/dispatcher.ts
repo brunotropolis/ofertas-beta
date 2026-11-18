@@ -337,6 +337,31 @@ async function pickWaha(db: DB, perfil: PerfilWaha, campaignId: string): Promise
   return perfil;
 }
 
+/** 18/Nov (/chips): servidores cujo número já mandou o teto do dia (celnuvem_aparelhos.teto_dia, dia em BRT). Erro = conjunto vazio. */
+async function numerosAcimaDoTeto(db: DB, saudaveis: Map<string, string>): Promise<Set<string>> {
+  const fora = new Set<string>();
+  try {
+    const nums = [...new Set(saudaveis.values())].filter(Boolean);
+    if (!nums.length) return fora;
+    const { data: aps } = await db.from("celnuvem_aparelhos").select("numero, teto_dia").in("numero", nums);
+    const teto = new Map(((aps ?? []) as { numero: string; teto_dia: number | null }[])
+      .filter((a) => a.teto_dia != null).map((a) => [a.numero, a.teto_dia as number]));
+    if (!teto.size) return fora;
+    const brt = new Date(Date.now() - 3 * 3600e3); brt.setUTCHours(0, 0, 0, 0);
+    const desde = new Date(brt.getTime() + 3 * 3600e3).toISOString();
+    await Promise.all([...saudaveis.entries()].map(async ([url, num]) => {
+      const t = teto.get(num);
+      if (t == null) return;
+      const { count } = await db.from("publication_log").select("id", { count: "exact", head: true })
+        .eq("phone_used", wahaTag(url)).eq("status", "success").gte("sent_at", desde);
+      if ((count ?? 0) >= t) fora.add(url);
+    }));
+  } catch {
+    /* sem teto se der erro: não trava o disparo */
+  }
+  return fora;
+}
+
 /** Servidores WAHA do perfil com sessão WORKING agora → número conectado (url → "5541..."). */
 async function wahaSaudaveis(perfil: PerfilWaha): Promise<Map<string, string>> {
   const urls = [perfil.waha_url, ...perfil.waha_urls.filter((u) => u !== perfil.waha_url)];
@@ -522,9 +547,14 @@ export async function publishQueueItemForCampaign(
 
   // WAHA: cada grupo sai pelo seu número fixo (campaign_groups.waha_url); se o número dele estiver fora,
   // vai pelo próximo saudável. A ordem intercala os números pra cada um respirar entre os próprios envios.
-  const vivos = [...saudaveis.keys()];
+  // 18/Nov (/chips): TETO DIÁRIO por número (celnuvem_aparelhos.teto_dia). Número que já mandou o teto hoje
+  // não recebe grupo: o grupo dele vai pra outro saudável abaixo do teto. Se todos estourarem ou der erro, segue como antes.
+  const acimaDoTeto = await numerosAcimaDoTeto(db, saudaveis);
+  const vivosTodos = [...saudaveis.keys()];
+  const vivos = vivosTodos.filter((u) => !acimaDoTeto.has(u)).length ? vivosTodos.filter((u) => !acimaDoTeto.has(u)) : vivosTodos;
   const servidorDe = (g: Group, i: number) =>
-    g.waha_url && saudaveis.has(g.waha_url) ? g.waha_url : vivos.length ? vivos[i % vivos.length] : perfilWaha?.waha_url ?? "";
+    g.waha_url && saudaveis.has(g.waha_url) && (!acimaDoTeto.has(g.waha_url) || vivos.length === vivosTodos.length)
+      ? g.waha_url : vivos.length ? vivos[i % vivos.length] : perfilWaha?.waha_url ?? "";
   // cada número com a sua fila de grupos
   const ehTelegram = (g: Group) => g.group_jid.startsWith("tg:");
   const tgList = groupList.filter(ehTelegram);
