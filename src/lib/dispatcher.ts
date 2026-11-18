@@ -16,6 +16,7 @@
 
 import { ehDia1111, PERFIL_GEEK } from "./auto-enqueue";
 import { conferirPrecoAntesDePostar } from "@/lib/conferir-preco";
+import { filtroGoogle } from "@/lib/filtro-google";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
@@ -530,6 +531,12 @@ export async function publishQueueItemForCampaign(
   const conf = await conferirPrecoAntesDePostar(db, o as unknown as Parameters<typeof conferirPrecoAntesDePostar>[1]);
   if (!conf.ok) throw new Error(`preço não confere: ${conf.motivo}`);
   if (conf.mudou) console.log("[conferir-preco]", o.id, conf.motivo);
+  // 18/Nov: filtro do Google (preço de mercado): tira "De" inflado; só barra preço muito acima do mercado
+  if (!aviso) {
+    const g = await filtroGoogle(db, o as unknown as Parameters<typeof filtroGoogle>[1]);
+    if (!g.ok) throw new Error(`fora do mercado: ${g.motivo}`);
+    if (g.acao === "tirou_de") console.log("[filtro-google]", o.id, g.motivo);
+  }
   if (!aviso && viaWaha && o.kind !== "cupom" && !o.coupon_code && !o.coupon_meta?.codes?.length) {
     const c = melhorCupom(await loadCuponsDoDia(db), o.platform, o.price_current, o.promo_meta);
     if (c) o.cupom_dia = { code: c.code, regra: c.regra };
