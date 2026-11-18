@@ -25,7 +25,9 @@ export default function LoginPage() {
       setError("Email ou senha inválidos");
       setLoading(false);
     } else {
-      router.push("/inicio");
+      // volta pra onde a pessoa estava (só caminho interno; usado pela conexão da extensão)
+      const next = new URLSearchParams(window.location.search).get("next") || "";
+      router.push(next.startsWith("/") && !next.startsWith("//") ? next : "/inicio");
       router.refresh();
     }
   }

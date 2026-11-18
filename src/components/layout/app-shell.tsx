@@ -21,6 +21,7 @@ import {
   GalleryHorizontal,
   Menu,
   X,
+  Puzzle,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
@@ -55,6 +56,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Utilidades",
     items: [
       { href: "/historico", label: "Histórico", icon: History },
+      { href: "/extensao", label: "Extensão do Chrome", icon: Puzzle },
     ],
   },
 ];
