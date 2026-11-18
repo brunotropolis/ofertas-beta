@@ -10,7 +10,7 @@ import { CheckCircle2, Copy, Loader2, Plug, Trash2 } from "lucide-react";
 type Perfil = { id: string; slug: string; nome: string };
 type Token = { id: string; nome: string; prefixo: string; created_at: string; last_used_at: string | null; perfis: { nome: string } | null };
 
-const LOJA_URL = "https://chromewebstore.google.com/detail/buscador-geek"; // trocar pelo link definitivo depois da aprovação
+const LOJA_URL = "https://chromewebstore.google.com/detail/lelcnbdjppamlcblpglamobnmhaamnng"; // não listada; abre depois que o Google aprovar
 const dt = (s: string | null) => (s ? new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "nunca");
 
 declare global {
