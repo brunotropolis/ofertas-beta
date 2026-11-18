@@ -23,6 +23,7 @@ export interface OfertaPreco {
   discount_pct: number | null;
   ai_caption?: string | null;
   created_at?: string | null;
+  source_ref?: string | null;
   promo_meta?: { cupom_anuncio?: string | null; aviso?: unknown; exclusiva?: unknown } | null;
 }
 
@@ -40,10 +41,29 @@ const ML_FRESCO_MS = 12 * 3600_000;
 
 const brl = (s: string) => Number(s.replace(/\./g, "").replace(",", "."));
 
-async function precoShopee(url: string): Promise<{ achou: boolean; preco: number | null }> {
+const idsShopee = (u: string) => u.match(/\/product\/(\d+)\/(\d+)/) || u.match(/-i\.(\d+)\.(\d+)/) || u.match(/shopee\.com\.br\/[^/?]+\/(\d+)\/(\d+)/);
+
+/** shopId/itemId: do link, do source_ref ("shp:loja.item") ou seguindo o link curto s.shopee.com.br */
+async function shopeeIds(o: OfertaPreco): Promise<RegExpMatchArray | null> {
+  for (const u of [o.url, o.affiliate_url]) { const m = u ? idsShopee(u) : null; if (m) return m; }
+  const ref = o.source_ref?.match(/^shp:(\d+)\.(\d+)$/);
+  if (ref) return ref;
+  let u = [o.url, o.affiliate_url].find((x) => x && /s\.shopee\.com\.br/.test(x)) ?? null;
+  for (let i = 0; u && i < 6; i++) {
+    const r = await fetch(u, { headers: UA, redirect: "manual", signal: AbortSignal.timeout(8000) });
+    const loc = r.headers.get("location");
+    if (!loc) break;
+    u = new URL(loc, u).toString();
+    const m = idsShopee(decodeURIComponent(u));
+    if (m) return m;
+  }
+  return null;
+}
+
+async function precoShopee(o: OfertaPreco): Promise<{ achou: boolean; preco: number | null }> {
   const appId = process.env.SHOPEE_APP_ID, secret = process.env.SHOPEE_APP_SECRET;
   if (!appId || !secret) throw new Error("SHOPEE_APP_ID/SECRET ausentes");
-  const m = url.match(/\/product\/(\d+)\/(\d+)/) || url.match(/-i\.(\d+)\.(\d+)/) || url.match(/shopee\.com\.br\/[^/?]+\/(\d+)\/(\d+)/);
+  const m = await shopeeIds(o);
   if (!m) throw new Error("link Shopee sem shopId/itemId");
   const body = JSON.stringify({ query: `{productOfferV2(shopId:${+m[1]},itemId:${+m[2]},limit:1){nodes{priceMin}}}` });
   const ts = Math.floor(Date.now() / 1000);
@@ -72,12 +92,9 @@ export async function precoML(url: string): Promise<number | null> {
   return null;
 }
 
+// meli.la (nosso link) abre a página/vitrine com o produto e o og:title traz o preço
 function urlProdutoML(o: OfertaPreco): string | null {
-  for (const u of [o.url, o.affiliate_url]) {
-    if (!u) continue;
-    if (/mercadolivre\.com\.br\/(?:.*\/p\/MLB\d+|MLB-?\d+|[a-z0-9-]{10,}.*MLB-?\d+)|produto\.mercadolivre\.com\.br\/MLB-?\d+/i.test(u)) return u;
-  }
-  return null;
+  return [o.url, o.affiliate_url].find((u) => u && /meli\.la|mercadolivre\.com\.br/.test(u)) ?? null;
 }
 
 /** cupom do próprio anúncio do ML ("20% OFF com Cupom") explica o post abaixo da página */
@@ -96,7 +113,7 @@ export async function conferirPrecoAntesDePostar(db: DB, o: OfertaPreco): Promis
   let loja: number | null = null;
   try {
     if (plat === "shopee") {
-      const s = await precoShopee(o.url);
+      const s = await precoShopee(o);
       if (!s.achou) return { ok: false, loja: null, antes, motivo: "produto não está mais na Shopee (saiu do ar ou esgotou)" };
       loja = s.preco;
     } else {
@@ -117,14 +134,15 @@ export async function conferirPrecoAntesDePostar(db: DB, o: OfertaPreco): Promis
   }
 
   if (antes != null && antes > 0) {
-    const permitido = antes * TOLERANCIA * (plat === "ml" ? fatorCupomAnuncio(o) : 1);
-    if (loja <= permitido && loja >= antes * 0.97) {
+    const fator = plat === "ml" ? fatorCupomAnuncio(o) : 1;
+    // preço idêntico (centavo a centavo) = confere; qualquer outra diferença vira o preço exato da loja
+    if (Math.abs(loja - antes) < 0.01) {
       return { ok: true, loja, antes, mudou: false, motivo: "preço confere" };
     }
-    if (loja > antes * TETO_SUBIDA * (plat === "ml" ? fatorCupomAnuncio(o) : 1)) {
+    if (loja > antes * TETO_SUBIDA * fator) {
       return { ok: false, loja, antes, motivo: `preço subiu na loja (post R$ ${antes} x loja R$ ${loja})` };
     }
-    if (loja > antes && loja <= permitido) {
+    if (fator > 1 && loja > antes * TOLERANCIA && loja <= antes * TOLERANCIA * fator) {
       // diferença explicada pelo cupom do anúncio do ML: mantém o preço com cupom
       return { ok: true, loja, antes, mudou: false, motivo: "confere com o cupom do anúncio" };
     }
