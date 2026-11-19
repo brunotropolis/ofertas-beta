@@ -109,7 +109,23 @@ export const amazonCurtoStatus: { ok: boolean | null; quando: string | null; err
 const cacheAmzn = new Map<string, string>();
 // 16/Nov: a sessão vem primeiro da extensão "Sessões de Afiliado" (gravada criptografada na campanha principal do
 // Maternas, sempre fresca); o env AMAZON_SITESTRIPE_COOKIE fica de reserva. Cache de 10 min pra não ler o banco a cada post.
-let sessaoAmz: { cookie: string | null; em: number } = { cookie: null, em: 0 };
+// 19/Nov: a cópia da sessão vencia ~30-40 min depois de chegar (9h47 de 19/11 os posts saíram longos): o servidor
+// não guardava os cookies que a Amazon devolve a cada chamada (session-id etc.) e, com a sessão morta, ainda
+// segurava a cópia por 10 min. Agora: (1) junta o Set-Cookie da Amazon na cópia em memória, como um navegador;
+// (2) resposta ruim zera o cache e tenta de novo na hora com a sessão mais nova do banco (a extensão manda a cada troca).
+let sessaoAmz: { cookie: string | null; em: number; base: string | null } = { cookie: null, em: 0, base: null };
+function juntarCookies(cookie: string, setCookies: string[]): string {
+  if (!setCookies.length) return cookie;
+  const jar = new Map(cookie.split(/;\s*/).filter(Boolean).map((kv) => { const i = kv.indexOf("="); return [kv.slice(0, i), kv.slice(i + 1)] as [string, string]; }));
+  for (const sc of setCookies) {
+    const kv = sc.split(";")[0]; const i = kv.indexOf("=");
+    if (i <= 0) continue;
+    const v = kv.slice(i + 1);
+    if (!v || /^(deleted|"")$/.test(v) || /max-age=0|expires=thu, 01[- ]jan[- ]1970/i.test(sc)) continue; // nunca apaga login
+    jar.set(kv.slice(0, i), v);
+  }
+  return [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
+}
 async function cookieAmazon(): Promise<string | null> {
   if (Date.now() - sessaoAmz.em < 10 * 60e3) return sessaoAmz.cookie || process.env.AMAZON_SITESTRIPE_COOKIE || null;
   let c: string | null = null;
@@ -123,22 +139,32 @@ async function cookieAmazon(): Promise<string | null> {
       c = (Array.isArray(data) ? data[0]?.cookie : null) || null;
     }
   } catch { /* banco fora: segue com o env */ }
-  sessaoAmz = { cookie: c, em: Date.now() };
-  return c || process.env.AMAZON_SITESTRIPE_COOKIE || null;
+  // mesma sessão do banco de antes: mantém a cópia em memória (que já tem os cookies que a Amazon devolveu)
+  if (c && c === sessaoAmz.base && sessaoAmz.cookie) sessaoAmz = { ...sessaoAmz, em: Date.now() };
+  else sessaoAmz = { cookie: c, em: Date.now(), base: c };
+  return sessaoAmz.cookie || process.env.AMAZON_SITESTRIPE_COOKIE || null;
 }
-async function amazonCurto(longo: string): Promise<string | null> {
+async function amazonCurto(longo: string, tentativa = 1): Promise<string | null> {
   const cookie = await cookieAmazon();
   const marca = (ok: boolean, erro: string | null) => Object.assign(amazonCurtoStatus, { ok, erro, quando: new Date().toISOString() });
   if (!cookie) { marca(false, "sem login da Amazon no servidor (extensão ou AMAZON_SITESTRIPE_COOKIE)"); return null; }
   const emCache = cacheAmzn.get(longo);
   if (emCache) return emCache;
+  const deNovo = async (erro: string) => {
+    const usada = sessaoAmz.base;
+    sessaoAmz = { cookie: null, em: 0, base: null }; // próxima leitura vai no banco
+    if (tentativa === 1) { await cookieAmazon(); if (sessaoAmz.base && sessaoAmz.base !== usada) return amazonCurto(longo, 2); }
+    marca(false, erro); return null;
+  };
   try {
     const r = await fetch(`https://www.amazon.com.br/associates/sitestripe/getShortUrl?longUrl=${encodeURIComponent(longo)}&marketplaceId=526970`, {
       redirect: "manual",
       headers: { cookie, "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", accept: "application/json" },
       signal: AbortSignal.timeout(8000),
     });
-    if (r.status !== 200) { marca(false, `Amazon respondeu ${r.status} (login caiu?)`); return null; }
+    const sc = typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie() : [];
+    if (sc.length && sessaoAmz.cookie === cookie) sessaoAmz.cookie = juntarCookies(cookie, sc);
+    if (r.status !== 200) return deNovo(`Amazon respondeu ${r.status} (login caiu?)`);
     const j = await r.json().catch(() => null);
     const curto = j?.shortUrl as string | undefined;
     if (!curto || !/^https:\/\/(amzn\.to|link\.amazon)\//.test(curto)) { marca(false, "Amazon não devolveu link curto"); return null; }
