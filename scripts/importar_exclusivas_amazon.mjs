@@ -35,8 +35,10 @@ function csvLinha(s) {
   out.push(cur); return out;
 }
 // a leitura do Drive junta as linhas com espaço; o .csv usa quebra de linha. Os dois casos: corta antes de cada "AAAA/MM/DD,HH:MM,AAAA/"
-const corpo = texto.slice(texto.indexOf("Link") + 4).trim();
-const pedacos = corpo.split(/\s+(?=\d{4}\/\d{2}\/\d{2},\d{1,2}:\d{2},\d{4}\/)/);
+const corpo = texto.slice(texto.indexOf(",Link") + 5).trim();
+// formato novo (19/11): "AAAA/MM/DD HH:MM,AAAA/MM/DD HH:MM,ASIN,..." (data e hora na mesma coluna) → vira o antigo
+const corpoN = corpo.replace(/(\d{4}\/\d{2}\/\d{2}) (\d{1,2}:\d{2}),(\d{4}\/\d{2}\/\d{2}) (\d{1,2}:\d{2}),/g, "$1,$2,$3,$4,");
+const pedacos = corpoN.split(/\s+(?=\d{4}\/\d{2}\/\d{2},\d{1,2}:\d{2},\d{4}\/)/);
 const num = (v) => { const n = Number(String(v || "").replace(/[^\d.,]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
 const quando = (d, h) => { const [Y, M, D] = d.split("/").map(Number); const [hh, mm] = (h || "00:00").split(":").map(Number); return new Date(Date.UTC(Y, M - 1, D, hh + 3, mm)).toISOString(); }; // BRT → UTC
 const linhas = pedacos.map(csvLinha).filter((r) => r.length >= 11 && /^[A-Z0-9]{10}$/.test(r[4])).map((r) => ({

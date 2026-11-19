@@ -21,8 +21,7 @@ import {
   GalleryHorizontal,
   Menu,
   X,
-  Puzzle,
-} from "lucide-react";
+  Puzzle, Thermometer } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 type NavSection = { title: string; items: NavItem[] };
@@ -50,7 +49,10 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "Métricas",
-    items: [{ href: "/vendas", label: "Vendas", icon: Wallet }],
+    items: [
+      { href: "/vendas", label: "Vendas", icon: Wallet },
+      { href: "/precos", label: "Caro ou barato", icon: Thermometer },
+    ],
   },
   {
     title: "Utilidades",
