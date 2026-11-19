@@ -14,10 +14,10 @@ interface Ponto { dia: string; preco_min: number; preco_max: number; preco_ultim
 
 type Selo = "barato" | "normal" | "caro" | "pouco";
 const MIN_DIAS = 3;
-/** barato: no menor preço da janela (até +2%) ou 8% abaixo da mediana · caro: 8% acima da mediana */
+/** barato: no menor preço da janela (até +2%) e abaixo do meio, ou 8% abaixo da mediana · caro: 8% acima da mediana */
 function selo(i: Item): Selo {
   if (i.dias < MIN_DIAS || i.maior === i.menor) return i.dias < MIN_DIAS ? "pouco" : "normal";
-  if (i.preco_atual <= i.menor * 1.02 || i.preco_atual <= i.mediana * 0.92) return "barato";
+  if ((i.preco_atual <= i.menor * 1.02 && i.preco_atual < i.mediana) || i.preco_atual <= i.mediana * 0.92) return "barato";
   if (i.preco_atual >= i.mediana * 1.08) return "caro";
   return "normal";
 }
