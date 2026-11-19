@@ -175,6 +175,29 @@ async function amazonCurto(longo: string, tentativa = 1): Promise<string | null>
   } catch (e) { marca(false, `falha ao chamar a Amazon: ${String(e).slice(0, 80)}`); return null; }
 }
 
+// 19/Nov (Bruno: "vamos de 1"): caminho principal do amzn.to = extensão "Buscador Geek" no Chrome logado. O gatilho
+// da publication_queue já pede o link quando a oferta entra na fila; aqui usa o cache (amzn.to não vence). Se ainda
+// não tem, pede e espera até 75 s, mas só se a extensão deu sinal nos últimos 5 min (Chrome ligado).
+async function curtoDaExtensao(asin: string, tag: string): Promise<string | null> {
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const db = createAdminClient();
+    const ler = async () => (await db.from("amazon_links").select("curto, status").eq("asin", asin).eq("tag", tag).maybeSingle()).data;
+    let row = await ler();
+    if (row?.status === "ok" && row.curto) return row.curto as string;
+    if (!row) await db.from("amazon_links").upsert({ asin, tag }, { onConflict: "asin,tag", ignoreDuplicates: true });
+    const { data: tk } = await db.from("extensao_tokens").select("last_used_at").is("revoked_at", null).order("last_used_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+    const viva = tk?.last_used_at && Date.now() - Date.parse(tk.last_used_at as string) < 5 * 60e3;
+    if (!viva) return null;
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      row = await ler();
+      if (row?.status === "ok" && row.curto) return row.curto as string;
+    }
+  } catch (e) { console.warn("[amazon-links]", e instanceof Error ? e.message : e); }
+  return null;
+}
+
 /** Link direto da loja pro post. Se a oferta já tem link curto nosso, descobre o destino dele e usa o destino. */
 export async function linkDaLoja(link: string, shortDomain: string | null, plataforma: string | null | undefined, campanha: string): Promise<string> {
   if (!link) return link;
@@ -199,7 +222,8 @@ export async function linkDaLoja(link: string, shortDomain: string | null, plata
     let longo = destino;
     if (asin) longo = `https://www.amazon.com.br/dp/${asin.toUpperCase()}?tag=${tag}`;
     else { try { const u = new URL(destino); if (u.hostname.endsWith("amazon.com.br")) { u.searchParams.set("tag", tag); longo = u.toString(); } } catch { /* segue */ } }
-    return (await amazonCurto(longo)) || longo;
+    if (asin) { const c = await curtoDaExtensao(asin.toUpperCase(), tag); if (c) return c; }
+    return (await amazonCurto(longo)) || longo; // reserva: cópia do cookie no servidor; sem ela, link longo
   }
   // Shopee: link curto oficial s.shopee.com.br gerado na hora (nosso afiliado)
   if (plataforma === "shopee" || /shopee\.com\.br/.test(destino)) {

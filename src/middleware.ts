@@ -43,7 +43,7 @@ export async function middleware(request: NextRequest) {
   // /api/extensao/sessao: extensão "Sessões de Afiliado" (16/Nov) — auth própria x-extensao-secret = EXTENSAO_SECRET.
   // /api/extensao/eu: auth própria (código pessoal bgx_ no Authorization). /privacidade-extensao: página pública da Chrome Web Store.
   // /api/entrar/[slug]: distribuidor de leads nos grupos (destino público do asofertasmaternas.com.br); só redireciona.
-  const PUBLIC_PATHS = ["/login", "/redefinir-senha", "/esqueci-senha", "/api/auth/esqueci", "/api/cron", "/api/ingest", "/api/keywords/collector", "/api/vendas/import", "/api/entrar", "/api/cliques", "/api/extensao/sessao", "/api/extensao/eu", "/privacidade-extensao"];
+  const PUBLIC_PATHS = ["/login", "/redefinir-senha", "/esqueci-senha", "/api/auth/esqueci", "/api/cron", "/api/ingest", "/api/keywords/collector", "/api/vendas/import", "/api/entrar", "/api/cliques", "/api/extensao/sessao", "/api/extensao/eu", "/api/extensao/amazon-links", "/privacidade-extensao"];
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );

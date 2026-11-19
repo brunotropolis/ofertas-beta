@@ -177,10 +177,14 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
   const LINK_DIRETO_DE_PROPOSITO = true;
   // Única coisa que pode falhar: o amzn.to da Amazon (login da Amazon no servidor caiu → post sai com link longo).
   if (LINK_DIRETO_DE_PROPOSITO) {
-    const s = amazonCurtoStatus;
-    links = s.ok === false
-      ? { luz: "vermelho", motivo: `Amazon saindo com link longo, sem amzn.to: ${s.erro}`, diretos: 0, vistos: 0 }
-      : { luz: "verde", motivo: s.ok ? "Link direto da loja; Amazon com amzn.to" : "Link direto da loja (como no manual, desde 04/11)", diretos: 0, vistos: 0 };
+    // 19/Nov: amzn.to vem da extensão no Chrome do Bruno. Vermelho só quando ela para de responder (pedido de link
+    // esperando 30+ min), não a cada recusa da cópia do cookie no servidor (dava liga-desliga no zap).
+    void amazonCurtoStatus;
+    const { count: parados } = await db.from("amazon_links").select("asin", { count: "exact", head: true })
+      .neq("status", "ok").lt("tentativas", 6).lt("pedido_em", new Date(agora - 30 * 60e3).toISOString());
+    links = (parados ?? 0) > 0
+      ? { luz: "vermelho", motivo: `Extensão do Chrome não está gerando o amzn.to da Amazon há 30+ min (${parados} link(s) esperando; Chrome fechado ou deslogado da Amazon?). Posts saem com link longo.`, diretos: 0, vistos: 0 }
+      : { luz: "verde", motivo: "Link direto da loja; Amazon com amzn.to pela extensão", diretos: 0, vistos: 0 };
   }
   else if (dominio && idsCamp.length) {
     const { data: ultPosts } = await db.from("publication_queue").select("offer:offers(affiliate_url)")
