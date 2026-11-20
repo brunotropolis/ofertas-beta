@@ -14,6 +14,10 @@ const ALLOWED_DOMAINS = [
   "mercadolivre.com.br",
   "produto.mercadolivre.com.br",
   "meli.la",
+  "magazineluiza.com.br",
+  "magazinevoce.com.br",
+  "magalu.com",
+  "magazineluiza.onelink.me",
 ];
 
 // Hosts/IPs bloqueados explicitamente (defesa em profundidade)
@@ -45,7 +49,7 @@ export const ParseUrlSchema = z.object({
       const host = new URL(u).hostname.toLowerCase();
       if (BLOCKED_HOST_PATTERNS.some((re) => re.test(host))) return false;
       return ALLOWED_DOMAINS.some((d) => host === d || host.endsWith("." + d));
-    }, "Plataforma não suportada (Amazon/Shopee/ML apenas)"),
+    }, "Plataforma não suportada (Amazon/Shopee/ML/Magalu apenas)"),
 });
 
 // =====================================================
