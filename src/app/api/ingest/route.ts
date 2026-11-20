@@ -4,6 +4,7 @@ import { z } from "zod";
 import { parseOrError } from "@/lib/schemas";
 import { createHash } from "crypto";
 import { codigoValido } from "@/lib/auto-categorias";
+import { ehMagalu, magaluAfiliado, magaluCaminho, pedirLeituraMagalu, urlMagalu } from "@/lib/magalu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
 const IngestSchema = z.object({
   source: z.enum(["telegram", "whatsapp", "auto", "manual"]).default("auto"),
   source_ref: z.string().max(200).nullable().optional(),
-  platform: z.enum(["amazon", "shopee", "ml"]).nullable().optional(),
+  platform: z.enum(["amazon", "shopee", "ml", "magalu"]).nullable().optional(),
   url: z.string().url().max(2048),
   affiliate_url: z.string().url().max(2048).nullable().optional(),
   title: z.string().max(500).nullable().optional(),
@@ -137,14 +138,29 @@ export async function POST(request: Request) {
   // perfil com domínio próprio: o dispatcher encurta na hora de postar (garantirLinkCurto). Encurtar aqui
   // gravava 1 slug por oferta coletada, postada ou não, e estourava o limite de gravações do KV (30/Out).
   let encurtaNoPost = false;
+  let vitrineMagalu: string | null = null;
   if (p.perfil) {
     const { data: perfilRow } = await db
       .from("perfis")
-      .select("id, short_domain")
+      .select("id, short_domain, afiliados")
       .eq("slug", p.perfil)
       .maybeSingle();
     perfilId = perfilRow?.id ?? null;
+    vitrineMagalu = (perfilRow?.afiliados as { magalu?: string } | null)?.magalu ?? null;
     if (perfilRow?.short_domain) { shortDomain = perfilRow.short_domain as string; encurtaNoPost = true; }
+  }
+
+  // ── Magalu (20/Nov): link de qualquer afiliado/página vira o da vitrine do perfil; o Chrome do operador lê
+  //    título/foto/preço depois (o site bloqueia servidor). Perfil sem vitrine Magalu = não entra.
+  let pedirMagalu: { sku: string; caminho: string } | null = null;
+  if (p.platform === "magalu" || (p.kind === "produto" && ehMagalu(p.affiliate_url || p.url))) {
+    if (!vitrineMagalu) return NextResponse.json({ skipped: "perfil_sem_vitrine_magalu" });
+    const c = await magaluCaminho(p.affiliate_url || p.url);
+    if (!c) return NextResponse.json({ skipped: "link_magalu_sem_produto" });
+    p.platform = "magalu";
+    p.url = urlMagalu(c.caminho);
+    p.affiliate_url = magaluAfiliado(c.caminho, vitrineMagalu);
+    pedirMagalu = c;
   }
 
   // ── Encurta link Amazon (URL longa) via worker utm-redirector ────────────
@@ -238,6 +254,7 @@ export async function POST(request: Request) {
     .single();
 
   if (offerErr) return NextResponse.json({ error: offerErr.message }, { status: 500 });
+  if (pedirMagalu) await pedirLeituraMagalu(db, pedirMagalu.sku, pedirMagalu.caminho);
 
   // ── Auto-enfileira se veio campaign_ids ──────────────────────────────────
   if (willQueue) {

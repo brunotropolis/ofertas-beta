@@ -59,7 +59,7 @@ export interface CaptionOffer {
 // aviso de urgência sempre que o post leva cupom (gatilho do grupo)
 export const AVISO_CUPOM = "⚠️ _Cupons podem encerrar a qualquer momento!_";
 
-const LOJA: Record<string, string> = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
+const LOJA: Record<string, string> = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon", magalu: "Magalu" };
 
 // trava final: nenhum link/@ de canal do Telegram sai nos nossos grupos (10/Out — t.me/sddescontos quase foi pra legenda)
 function semLinkDeCanal(t: string): string {

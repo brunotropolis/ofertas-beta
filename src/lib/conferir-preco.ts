@@ -9,6 +9,7 @@
 // O preço novo é gravado na oferta (price_current/price_original/discount_pct) e o post sai com ele.
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { caminhoDaUrl, lerMagalu, pedirLeituraMagalu } from "./magalu";
 
 type DB = SupabaseClient;
 
@@ -106,13 +107,25 @@ function fatorCupomAnuncio(o: OfertaPreco): number {
 export async function conferirPrecoAntesDePostar(db: DB, o: OfertaPreco): Promise<ResultadoConferencia> {
   const antes = o.price_current;
   const plat = o.platform;
-  if (o.kind === "cupom" || o.promo_meta?.aviso || (plat !== "shopee" && plat !== "ml")) {
+  if (o.kind === "cupom" || o.promo_meta?.aviso || (plat !== "shopee" && plat !== "ml" && plat !== "magalu")) {
     return { ok: true, loja: null, antes, mudou: false, motivo: "não confere (cupom/aviso/Amazon)" };
   }
 
   let loja: number | null = null;
   try {
-    if (plat === "shopee") {
+    if (plat === "magalu") {
+      // 20/Nov: preço lido pelo Chrome do operador (extensão). Leitura com mais de 12h = pede de novo e só posta com
+      // leitura fresca; sem estoque = não posta.
+      const c = caminhoDaUrl(o.url ?? "");
+      const l = c ? await lerMagalu(db, c.sku) : null;
+      if (l && l.disponivel === false) return { ok: false, loja: null, antes, motivo: "produto sem estoque na Magalu" };
+      const fresca = l?.lido_em && Date.now() - Date.parse(l.lido_em) < 12 * 3600_000;
+      if (!fresca) {
+        if (c) await pedirLeituraMagalu(db, c.sku, c.caminho);
+        return { ok: false, loja: null, antes, motivo: "esperando o Chrome ler o preço na Magalu" };
+      }
+      loja = l?.preco ?? null;
+    } else if (plat === "shopee") {
       const s = await precoShopee(o);
       if (!s.achou) return { ok: false, loja: null, antes, motivo: "produto não está mais na Shopee (saiu do ar ou esgotou)" };
       loja = s.preco;

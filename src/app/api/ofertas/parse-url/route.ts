@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ParseUrlSchema, parseOrError } from "@/lib/schemas";
+import { ehMagalu, lerMagalu, magaluAfiliado, magaluCaminho, pedirLeituraMagalu, urlMagalu } from "@/lib/magalu";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type Platform = "amazon" | "shopee" | "ml";
 
@@ -94,10 +96,32 @@ export async function POST(request: Request) {
   }
   const { url } = parsed.data;
 
+  // Magalu (20/Nov): link de qualquer afiliado vira o da vitrine do perfil; dados vêm da leitura do Chrome
+  if (ehMagalu(url)) {
+    const c = await magaluCaminho(url);
+    if (!c) return NextResponse.json({ error: "Não achei o produto nesse link da Magalu" }, { status: 400 });
+    const db = createAdminClient();
+    const { data: pfs } = await db.from("perfis").select("afiliados").not("afiliados->magalu", "is", null);
+    const vitrine = ((pfs ?? [])[0]?.afiliados as { magalu?: string } | undefined)?.magalu;
+    if (!vitrine) return NextResponse.json({ error: "Nenhum perfil com vitrine Magalu cadastrada" }, { status: 400 });
+    const l = await lerMagalu(db, c.sku);
+    await pedirLeituraMagalu(db, c.sku, c.caminho);
+    return NextResponse.json({
+      platform: "magalu",
+      title: l?.titulo || c.caminho.split("/")[0].replace(/-/g, " "),
+      price_current: l?.preco ?? null,
+      price_original: l?.preco_de ?? null,
+      discount_pct: l?.preco && l?.preco_de ? Math.round((1 - l.preco / l.preco_de) * 100) : null,
+      image_url: l?.imagem ?? null,
+      product_url: urlMagalu(c.caminho),
+      affiliate_url: magaluAfiliado(c.caminho, vitrine),
+    });
+  }
+
   const platform = detectPlatform(url);
   if (!platform) {
     return NextResponse.json(
-      { error: "Plataforma não reconhecida. Suporte: Amazon, Shopee, Mercado Livre" },
+      { error: "Plataforma não reconhecida. Suporte: Amazon, Shopee, Mercado Livre, Magalu" },
       { status: 400 }
     );
   }

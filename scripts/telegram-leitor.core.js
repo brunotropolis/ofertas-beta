@@ -87,6 +87,7 @@ function platformOf(u) {
   if (/shopee|shp\.ee/.test(u)) return "shopee";
   if (/amzn\.|amazon\.|link\.amazon/.test(u)) return "amazon";
   if (/meli\.la|mercadoli|mercadolibre/.test(u)) return "ml";
+  if (/magazineluiza\.com|magazinevoce\.com|divulgador\.magalu|magalu\.com|mglu\.io|magazineluiza\.onelink/.test(u)) return "magalu";
   if (/reduz\.|cutt\.ly|bit\.ly|tinyurl/.test(u)) return "short";
   return null;
 }
@@ -255,6 +256,16 @@ async function productLink(ctx, links) {
       const info = await shopeeInfo(ctx, m[1], m[2]).catch(() => null);
       return { platform: "shopee", ref: m[2], url: clean, affiliate_url: aff, image: info?.imageUrl || null, officialTitle: info?.productName || null, lojaPreco: info?.priceMin ? +info.priceMin : null };
     }
+    if (p2 === "magalu") {
+      // 20/Nov: Magalu (vitrine da Day). O painel troca pelo link da vitrine e o Chrome do operador lê foto/preço
+      // (site dá 403 pro servidor). Aqui só acha o produto: <slug>/p/<sku>/<cat>/<sub>.
+      let path = "", seller = null; try { const uu = new URL(url); path = uu.pathname.replace(/^\/magazine[a-z0-9_-]+(?=\/)/i, ""); seller = uu.searchParams.get("seller_id"); } catch { continue; }
+      const m = path.match(/^\/([a-z0-9-]+)\/(?:p|divulgador\/oferta)\/([a-z0-9]{6,14})\/([a-z]{2})\/([a-z0-9]{2,8})/i);
+      if (!m) continue;
+      const vend = seller && /^[a-z0-9_-]{2,60}$/i.test(seller) ? `?seller_id=${seller.toLowerCase()}` : "";
+      const canon = `https://www.magazineluiza.com.br/${m[1]}/p/${m[2].toLowerCase()}/${m[3].toLowerCase()}/${m[4].toLowerCase()}/${vend}`;
+      return { platform: "magalu", ref: m[2].toLowerCase(), url: canon, affiliate_url: canon, image: null, officialTitle: null, lojaPreco: null };
+    }
     if (p2 === "ml") {
       let prod = null, mlImage = null;
       if (/\/p\/MLB\d+|produto\.mercadolivre\.com\.br\/MLB-?\d+|\/MLB-\d+|\/up\/MLBU\d+/.test(url)) prod = url.split(/[?#]/)[0];
@@ -311,7 +322,7 @@ async function couponLink(ctx, p) {
   return { loja, affiliate_url: null }; // Amazon/outras: sem link de cupom nosso
 }
 
-const LOJA_NOME = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon" };
+const LOJA_NOME = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon", magalu: "Magalu" };
 
 // ── 5. Rodada ──────────────────────────────────────────────────────────────
 async function runLeitor(ctx) {

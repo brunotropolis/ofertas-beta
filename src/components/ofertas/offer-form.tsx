@@ -12,8 +12,9 @@ import { cn } from "@/lib/utils";
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
 
 interface ParsedProduct {
-  platform: "amazon" | "shopee" | "ml";
+  platform: "amazon" | "shopee" | "ml" | "magalu";
   title: string;
+  affiliate_url?: string | null;
   price_current: number | null;
   price_original: number | null;
   discount_pct: number | null;
@@ -25,6 +26,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   amazon: "Amazon",
   shopee: "Shopee",
   ml: "Mercado Livre",
+  magalu: "Magalu",
 };
 
 interface Props {
@@ -73,7 +75,7 @@ export default function OfferForm({ campaigns }: Props) {
       setPriceCurrent(data.price_current?.toString() ?? "");
       setPriceOriginal(data.price_original?.toString() ?? "");
       setDiscountPct(data.discount_pct?.toString() ?? "");
-      setAffiliateUrl(data.product_url || url.trim());
+      setAffiliateUrl(data.affiliate_url || data.product_url || url.trim());
       setSelectedCampaigns(activeCampaigns.map((c) => c.id));
     } else {
       const err = await res.json();

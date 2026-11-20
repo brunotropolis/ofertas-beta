@@ -88,6 +88,8 @@ const tipoGadget = (t: string | null) => ((t || "").match(GADGET)?.[0] || "").to
 const ehGadget = (t: string | null) => !!t && GADGET.test(t) && !GEEK_SO_GEEK_RE.test(t);
 const META_ML = 0.45;
 const META_AMAZON = 0.33;
+// 20/Nov: Magalu entra nas Maternas (vitrine da Day, link sem API). Só aparece depois que o Chrome leu foto e preço.
+const META_MAGALU = 0.10;
 const CANAL_REF = "@promocaozinha"; // canal do Telegram mais parecido com o grupo real
 const CANAL_FRESCO_MS = 6 * 3600_000; // item do canal vale se chegou nas últimas 6h (canal parado → cai nos coletores)
 const isFralda = (t: string | null) => /\bfralda/i.test(t || "");
@@ -172,6 +174,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let amazons = feitos.filter((o) => o.platform === "amazon").length;
   let mls = feitos.filter((o) => o.platform === "ml").length;
   let shopees = feitos.filter((o) => o.platform === "shopee").length;
+  let magalus = feitos.filter((o) => o.platform === "magalu").length;
   let nSaude = feitos.filter((o) => SAUDE.test(o.title || "")).length;
   let nLenco = feitos.filter((o) => LENCO.test(o.title || "")).length;
   let nAmamenta = feitos.filter((o) => AMAMENTA.test(o.title || "")).length;
@@ -300,6 +303,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
     if (!o && nLenco / t < META_LENCO) o = pega((x) => LENCO.test(x.title || ""));
     if (!o && shopees / t < metaShopee1111) o = pega((x) => x.platform === "shopee");
+    if (!o && magalus / t < META_MAGALU) o = pega((x) => x.platform === "magalu");
     if (!o && mls / t < META_ML && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
     if (!o && mls / t < META_ML) o = pega((x) => x.platform === "ml");
     if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
@@ -314,7 +318,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
     { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; }
-    total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++;
+    total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++; if (o.platform === "magalu") magalus++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;
   }

@@ -117,7 +117,7 @@ export const GroupTogglePatchSchema = z.object({
 export const OfferCreateSchema = z.object({
   source: z.enum(["manual", "telegram", "whatsapp", "auto"]).optional(),
   source_ref: z.string().max(120).nullable().optional(),
-  platform: z.enum(["amazon", "shopee", "ml"]).nullable().optional(),
+  platform: z.enum(["amazon", "shopee", "ml", "magalu"]).nullable().optional(),
   url: z.string().url().max(2048),
   affiliate_url: z.string().url().max(2048).nullable().optional(),
   title: z.string().max(500).nullable().optional(),
@@ -139,7 +139,7 @@ export const CaptionRequestSchema = z.object({
   price_current: z.number().nullable().optional(),
   price_original: z.number().nullable().optional(),
   discount_pct: z.number().nullable().optional(),
-  platform: z.enum(["amazon", "shopee", "ml"]).nullable().optional(),
+  platform: z.enum(["amazon", "shopee", "ml", "magalu"]).nullable().optional(),
   extra_text: z.string().max(2000).nullable().optional(),
   ai_prompt: z.string().max(8000).nullable().optional(),
 });

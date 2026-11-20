@@ -1,3 +1,4 @@
+import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { OfferCreateSchema, parseOrError } from "@/lib/schemas";
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
     .single();
 
   if (offerError) return NextResponse.json({ error: offerError.message }, { status: 500 });
+  // Magalu (20/Nov): o Chrome do operador lê preço/foto/estoque (o dispatcher só posta com leitura fresca)
+  if (platform === "magalu") {
+    const c = caminhoDaUrl(url);
+    if (c) { const { createAdminClient } = await import("@/lib/supabase/admin"); await pedirLeituraMagalu(createAdminClient(), c.sku, c.caminho); }
+  }
 
   // 2. Add to queue if campaigns selected
   if (campaign_ids?.length) {
