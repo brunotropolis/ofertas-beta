@@ -4,7 +4,7 @@ import { z } from "zod";
 import { parseOrError } from "@/lib/schemas";
 import { createHash } from "crypto";
 import { codigoValido } from "@/lib/auto-categorias";
-import { ehMagalu, magaluAfiliado, magaluCaminho, pedirLeituraMagalu, urlMagalu } from "@/lib/magalu";
+import { ehMagalu, lerMagalu, magaluAfiliado, magaluCaminho, pedirLeituraMagalu, urlMagalu } from "@/lib/magalu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,6 +161,19 @@ export async function POST(request: Request) {
     p.url = urlMagalu(c.caminho);
     p.affiliate_url = magaluAfiliado(c.caminho, vitrineMagalu);
     pedirMagalu = c;
+    // produto já lido pelo Chrome: foto, título e preço da loja entram na hora
+    const l = await lerMagalu(db, c.sku);
+    if (l?.disponivel === false) return NextResponse.json({ skipped: "magalu_sem_estoque" });
+    if (l) {
+      if (!p.image_url && l.imagem) p.image_url = l.imagem;
+      if (!p.title && l.titulo) p.title = l.titulo;
+      if (l.preco) {
+        p.price_current = l.preco;
+        const de = l.preco_de && l.preco_de > l.preco * 1.02 ? l.preco_de : null;
+        p.price_original = de;
+        p.discount_pct = de ? Math.round((1 - l.preco / de) * 100) : null;
+      }
+    }
   }
 
   // ── Encurta link Amazon (URL longa) via worker utm-redirector ────────────
