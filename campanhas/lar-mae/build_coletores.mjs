@@ -6,7 +6,12 @@
 import fs from "node:fs";
 const E = Object.fromEntries(fs.readFileSync("D:/CLAUDE/.env.meta", "utf8").split(/\r?\n/).map((l) => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean).map((m) => [m[1], m[2].replace(/^"|"$/g, "")]));
 const B = E.N8N_BASE_URL.replace(/\/$/, ""), h = { "X-N8N-API-KEY": E.N8N_API_KEY, "content-type": "application/json" };
-const ORIG = { "Shopee Auto": "spdOQNLpjiLYiL4n", "Amazon Auto": "hP2rpjpMyPWOlu1C" };
+const ORIG = { "Shopee Auto": "spdOQNLpjiLYiL4n", "Amazon Auto": "hP2rpjpMyPWOlu1C", "ML Auto": "xoNfh9TnHtjlOdC0" };
+// 24/11 (Bruno: "o mercado livre tem que funcionar nesses grupos"): ML por subcategoria de ofertas, igual ao Maternas
+const CATS_ML = {
+  "ofertas-lar": [["MLB1613","Banheiros"],["MLB438928","Camas e Colchões"],["MLB1618","Cozinha"],["MLB264051","Cuidado da Casa e Lavanderia"],["MLB436414","Organização para Casa"],["MLB436246","Têxteis de Casa"],["MLB438284","Pequenos Eletrodomésticos"]],
+  "ofertas-mae": [["MLB199407","Cuidados com a Pele"],["MLB1263","Cuidados com o Cabelo"],["MLB1248","Maquiagem"],["MLB29884","Manicure e Pedicure"],["MLB6284","Perfumes"],["MLB278194","Tratamentos de Beleza"],["MLB198312","Higiene Pessoal"],["MLB455174","Artefatos para Cabelo"],["MLB439347","Eletro de Cuidado Pessoal"]],
+};
 const lista = (await (await fetch(B + "/api/v1/workflows?limit=250", { headers: h })).json()).data;
 for (const [nome, id] of Object.entries(ORIG)) {
   const w = await (await fetch(`${B}/api/v1/workflows/${id}`, { headers: h })).json();
@@ -22,8 +27,18 @@ for (const [nome, id] of Object.entries(ORIG)) {
         .replace("return [{ json: { keyword: k, row_number: 1 } }];", "return [{ json: { keyword: k, row_number: 1, perfil: PERFIL } }];");
       if (!p.jsCode.includes("PERFIL }")) throw new Error("troca do KEYWORDS falhou em " + nome);
     }
+    if (n.name === "CATEGORIA MATERNAS") {
+      p.jsCode = [
+        "// 24/11: alterna o perfil (a cada 15 min) e sorteia a subcategoria de ofertas do ML dele",
+        "const PERFIL = (Math.floor(Date.now() / 900000) % 2) ? 'ofertas-mae' : 'ofertas-lar';",
+        "const CATS = " + JSON.stringify(CATS_ML) + "[PERFIL];",
+        "const [id, label] = CATS[Math.floor(Math.random() * CATS.length)];",
+        "return [{ json: { category: id, label, keyword: label, perfil: PERFIL } }];",
+      ].join("\n");
+    }
     if (n.name === "MAPEAR INGEST MATERNAS") {
-      p.jsCode = p.jsCode.replace("perfil:'ofertas-maternas'", "perfil:$('KEYWORDS MATERNAS').first().json.perfil");
+      const origem = w.nodes.some((x) => x.name === "CATEGORIA MATERNAS") ? "CATEGORIA MATERNAS" : "KEYWORDS MATERNAS";
+      p.jsCode = p.jsCode.replace("perfil:'ofertas-maternas'", "perfil:$('" + origem + "').first().json.perfil");
       if (!p.jsCode.includes("first().json.perfil")) throw new Error("troca do MAPEAR falhou em " + nome);
     }
     delete n.onError;
