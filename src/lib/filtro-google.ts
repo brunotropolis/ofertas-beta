@@ -11,6 +11,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const FILTRO_GOOGLE = {
   /** "De" acima de 1,8x o preço típico = "De" falso → tira o De e o % OFF do post (ex.: típico 150, "de 300 por 150") */
   DE_MAX: 1.8,
+  /** "De" acima de 1,4x o MAIOR preço que já vimos do mesmo código de modelo (nosso banco, 60 dias) = De falso */
+  DE_MAX_BANCO: 1.4,
   /** "Por" acima de 1,5x o preço típico E acima de 1,8x o menor preço achado = não posta */
   POR_MAX_TIPICO: 1.5,
   POR_MAX_MENOR: 1.8,
@@ -69,6 +71,15 @@ export async function filtroGoogle(db: SupabaseClient, o: OfertaG): Promise<Resu
   const desconto = de && de > por ? Math.round((1 - por / de) * 100) : 0;
   if (desconto < P.PESQUISA_SE_DESCONTO && por < P.PESQUISA_SE_PRECO) return { ok: true, acao: "nada", motivo: "desconto pequeno e preço baixo, não pesquisa" };
 
+  // 25/Nov (Bruno: Air Fryer Philco PAF15A "de R$ 999 por R$ 449" no Geek; o Gemini achou "típico R$ 1.022" e deixou
+  // passar, mas no nosso banco o mesmo modelo estava a R$ 536 no ML, R$ 592 na Amazon, R$ 614 na Shopee).
+  // Segunda conferência, sem Google: preço do MESMO código de modelo nas ofertas dos últimos 60 dias (qualquer loja).
+  // "De" acima de 1,4x o maior preço que já vimos = De falso → sai sem De e sem % OFF.
+  if (de && de > por) {
+    const nosso = await precoNoBanco(db, o);
+    if (nosso && de > nosso.max * P.DE_MAX_BANCO) return tirarDe(db, o, de, `"De" R$ ${de} inflado (modelo ${nosso.codigo} já visto até R$ ${nosso.max} em ${nosso.n} ofertas): post sai sem o De`);
+  }
+
   const meta = (o.promo_meta ?? {}) as Record<string, unknown>;
   let g = meta.google as Pesquisa | undefined;
   if (!g || Date.now() - Date.parse(g.checked_at) > P.CACHE_MS) {
@@ -82,13 +93,39 @@ export async function filtroGoogle(db: SupabaseClient, o: OfertaG): Promise<Resu
     return { ok: false, motivo: `preço acima do mercado (R$ ${por} x típico R$ ${g.tipico}, menor R$ ${g.menor ?? "-"})`, pesquisa: g };
   }
   if (de && de > por && de > g.tipico * P.DE_MAX) {
-    const patch: Record<string, unknown> = { price_original: null, discount_pct: null };
-    if (o.ai_caption && /R\$\s*\d|%/.test(o.ai_caption)) patch.ai_caption = null; // frase da IA pode citar o De/% falso
-    await db.from("offers").update(patch).eq("id", o.id);
-    o.price_original = null;
-    o.discount_pct = null;
-    if (patch.ai_caption === null) o.ai_caption = null;
-    return { ok: true, acao: "tirou_de", motivo: `"De" R$ ${de} inflado (típico R$ ${g.tipico}): post sai sem o De`, pesquisa: g };
+    return { ...(await tirarDe(db, o, de, `"De" R$ ${de} inflado (típico R$ ${g.tipico}): post sai sem o De`)), pesquisa: g };
   }
   return { ok: true, acao: "nada", motivo: `confere com o mercado (típico R$ ${g.tipico})`, pesquisa: g };
+}
+
+async function tirarDe(db: SupabaseClient, o: OfertaG, de: number, motivo: string): Promise<ResultadoGoogle> {
+  const patch: Record<string, unknown> = { price_original: null, discount_pct: null };
+  if (o.ai_caption && /R\$\s*\d|%/.test(o.ai_caption)) patch.ai_caption = null; // frase da IA pode citar o De/% falso
+  await db.from("offers").update(patch).eq("id", o.id);
+  o.price_original = null;
+  o.discount_pct = null;
+  if (patch.ai_caption === null) o.ai_caption = null;
+  return { ok: true, acao: "tirou_de", motivo };
+}
+
+/** código de modelo no título (PAF15A, B0DN3BL2MF, SM-A155...): letras E números, 5+ caracteres, sem ser medida (15L, 220V, 128GB) */
+export function codigoModelo(titulo: string | null | undefined): string | null {
+  const MEDIDA = /^\d+([.,]\d+)?(L|ML|V|W|KG|G|UN|UNID|CM|MM|M|GB|TB|MAH|HZ|P|X|PCS|PECAS|LITROS|POL)$/;
+  for (const t of (titulo || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^A-Z0-9-]+/)) {
+    const s = t.replace(/^-+|-+$/g, "");
+    if (s.length >= 5 && /\d/.test(s) && /[A-Z]/.test(s) && !MEDIDA.test(s) && !/^\d+X\d+(X\d+)?(CM|MM|M)?$/.test(s)) return s; // 50X70CM = medida
+  }
+  return null;
+}
+
+async function precoNoBanco(db: SupabaseClient, o: OfertaG): Promise<{ codigo: string; max: number; n: number } | null> {
+  const codigo = codigoModelo(o.title);
+  if (!codigo) return null;
+  const { data } = await db.from("offers").select("id, title, price_current")
+    .ilike("title", `%${codigo}%`).not("price_current", "is", null).neq("id", o.id)
+    .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).limit(50);
+  const precos = ((data ?? []) as { title: string; price_current: number }[])
+    .filter((x) => codigoModelo(x.title) === codigo).map((x) => Number(x.price_current)).filter((v) => v > 0);
+  if (precos.length < 2) return null; // 1 só pode ser outra variação/preço errado: precisa de 2+ pra confiar
+  return { codigo, max: Math.max(...precos), n: precos.length };
 }
