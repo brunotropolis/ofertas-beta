@@ -17,9 +17,9 @@ type DB = SupabaseClient<any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 
-export type Categoria = "geral" | "fraldas" | "cupons" | "enxoval";
+export type Categoria = "geral" | "fraldas" | "cupons" | "enxoval" | "canal";
 
-interface Camp { id: string; perfil_id: string | null }
+interface Camp { id: string; perfil_id: string | null; niche?: string | null }
 
 const chave = (t: string | null) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 40);
 
@@ -197,10 +197,71 @@ async function escolherEnxoval(db: DB, c: Camp, n: number): Promise<string[]> {
   return ids;
 }
 
+// ── CANAIS DE WHATSAPP (25/Nov) ────────────────────────────────────────────
+// Bruno: "Manual do recém-nascido quero que poste produtos de bebês; Achados da Day, beleza, bem estar e decoração;
+// Manual dos adultos, coisas para casa, escritório, eletrônicos... mas nada gamer ou sério demais, produtos para casal descolado".
+// A campanha diz qual canal é pelo `campaigns.niche`. Pega dos perfis que já coletam (não muda o status da oferta,
+// então os grupos continuam podendo postar o mesmo produto), sem repetir em 7 dias, maior desconto primeiro, revezando os perfis.
+const PERFIL_ID = {
+  maternas: "8e8332fa-ebd8-41d5-948f-21bb6cd27a97",
+  lar: "9b2a012e-4d44-41b3-8f1c-896c55c57d18",
+  mae: "aa6b7dcb-11c6-4e8f-bcab-5965ec51462d",
+  geek: "f3887ae2-7b2c-462b-8984-e1e6618a0ba6",
+};
+const CRIANCA = /beb[eê]|infantil|crian[cç]a|\bkids?\b|\brn\b|rec[eé]m[- ]nascid|fralda|maternidade|chupeta|mamadeira/i;
+const DECOR = /decora|almofada|\bvaso|quadro|lumin[aá]ria|abajur|tapete (de sala|decorativo|felpudo|para sala|para quarto)|cortina|\bvela|aromatiz|difusor|espelho|porta[- ]retrato|cachep[oô]|planta|ta[cç]as?\b|jogo americano|toalha de mesa|manta|cobertor|edredom|len[cç]ol|organizador de (maquiagem|joias|bijuterias|acess[oó]rios)|cesto|bandeja|rel[oó]gio de parede|enfeite|fita de led/i;
+const LIMPEZA = /sab[aã]o|amaciante|detergente|desinfetante|[aá]gua sanit[aá]ria|alvejante|papel higi[eê]nico|lava[- ]?roupas?|limpador|multiuso|tira ?manchas|esponja|saco de lixo|inseticida|veneno|ra[cç][aã]o|\bmop\b|\brod(o|inho)\b|esfreg|vassoura|balde|papel toalha|limpa ?vidros?|escorredor|m[aá]quina de lavar|porta ovos|\bovos\b/i;
+const GAMER = /\bgam(e|er|ing)s?\b|console|playstation|\bps[345]\b|xbox|nintendo|\bswitch\b|joystick|controle (sem fio )?(ps|xbox|para (ps|xbox|switch))|headset gamer|cadeira gamer|funko|action figure|colecion[aá]vel|est[aá]tua|mang[aá]\b|\bhq\b|card ?game|pok[eé]mon|\brpg\b|cosplay|miniatura|boneco|figure|figura de a[cç][aã]o|dragon ball|one piece|naruto|pel[uú]cia/i;
+const SERIO = /disjuntor|fus[ií]vel|parafus|furadeira|serra |esmerilhadeira|nobreak|rack\b|servidor|cabo de rede|switch de rede|roteador|impressora t[eé]rmica|ferramenta|chave de fenda|alicate|multimetro|mult[ií]metro|pneu|automotiv|veicular|inversor|[oó]leo de motor|bateria de carro|fralda geri|incontin[eê]ncia|ortop[eé]dic|cadeira de rodas|seguran[cç]a do trabalho|\bepi\b/i;
+const CANAIS: Record<string, { fontes: { perfil: string; entra: RegExp | null; fora: RegExp }[] }> = {
+  "canal-bebe": { fontes: [{ perfil: PERFIL_ID.maternas, entra: null, fora: /adulto|gestante|p[oó]s[- ]parto|absorvente|pet\b|cachorro/i }] },
+  "canal-achados": { fontes: [
+    { perfil: PERFIL_ID.mae, entra: null, fora: CRIANCA },
+    { perfil: PERFIL_ID.lar, entra: DECOR, fora: new RegExp(`${CRIANCA.source}|${LIMPEZA.source}`, "i") },
+  ] },
+  "canal-adultos": { fontes: [
+    { perfil: PERFIL_ID.lar, entra: null, fora: new RegExp(`${CRIANCA.source}|${LIMPEZA.source}|${SERIO.source}`, "i") },
+    { perfil: PERFIL_ID.geek, entra: null, fora: new RegExp(`${CRIANCA.source}|${GAMER.source}|${SERIO.source}|camiseta|caneca (geek|nerd)|star wars|marvel|dc comics|harry potter|anime`, "i") },
+  ] },
+};
+
+async function escolherCanal(db: DB, c: Camp, n: number): Promise<string[]> {
+  const cfg = CANAIS[c.niche ?? ""];
+  if (!cfg) return [];
+  const feitos = await jaDaCampanha(db, c.id, new Date(Date.now() - 7 * 86400_000).toISOString());
+  const usados = new Set(feitos.map((o) => chave(o.title)));
+  const desde = new Date(Date.now() - 48 * 3600_000).toISOString();
+  const listas: Any[][] = [];
+  for (const f of cfg.fontes) {
+    const { data } = await db.from("offers")
+      .select("id, title, discount_pct, price_current")
+      .eq("perfil_id", f.perfil).eq("kind", "produto").in("source", ["auto", "telegram"])
+      .not("image_url", "is", null).not("affiliate_url", "is", null).not("price_current", "is", null)
+      .gte("created_at", desde).order("discount_pct", { ascending: false, nullsFirst: false }).limit(800);
+    listas.push(((data ?? []) as Any[]).filter((o) => o.title && !f.fora.test(o.title) && (!f.entra || f.entra.test(o.title))));
+  }
+  const ids: string[] = [];
+  const pos = listas.map(() => 0);
+  // reveza as fontes (1 de cada por vez), maior desconto primeiro dentro de cada uma
+  for (let volta = 0; ids.length < n && volta < 2000; volta++) {
+    const i = volta % listas.length;
+    while (pos[i] < listas[i].length) {
+      const o = listas[i][pos[i]++];
+      if (usados.has(chave(o.title))) continue;
+      usados.add(chave(o.title));
+      ids.push(o.id);
+      break;
+    }
+    if (pos.every((p, k) => p >= listas[k].length)) break;
+  }
+  return ids;
+}
+
 /** ids de ofertas pra enfileirar na campanha de categoria */
 export async function escolherPorCategoria(db: DB, categoria: Categoria, c: Camp, n: number, dayStart: string): Promise<string[]> {
   if (categoria === "fraldas") return escolherFraldas(db, c, n);
   if (categoria === "cupons") return escolherCupons(db, c, n, dayStart);
   if (categoria === "enxoval") return escolherEnxoval(db, c, n);
+  if (categoria === "canal") return escolherCanal(db, c, n);
   return [];
 }

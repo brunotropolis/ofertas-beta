@@ -365,8 +365,9 @@ async function numerosAcimaDoTeto(db: DB, saudaveis: Map<string, string>): Promi
 }
 
 /** Servidores WAHA do perfil com sessão WORKING agora → número conectado (url → "5541..."). */
-async function wahaSaudaveis(perfil: PerfilWaha): Promise<Map<string, string>> {
-  const urls = [perfil.waha_url, ...perfil.waha_urls.filter((u) => u !== perfil.waha_url)];
+// 25/Nov: `extras` = número fixo de grupo/canal fora do perfil (ex.: canal Achados da Day, onde só o 4952 é admin).
+async function wahaSaudaveis(perfil: PerfilWaha, extras: string[] = []): Promise<Map<string, string>> {
+  const urls = [...new Set([perfil.waha_url, ...perfil.waha_urls, ...extras].filter(Boolean))];
   const out = new Map<string, string>();
   await Promise.all(urls.map(async (url) => {
     try {
@@ -503,8 +504,6 @@ export async function publishQueueItemForCampaign(
   const perfilWaha = perfilBase ? await pickWaha(db, perfilBase, campaign.id) : null;
   const viaWaha = !!perfilWaha;
   // servidores WAHA saudáveis agora (url → número) — cada grupo sai pelo seu número fixo
-  const saudaveis = perfilBase ? await wahaSaudaveis(perfilBase) : new Map<string, string>();
-
   const [{ data: offer }, { data: phones }, { data: groups }] = await Promise.all([
     db.from("offers").select("*").eq("id", queueItem.offer_id).maybeSingle(),
     db.from("campaign_phones").select("id, phone_number, evolution_instance_id")
@@ -517,6 +516,9 @@ export async function publishQueueItemForCampaign(
   const phoneList = (phones ?? []) as Phone[];
   const groupList = (groups ?? []) as Group[];
   if (groupList.length === 0) throw new Error("nenhum grupo habilitado na campanha");
+  const saudaveis = perfilBase
+    ? await wahaSaudaveis(perfilBase, groupList.map((g) => g.waha_url).filter((u): u is string => !!u))
+    : new Map<string, string>();
   if (!viaWaha && phoneList.length === 0) {
     throw new Error("nenhum telefone ativo (não-admin) na campanha");
   }
@@ -548,7 +550,8 @@ export async function publishQueueItemForCampaign(
     const { data: pf } = await db.from("perfis").select("short_domain, slug").eq("id", campaign.perfil_id).maybeSingle();
     // 04/Nov: perfil que não é o Maternas (BRUNOTROPOLIS/geek) usa marca "g": Amazon com a tag própria
     // buscadorgeek-20 (desde 16/Nov; antes era a manualdorec0c-20), Shopee com sub_id 0-g, ML etiqueta buscadorgeek — não mistura com as campanhas do Maternas.
-    const cod = pf?.slug && pf.slug !== "ofertas-maternas" ? "g" : CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m";
+    // 25/Nov: Lar e Mãe (e os canais Manual RN / Achados / Adultos) são da conta do Manual, não do Geek.
+    const cod = pf?.slug && !["ofertas-maternas", "ofertas-lar", "ofertas-mae"].includes(pf.slug as string) ? "g" : CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m";
     linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
   }

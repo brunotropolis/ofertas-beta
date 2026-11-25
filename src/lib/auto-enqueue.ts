@@ -33,6 +33,7 @@ interface AutoCampaign {
   auto_window_end: number;
   auto_buffer: number;
   categoria?: Categoria | null;
+  niche?: string | null;
 }
 
 export interface AutoEnqueueResult {
@@ -402,7 +403,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
 
   const { data: campaigns } = await db
     .from("campaigns")
-    .select("id, name, perfil_id, auto_daily_cap, auto_window_start, auto_window_end, auto_buffer, categoria")
+    .select("id, name, perfil_id, auto_daily_cap, auto_window_start, auto_window_end, auto_buffer, categoria, niche")
     .eq("is_active", true)
     .eq("auto_enqueue", true);
 
