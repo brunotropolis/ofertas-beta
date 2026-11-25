@@ -14,6 +14,18 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 const BABY = /beb[eê]|fralda|infantil|len[cç]os? umedecid|mamadeira|chupeta|gestante|matern|carrinho de beb|ber[cç]o|banheira|bab[aá] eletr|kids|crian[cç]a|brinquedo|pampers|huggies|mamypoko|babysec|pom ?pom|personal baby|turma da m[oô]nica baby|johnson'?s baby|granado beb|bepantol baby|baruel baby|desitin|fisher.?price|assadura|enxoval|cadeirinha|beb[eê] conforto|amamenta|tapete de atividade|andador|mordedor|naninha|dia das crian|buba|chicco|galzerano|burigotto|cosco|styll baby|safety 1st|nuk\b|avent|lillo|kababy|multikids baby/i;
 const CUPOM_FORA = /\bmoda\b|beleza|decor|\bcasa\b|eletr[oô]n|celular|smartphone|perfum|\bpet\b|m[oó]veis|esporte|games?\b|inform[aá]tica|ferrament|automot|supermercado|bebidas?|vinho|cerveja|maquiagem|skincare|\btv\b|notebook/i;
+// 25/Nov (Bruno: "buscar cupons da magazine Luiza, Natura e outros que temos no telegram, já que agora vamos voltar a
+// postar"): o que não é de bebê mas é de casa vai pro grupo Ofertas Maternas para o Lar; beleza/autocuidado pro grupo da Mãe.
+const LAR_TG = /amaciante|sab[aã]o (em p[oó]|l[ií]quido)|lava[- ]?roupas?|detergente|desinfetante|[aá]gua sanit[aá]ria|limpador|multiuso|papel (higi[eê]nico|toalha)|panelas?\b|frigideira|potes? (herm[eé]tic|de vidro|de mantimento|organizador)|kit (de )?potes|air ?fryer|fritadeira|liquidificador|cafeteira|caf[eé] (em p[oó]|pil[aã]o|melitta|tr[eê]s cora)|\bcozinha\b|toalhas? de banho|len[cç]ol|edredom|travesseiro|organizador|aspirador|\bmop\b|vassoura|ferro de passar|utens[ií]lios?|garrafa t[eé]rmica|lavanderia|varal|\bcasa\b|decora/i;
+const MAE_TG = /shampoo|condicionador|m[aá]scara (capilar|de hidrata)|[oó]leo (capilar|corporal)|creme de pentear|cabelos?\b|maquiagem|batom|base l[ií]quida|corretivo|r[ií]mel|m[aá]scara de c[ií]lios|esmalte|\bunhas?\b|perfume|col[oô]nia|desodorante|hidratante|protetor solar|s[eé]rum|skin ?care|sabonete facial|body splash|secador|chapinha|escova secadora|depila|cadiveu|natura\b|botic[aá]rio|eudora|oc[eé]ane|nivea|dove\b|l'?or[eé]al|vult|ruby rose|\bbeleza\b|autocuidado/i;
+const NAO_MAE = /masculin|barba|barbear|\bhomem\b|\bmen\b|infantil|kids/i;
+const MAGALU_VITRINE = "https://www.magazinevoce.com.br/magazinemanualdorn/";
+// perfil de um post que não é de bebê: casa > Lar, beleza > Mãe, resto fica fora
+function perfilCasaOuBeleza(t) {
+  if (MAE_TG.test(t) && !NAO_MAE.test(t)) return "ofertas-mae";
+  if (LAR_TG.test(t)) return "ofertas-lar";
+  return null;
+}
 // Post feito PRA AFILIADO (canais oficiais tipo @afiliadosshopeebroficial e "Crescendo com o Meli"): avisos do
 // programa, comissão, "Sextou, Afiliado(a)!". Nunca pode ir pros grupos (23/Out saiu um nos 170 grupos).
 const PRA_AFILIADO = /afiliad[oa]s?\b|afiliad[oa]\(a\)|\bcomiss(?:[aã]o|[oõ]es)\b|seus links|link de afiliad|programa de afiliad|criador(?:es|a)? de conte[uú]do|painel de afiliad|\bcreators?\b/i;
@@ -312,13 +324,16 @@ async function productLink(ctx, links) {
 async function couponLink(ctx, p) {
   const t = norm(p.text);
   const plats = p.links.map(platformOf).filter(Boolean);
-  let loja = /shopee/.test(t) ? "shopee" : /mercado ?livre|\bml\b/.test(t) ? "ml" : /amazon/.test(t) ? "amazon" : null;
+  let loja = /shopee/.test(t) ? "shopee" : /mercado ?livre|\bml\b/.test(t) ? "ml" : /amazon/.test(t) ? "amazon" : /magalu|magazine ?luiza/.test(t) ? "magalu" : null;
   if (!loja) {
     for (const l of p.links) { const r = await resolve(ctx, l); const pl = platformOf(r.url); if (pl && pl !== "short") { loja = pl; break; } }
   }
   if (!loja && plats.length) loja = plats.find((x) => x !== "short") || null;
   if (loja === "shopee") return { loja, affiliate_url: await shopeeShort(ctx, "https://shopee.com.br/user/voucher-wallet") };
   if (loja === "ml") return { loja, affiliate_url: `${ctx.cfg.ml.social}?matt_word=${ctx.cfg.ml.tag}` };
+  // 25/Nov (Bruno: "buscar cupons da magazine Luiza... já que agora vamos voltar a postar"): cupom Magalu vai com a
+  // vitrine da Day (o cupom vale no carrinho da Magalu inteira, a compra pela vitrine conta pra nós)
+  if (loja === "magalu") return { loja, affiliate_url: MAGALU_VITRINE };
   return { loja, affiliate_url: null }; // Amazon/outras: sem link de cupom nosso
 }
 
@@ -366,7 +381,8 @@ async function processarPosts(ctx, res, fresh, origem) {
     try {
       if (kind === "produto") {
         // 09/Nov: a origem pode separar por perfil (WhatsApp: bebê > Ofertas Maternas; tecnologia/casa/games > Buscador Geek)
-        const perfil = origem.perfilDe ? origem.perfilDe(p, ctx) : (nicheOk(p.text, ctx.kw) ? "ofertas-maternas" : null);
+        // 25/Nov: Telegram não-bebê de casa/beleza vai pros grupos Lar/Mãe
+        const perfil = origem.perfilDe ? origem.perfilDe(p, ctx) : (nicheOk(p.text, ctx.kw) ? "ofertas-maternas" : perfilCasaOuBeleza(p.text));
         if (!perfil) { res.fora_nicho++; continue; }
         const geek = perfil === "buscador-geek";
         ctx._mlConta = geek ? "geek" : "manual";
@@ -422,16 +438,23 @@ async function processarPosts(ctx, res, fresh, origem) {
           promo_meta: Object.keys(promo).length ? promo : null,
         });
       } else {
-        if (CUPOM_FORA.test(p.text) && !BABY.test(p.text)) { res.fora_nicho++; continue; }
+        // 25/Nov: cupom de casa/beleza (antes descartado) vai pro grupo Lar/Mãe; cupom geral da Magalu vai pros 3
+        let perfisCupom = ["ofertas-maternas"];
+        if (CUPOM_FORA.test(p.text) && !BABY.test(p.text)) {
+          const pc = perfilCasaOuBeleza(p.text);
+          if (!pc) { res.fora_nicho++; continue; }
+          perfisCupom = [pc];
+        }
         const codes = extractCodes(p.text);
         if (!codes.length) { res.sem_link++; continue; }
         const { loja, affiliate_url } = await couponLink(ctx, p);
         if (!loja || !affiliate_url) { res.sem_link++; continue; }
+        if (loja === "magalu" && perfisCupom[0] === "ofertas-maternas" && !BABY.test(p.text)) perfisCupom = ["ofertas-maternas", "ofertas-lar", "ofertas-mae"];
         const regra = p.text.split("\n").map((l) => l.trim()).filter((l) => /off|desconto|acima|limite|m[ií]nimo|%/i.test(l) && !/https?:/.test(l)).slice(0, 4).join("\n");
         const regra1 = (regra.split("\n")[0] || "").replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}🎟📍✅🔥💥]/gu, "").trim();
-        res.enviados.push({
-          source: origem.source, source_channel: origem.canal, kind: "cupom", perfil: "ofertas-maternas",
-          source_ref: `tgcupom_${loja}_${[...codes].sort().join("-")}_${brtStamp(p.time)}`,
+        for (const perfilCupom of perfisCupom) res.enviados.push({
+          source: origem.source, source_channel: origem.canal, kind: "cupom", perfil: perfilCupom,
+          source_ref: `tgcupom_${loja}_${[...codes].sort().join("-")}_${brtStamp(p.time)}${perfilCupom === "ofertas-maternas" ? "" : "_" + perfilCupom.slice(8)}`,
           platform: loja === "amazon" ? "amazon" : loja, url: affiliate_url, affiliate_url,
           title: `Cupom ${LOJA_NOME[loja]}${regra1 ? ": " + regra1 : ""}`.slice(0, 200),
           image_url: null, coupon_code: codes[0], // cupom: sem a foto do canal (marca deles) — 10/Out
@@ -493,6 +516,7 @@ const GEEK_NICHO = /eletr[oô]n|inform[aá]tic|tecnolog|celular|smartphone|iphon
 const FORA_GEEK = /livros e papelaria|papelaria|autoajuda|beleza|maquiagem|perfume|skincare|cabelo|moda|roupa|cal[cç]ado|t[eê]nis|bebida|vinho|cerveja|alimento|mercado|\bpet\b|ra[cç][aã]o/i;
 function perfilWhatsApp(p, ctx) {
   if (nicheOk(p.text, ctx.kw)) return "ofertas-maternas";
+  if (MAE_TG.test(p.text) && !NAO_MAE.test(p.text)) return "ofertas-mae"; // 25/Nov: beleza (antes descartada) > grupo da Mãe
   const cab = p.text.split("\n")[0] || "";
   // categoria da lista (1ª linha do item) fora do nicho geek (beleza, moda, bebida, pet...) → não posta
   if (FORA_GEEK.test(cab) && !GEEK_NICHO.test(cab)) return null;
