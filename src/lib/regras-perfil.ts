@@ -40,7 +40,7 @@ const GADGET_MAE = /bab[aá] eletr|air ?fryer|fritadeira|esteriliz|aquecedor de 
 export function tituloQuebrado(titulo: string | null | undefined): boolean {
   const t = (titulo || "").trim();
   if (!t) return false;
-  return t.length < 12 || t.split(/\s+/).length < 3 || /:\s*$/.test(t) || /^(rn|p|m|g|xg|xxg|xxxg|gg|eg)\s+com\s+\d/i.test(t);
+  return t.length < 12 ||/:\s*$/.test(t) || /^(rn|p|m|g|xg|xxg|xxxg|gg|eg)\s+com\s+\d/i.test(t);
 }
 
 export function foraDoPerfil(perfilId: string | null | undefined, titulo: string | null | undefined): string | null {
