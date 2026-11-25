@@ -119,9 +119,11 @@ interface Cand {
 // No máximo 1 a cada 4 posts da geral das Maternas. Só no dia; no 12 volta sozinho.
 const PERFIL_MATERNAS = "8e8332fa-ebd8-41d5-948f-21bb6cd27a97";
 const PERFIL_GEEK = "f3887ae2-7b2c-462b-8984-e1e6618a0ba6";
-const GEEK_SERVE_MAE = /air ?fryer|fritadeira|panela|liquidificador|cafeteira|chaleira|sanduicheira|batedeira|mixer|processador de alimento|forno|micro-?ondas|aspirador|mop|ventilador|umidificador|purificador|ferro de passar|vaporizador|secador|chapinha|escova (de dentes|alisadora|secadora)|l[âa]mpada|tomada inteligente|smart plug|plugue|echo (dot|pop|show|spot)|alexa|kindle|power ?bank|carregador|fone|earbuds?|smartwatch|rel[óo]gio inteligente|smart ?band|c[âa]mera de seguran|c[âa]mera wi-?fi|bab[áa] eletr|organizador|garrafa t[ée]rmica|copo t[ée]rmico|toalha|len[çc]ol|travesseiro|edredom|cobertor|balan[çc]a|term[ôo]metro|fita led|luminária|alimentador autom|smart tv|tv \d|tablet|celular|smartphone|caixa de som/i;
+const GEEK_SERVE_MAE = /air ?fryer|fritadeira|panela|liquidificador|cafeteira|chaleira|sanduicheira|batedeira|mixer|processador de alimento|forno|micro-?ondas|aspirador|\bmop\b|ventilador|umidificador|purificador|ferro de passar|vaporizador|secador|chapinha|escova (de dentes|alisadora|secadora)|l[âa]mpada|tomada inteligente|smart plug|plugue|echo (dot|pop|show|spot)|alexa|kindle|power ?bank|carregador|fone|earbuds?|smartwatch|rel[óo]gio inteligente|smart ?band|c[âa]mera de seguran|c[âa]mera wi-?fi|bab[áa] eletr|organizador|garrafa t[ée]rmica|copo t[ée]rmico|toalha|len[çc]ol|travesseiro|edredom|cobertor|balan[çc]a|term[ôo]metro|fita led|luminária|alimentador autom|smart tv|tv \d|tablet|celular|smartphone|caixa de som/i;
+// brinquedo fora do Brunotropolis (25/Nov): palavra brinquedo, faixa etária de criança (5Y+, 3+ anos), marcas de brinquedo infantil
+const BRINQUEDO_GEEK = /brinquedo|\b\d{1,2} ?y\+|\b\d{1,2}\+ ?anos|\bhot ?wheels\b|\bpista\b|boneca|barbie|pel[uú]cia|playmobil|\bnerf\b|massinha|play-?doh|fisher.?price|patrulha canina|infantil|\bkids\b|\bcrian[cç]a/i;
 const GEEK_SO_GEEK_RE = /gamer|gaming|monitor gamer|light ?bar|retrovisor|espelho/i;
-const GEEK_SO_GEEK = /gamer|gaming|game|jogo|playstation|ps[45]|xbox|nintendo|switch|controle|funko|estatueta|colecion|figura|action figure|star wars|marvel|dc|batman|homem[- ]aranha|spider|harry potter|hogwarts|mario|pok[ée]mon|anime|mang[áa]|lego|groot|dragon|mouse|teclado|headset|monitor|ssd|hd externo|placa de v|hub usb|hdmi|suporte|caneca|geek|nerd|programador/i;
+const GEEK_SO_GEEK = /gamer|gaming|\bgame|jogo|playstation|\bps[45]\b|xbox|nintendo|switch|controle|funko|estatueta|colecion|figura|action figure|star wars|marvel|\bdc\b|batman|homem[- ]aranha|spider|harry potter|hogwarts|mario|pok[ée]mon|anime|mang[áa]|lego|groot|dragon|mouse|teclado|headset|monitor|ssd|hd externo|placa de v|hub usb|hdmi|suporte|caneca|geek|nerd|programador/i;
 const geekServeMae = (t: string | null) => !!t && GEEK_SERVE_MAE.test(t) && !GEEK_SO_GEEK.test(t);
 const META_GEEK_1111 = 0.25;
 
@@ -270,6 +272,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   // tetos da geral (12/Nov): fralda fraca nunca; fralda forte até 15%; amamentação até 6%; brinquedo até 4%
   const permitido = (o: Cand) => {
     const t = Math.max(total, 1); const tt = o.title || "";
+    // 25/Nov (Bruno: "no brunotropolis quero que não poste brinquedos", depois de sair pista Hot Wheels F1 5Y+)
+    if (c.perfil_id === PERFIL_GEEK && BRINQUEDO_GEEK.test(tt)) return false;
     if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
