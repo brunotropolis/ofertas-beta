@@ -35,6 +35,8 @@ async function jaDaCampanha(db: DB, campId: string, desde: string): Promise<Any[
 }
 
 // ── FRALDAS ────────────────────────────────────────────────────────────────
+const TESTE_FRALDAS_ATE = "2026-12-02"; // último dia (BRT) do teste "jeito da equipe" no grupo de Fraldas
+const brtHoje = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
 async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
   const fresco = new Date(Date.now() - 12 * 3600_000).toISOString();
   const { data: prods } = await db.schema("fraldas").from("produtos")
@@ -54,15 +56,28 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
 
   const noMinimo = (p: Any) => p.menor_preco_30d != null && (p.dias_historico ?? 0) >= 3 && Number(p.preco) <= Number(p.menor_preco_30d);
   const score = (p: Any) => Number(p.preco_por_fralda) / (mediana.get(p.tamanho || "?") || Number(p.preco_por_fralda));
-  const promo = lista.filter((p) => noMinimo(p) || (p.desconto_pct ?? 0) >= 15 || score(p) <= 0.8);
+  const emPromo = (p: Any) => noMinimo(p) || (p.desconto_pct ?? 0) >= 15 || score(p) <= 0.8;
+  // 25/Nov TESTE (Bruno: "por favor", depois da análise Amazon × grupo de Fraldas): até 02/12 o grupo volta ao jeito da
+  // equipe de setembro, só Pampers e Huggies da Amazon/ML (a equipe postava ~10/dia, quase tudo Amazon, e a Amazon vendia
+  // 458 fraldas/mês; com 60/dia misturando lojas caiu pra ~6/dia). Em promoção primeiro, mas sem exigir promoção.
+  // Volume (12/dia, 1 por hora) fica na campanha. Desfazer: TESTE_FRALDAS_ATE = "" (ou esperar a data) + cap 70 / timer 10.
+  const teste = brtHoje() <= TESTE_FRALDAS_ATE;
+  const base = teste ? lista.filter((p) => ["amazon", "ml"].includes(p.marketplace) && /pampers|huggies/i.test(p.titulo || "")) : lista;
+  const promo = teste ? base : base.filter(emPromo);
 
   // sem repetir: produto postado pela campanha nos últimos 3 dias / mesmo título hoje
   const feitos = await jaDaCampanha(db, c.id, new Date(Date.now() - 3 * 86400_000).toISOString());
   const refs = new Set(feitos.map((o) => o.source_ref).filter(Boolean));
   const titulos = new Set(feitos.map((o) => chave(o.title)));
-  const cands = promo
+  let cands = promo
     .filter((p) => !refs.has(p.id) && !titulos.has(chave(p.titulo)))
-    .sort((a, b) => (Number(noMinimo(b)) - Number(noMinimo(a))) || score(a) - score(b));
+    .sort((a, b) => (Number(emPromo(b)) - Number(emPromo(a))) || (Number(noMinimo(b)) - Number(noMinimo(a))) || score(a) - score(b));
+  // no teste a lista é curta (~40 produtos): acabou o que não saiu em 3 dias, repete o que não saiu nas últimas 24 h
+  if (teste && cands.length < n) {
+    const dia = await jaDaCampanha(db, c.id, new Date(Date.now() - 86400_000).toISOString());
+    const refsDia = new Set(dia.map((o) => o.source_ref).filter(Boolean));
+    cands = [...cands, ...promo.filter((p) => refs.has(p.id) && !refsDia.has(p.id))];
+  }
 
   const ids: string[] = [];
   const tamanhosUsados = new Set<string>();
