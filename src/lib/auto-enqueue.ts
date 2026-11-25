@@ -365,7 +365,9 @@ export function ehDia1111(): boolean {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCMonth() === 10 && brt.getUTCDate() === 11;
 }
-const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? (ehDia1111() ? 25 : 10) : 15);
+// 25/Nov (planilha Hot Deals BF nos 4 perfis): fora das Maternas o teto vira ~30% do teto do grupo, até 15
+// (Lar/Mãe 40/dia → 12; Brunotropolis Ofertas 20 → 6; Brunotropolis Canal 4 → 1), pra exclusiva não tomar o grupo pequeno.
+const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? (ehDia1111() ? 25 : 10) : Math.max(1, Math.min(15, Math.round(c.auto_daily_cap * 0.3))));
 const EXCLUSIVA_GAP_MS = 20 * 60_000;
 const EXCLUSIVA_FIM_MARGEM_MS = 30 * 60_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

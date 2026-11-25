@@ -37,6 +37,7 @@ const UA = {
   "accept-language": "pt-BR,pt;q=0.9",
 };
 const TOLERANCIA = 1.03; // até 3% acima conta como "mesmo preço" (arredondamento, frete de centavos)
+const VARIACAO_MAX = 2.5; // Shopee: maior variação / menor acima disso = preço de isca
 const TETO_SUBIDA = 1.25; // acima disso a oferta acabou
 const ML_FRESCO_MS = 12 * 3600_000;
 
@@ -61,12 +62,12 @@ async function shopeeIds(o: OfertaPreco): Promise<RegExpMatchArray | null> {
   return null;
 }
 
-async function precoShopee(o: OfertaPreco): Promise<{ achou: boolean; preco: number | null }> {
+async function precoShopee(o: OfertaPreco): Promise<{ achou: boolean; preco: number | null; max?: number | null }> {
   const appId = process.env.SHOPEE_APP_ID, secret = process.env.SHOPEE_APP_SECRET;
   if (!appId || !secret) throw new Error("SHOPEE_APP_ID/SECRET ausentes");
   const m = await shopeeIds(o);
   if (!m) throw new Error("link Shopee sem shopId/itemId");
-  const body = JSON.stringify({ query: `{productOfferV2(shopId:${+m[1]},itemId:${+m[2]},limit:1){nodes{priceMin}}}` });
+  const body = JSON.stringify({ query: `{productOfferV2(shopId:${+m[1]},itemId:${+m[2]},limit:1){nodes{priceMin priceMax}}}` });
   const ts = Math.floor(Date.now() / 1000);
   const sig = crypto.createHash("sha256").update(`${appId}${ts}${body}${secret}`).digest("hex");
   const r = await fetch("https://open-api.affiliate.shopee.com.br/graphql", {
@@ -78,7 +79,7 @@ async function precoShopee(o: OfertaPreco): Promise<{ achou: boolean; preco: num
   if (j?.errors?.length) throw new Error("Shopee API: " + JSON.stringify(j.errors).slice(0, 120));
   const n = j?.data?.productOfferV2?.nodes?.[0];
   if (!n) return { achou: false, preco: null };
-  return { achou: true, preco: n.priceMin ? parseFloat(n.priceMin) : null };
+  return { achou: true, preco: n.priceMin ? parseFloat(n.priceMin) : null, max: n.priceMax ? parseFloat(n.priceMax) : null };
 }
 
 /** preço do ML pela página do produto: og:title "... - R$ 48,90" ou itemprop="price" */
@@ -128,6 +129,11 @@ export async function conferirPrecoAntesDePostar(db: DB, o: OfertaPreco): Promis
     } else if (plat === "shopee") {
       const s = await precoShopee(o);
       if (!s.achou) return { ok: false, loja: null, antes, motivo: "produto não está mais na Shopee (saiu do ar ou esgotou)" };
+      // 25/Nov (pente fino: lençol queen "R$ 12,40" no canal dos adultos, era a variação de R$ 12,40 a R$ 41,58):
+      // anúncio com variação 2,5x+ mais cara que o preço do post = o preço é de um tamanho/peça menor, não posta.
+      if (s.preco && s.max && s.max >= s.preco * VARIACAO_MAX) {
+        return { ok: false, loja: s.preco, antes, motivo: `preço é da variação mais barata (R$ ${s.preco} a R$ ${s.max})` };
+      }
       loja = s.preco;
     } else {
       const u = urlProdutoML(o);

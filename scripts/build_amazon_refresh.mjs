@@ -24,9 +24,9 @@ const jsCode = `// GERADO por ofertas-beta/scripts/build_amazon_refresh.mjs — 
 const h = this.helpers;
 const SECRET = ${JSON.stringify(ingestSecret)};
 const BASE = 'https://app.buscadorgeek.com.br/api/ingest/atualizar';
-// 09/Nov: os dois perfis (Ofertas Maternas + Buscador Geek); as ofertas exclusivas vêm junto até a janela fechar
+// 09/Nov: Ofertas Maternas + Buscador Geek; 25/Nov: + Lar e Mãe (exclusivas Hot Deals BF). Exclusivas vêm junto até a janela fechar
 const itens = [];
-for (const perfil of ['ofertas-maternas', 'buscador-geek']) {
+for (const perfil of ['ofertas-maternas', 'buscador-geek', 'ofertas-lar', 'ofertas-mae']) {
   const lista = await h.httpRequest({ url: BASE + '?perfil=' + perfil + '&dias=3', headers: { 'x-ingest-secret': SECRET }, json: true });
   itens.push(...((lista && lista.itens) || []));
 }
