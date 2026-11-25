@@ -32,6 +32,7 @@ interface OfertaG {
   price_current: number | null;
   price_original: number | null;
   discount_pct: number | null;
+  url?: string | null;
   ai_caption?: string | null;
   promo_meta?: Record<string, unknown> | null;
 }
@@ -118,12 +119,36 @@ export function codigoModelo(titulo: string | null | undefined): string | null {
   return null;
 }
 
+/** id do produto na loja (ASIN da Amazon, MLB do ML, item da Shopee): mesmo id = mesmo produto, sem depender do título */
+export function idProduto(url: string | null | undefined): string | null {
+  const u = url || "";
+  const m = u.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i) || u.match(/\b(MLB-?\d{6,})/i) || u.match(/[.\/](\d{6,}[.\/]\d{6,})(?:\?|$)/);
+  return m ? m[1].replace("-", "").replace("/", ".").toUpperCase() : null; // Shopee: "i.loja.item" e "/product/loja/item" viram o mesmo
+}
+
 async function precoNoBanco(db: SupabaseClient, o: OfertaG): Promise<{ codigo: string; max: number; n: number } | null> {
+  const desde = new Date(Date.now() - 60 * 86400_000).toISOString();
+  // 25/Nov (Bruno: Airfryer Philips "Por R$ 309,90 / Custa R$ 549,90", Google mostra R$ 267 a 361): o título do
+  // Telegram veio sem código de modelo, então a conferência pelo título não rodava. O id do produto na loja (ASIN)
+  // resolve: mesmo id = mesmo produto. Só conta se a gente acompanha o produto há 7+ dias (visto só agora na
+  // promoção não diz o preço normal: Kindle/iPhone com De verdadeiro seriam cortados).
+  const id = idProduto(o.url);
+  if (id) {
+    const { data } = await db.from("offers").select("url, price_current, created_at")
+      .ilike("url", `%${id.match(/\d{6,}$/)?.[0] ?? id}%`).not("price_current", "is", null).neq("id", o.id)
+      .gte("created_at", desde).limit(50);
+    const vistos = ((data ?? []) as { url: string; price_current: number; created_at: string }[])
+      .filter((x) => idProduto(x.url) === id && Number(x.price_current) > 0);
+    if (vistos.some((x) => Date.now() - Date.parse(x.created_at) > 7 * 86400_000)) {
+      const precos = vistos.map((x) => Number(x.price_current));
+      return { codigo: id, max: Math.max(...precos), n: precos.length };
+    }
+  }
   const codigo = codigoModelo(o.title);
   if (!codigo) return null;
   const { data } = await db.from("offers").select("id, title, price_current")
     .ilike("title", `%${codigo}%`).not("price_current", "is", null).neq("id", o.id)
-    .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).limit(50);
+    .gte("created_at", desde).limit(50);
   const precos = ((data ?? []) as { title: string; price_current: number }[])
     .filter((x) => codigoModelo(x.title) === codigo).map((x) => Number(x.price_current)).filter((v) => v > 0);
   if (precos.length < 2) return null; // 1 só pode ser outra variação/preço errado: precisa de 2+ pra confiar
