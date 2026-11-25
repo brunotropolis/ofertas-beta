@@ -16,14 +16,17 @@ const BABY = /beb[eê]|fralda|infantil|len[cç]os? umedecid|mamadeira|chupeta|ge
 const CUPOM_FORA = /\bmoda\b|beleza|decor|\bcasa\b|eletr[oô]n|celular|smartphone|perfum|\bpet\b|m[oó]veis|esporte|games?\b|inform[aá]tica|ferrament|automot|supermercado|bebidas?|vinho|cerveja|maquiagem|skincare|\btv\b|notebook/i;
 // 25/Nov (Bruno: "buscar cupons da magazine Luiza, Natura e outros que temos no telegram, já que agora vamos voltar a
 // postar"): o que não é de bebê mas é de casa vai pro grupo Ofertas Maternas para o Lar; beleza/autocuidado pro grupo da Mãe.
-const LAR_TG = /amaciante|sab[aã]o (em p[oó]|l[ií]quido)|lava[- ]?roupas?|detergente|desinfetante|[aá]gua sanit[aá]ria|limpador|multiuso|papel (higi[eê]nico|toalha)|panelas?\b|frigideira|potes? (herm[eé]tic|de vidro|de mantimento|organizador)|kit (de )?potes|air ?fryer|fritadeira|liquidificador|cafeteira|caf[eé] (em p[oó]|pil[aã]o|melitta|tr[eê]s cora)|\bcozinha\b|toalhas? de banho|len[cç]ol|edredom|travesseiro|organizador|aspirador|\bmop\b|vassoura|ferro de passar|utens[ií]lios?|garrafa t[eé]rmica|lavanderia|varal|\bcasa\b|decora/i;
+const LAR_TG = /amaciante|sab[aã]o (em p[oó]|l[ií]quido)|lava[- ]?roupas?|detergente|desinfetante|[aá]gua sanit[aá]ria|limpador|multiuso|papel (higi[eê]nico|toalha)|panelas?\b|frigideira|potes? (herm[eé]tic|de vidro|de mantimento|organizador)|kit (de )?potes|air ?fryer|fritadeira|liquidificador|cafeteira|caf[eé] (em p[oó]|pil[aã]o|melitta|tr[eê]s cora)|\bcozinha\b|toalhas? de banho|len[cç]ol|edredom|travesseiro|organizador|aspirador|\bmop\b|vassoura|ferro de passar|utens[ií]lios?|garrafa t[eé]rmica|lavanderia|varal|decora/i;
+// 25/Nov (Bruno: "no ofertas do lar foi um notebook?"): o post dizia "PRA TRABALHAR OU ESTUDAR EM CASA" e o "casa" solto
+// mandava pro Lar. Tirei o "casa" e eletrônico/informática nunca vai pro Lar (eletroportátil de cozinha segue).
+const NAO_LAR = /notebook|laptop|chromebook|macbook|computador|\bpc\b|monitor|celular|smartphone|iphone|galaxy|tablet|\bipad\b|smart ?tv|\btv\b|televis|console|playstation|\bps[45]\b|xbox|nintendo|placa de v[ií]deo|processador|\bssd\b|hd externo|mem[oó]ria ram|teclado|mouse|headset|fone de ouvido|caixa de som|smartwatch|rel[oó]gio inteligente|impressora|roteador|c[aâ]mera|drone|gamer/i;
 const MAE_TG = /shampoo|condicionador|m[aá]scara (capilar|de hidrata)|[oó]leo (capilar|corporal)|creme de pentear|cabelos?\b|maquiagem|batom|base l[ií]quida|corretivo|r[ií]mel|m[aá]scara de c[ií]lios|esmalte|\bunhas?\b|perfume|col[oô]nia|desodorante|hidratante|protetor solar|s[eé]rum|skin ?care|sabonete facial|body splash|secador|chapinha|escova secadora|depila|cadiveu|natura\b|botic[aá]rio|eudora|oc[eé]ane|nivea|dove\b|l'?or[eé]al|vult|ruby rose|\bbeleza\b|autocuidado/i;
 const NAO_MAE = /masculin|barba|barbear|\bhomem\b|\bmen\b|infantil|kids/i;
 const MAGALU_VITRINE = "https://www.magazinevoce.com.br/magazinemanualdorn/";
 // perfil de um post que não é de bebê: casa > Lar, beleza > Mãe, resto fica fora
 function perfilCasaOuBeleza(t) {
   if (MAE_TG.test(t) && !NAO_MAE.test(t)) return "ofertas-mae";
-  if (LAR_TG.test(t)) return "ofertas-lar";
+  if (LAR_TG.test(t) && !NAO_LAR.test(t)) return "ofertas-lar";
   return null;
 }
 // Post feito PRA AFILIADO (canais oficiais tipo @afiliadosshopeebroficial e "Crescendo com o Meli"): avisos do
