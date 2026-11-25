@@ -15,6 +15,12 @@ const num = (v: unknown) => (typeof v === "number" && isFinite(v) && v > 0 ? Mat
 
 export async function GET(request: Request) {
   if (!(await acessoPorToken(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // 25/Nov (Bruno: "tô vendo abrir vários links da magalu no meu navegador... pq não funciona como o mercado livre que
+  // roda em off?"): a leitura saiu da extensão (abria aba no Chrome dele) e foi pro leitor do PC sem navegador
+  // (campanhas/lar-mae/ml/leitor_magalu.mjs, lê a página da vitrine magazinevoce, que responde pro PC).
+  // Voltar pra extensão = LEITURA_PELA_EXTENSAO = true.
+  const LEITURA_PELA_EXTENSAO = false;
+  if (!LEITURA_PELA_EXTENSAO) return NextResponse.json({ pendentes: [] });
   const db = createAdminClient();
   const { data, error } = await db.from("magalu_produtos").select("sku, caminho")
     .eq("status", "pendente").lt("tentativas", MAX_TENTATIVAS).order("pedido_em", { ascending: false }).limit(20);
