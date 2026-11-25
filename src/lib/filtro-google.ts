@@ -13,6 +13,8 @@ export const FILTRO_GOOGLE = {
   DE_MAX: 1.8,
   /** "De" acima de 1,4x o MAIOR preço que já vimos do mesmo código de modelo (nosso banco, 60 dias) = De falso */
   DE_MAX_BANCO: 1.4,
+  /** "De" acima de 3x o "Por" (mais de 66% OFF) = De falso, sempre */
+  DE_MAX_ABSOLUTO: 3,
   /** "Por" acima de 1,5x o preço típico E acima de 1,8x o menor preço achado = não posta */
   POR_MAX_TIPICO: 1.5,
   POR_MAX_MENOR: 1.8,
@@ -76,9 +78,12 @@ export async function filtroGoogle(db: SupabaseClient, o: OfertaG): Promise<Resu
   // passar, mas no nosso banco o mesmo modelo estava a R$ 536 no ML, R$ 592 na Amazon, R$ 614 na Shopee).
   // Segunda conferência, sem Google: preço do MESMO código de modelo nas ofertas dos últimos 60 dias (qualquer loja).
   // "De" acima de 1,4x o maior preço que já vimos = De falso → sai sem De e sem % OFF.
+  // 25/Nov (pente fino: chapinha "de R$ 123 por R$ 21", garrafa "de R$ 116 por R$ 28", da Shopee): "De" acima de 3x
+  // o preço não é desconto de verdade, sai sem De e sem % OFF sem precisar pesquisar.
+  if (de && de > por * P.DE_MAX_ABSOLUTO) return tirarDe(db, o, de, `"De" R$ ${de} mais de ${P.DE_MAX_ABSOLUTO}x o preço: post sai sem o De`);
   if (de && de > por) {
     const nosso = await precoNoBanco(db, o);
-    if (nosso && de > nosso.max * P.DE_MAX_BANCO) return tirarDe(db, o, de, `"De" R$ ${de} inflado (modelo ${nosso.codigo} já visto até R$ ${nosso.max} em ${nosso.n} ofertas): post sai sem o De`);
+    if (nosso && de > Math.max(nosso.max, por) * P.DE_MAX_BANCO) return tirarDe(db, o, de, `"De" R$ ${de} inflado (modelo ${nosso.codigo} já visto até R$ ${nosso.max} em ${nosso.n} ofertas): post sai sem o De`);
   }
 
   const meta = (o.promo_meta ?? {}) as Record<string, unknown>;

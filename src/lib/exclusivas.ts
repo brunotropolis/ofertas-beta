@@ -48,8 +48,8 @@ export function lerPlanilha(buf: Buffer): LinhaExclusiva[] {
   const col = (re: RegExp, padrao: number) => { const i = cab.findIndex((c) => re.test(c)); return i >= 0 ? i : padrao; };
   const C = {
     di: col(/data.*in[ií]c/, 0), hi: col(/hora.*in[ií]c/, 1), df: col(/data.*(fin|fim)/, 2), hf: col(/hora.*(fin|fim)/, 3),
-    asin: col(/^asin/, 4), cat: col(/^categ/, 5), tit: col(/^(t[ií]tulo|produto|nome)/, 6), capa: col(/capa|^pre[çc]o original|^de/, 7),
-    promo: col(/^(promo|pre[çc]o promo|por)/, 8), desc: col(/^desconto/, 9),
+    asin: col(/^asin/, 4), cat: col(/^categ/, 5), tit: col(/^(t[ií]tulo|produto|nome)/, 6), capa: col(/capa|^pre[çc]o original|^de\b/, 7),
+    promo: col(/^(promo|pre[çc]o promo|por\b)/, 8), desc: col(/^desconto/, 9),
   };
   const out: LinhaExclusiva[] = [];
   for (const r of rows.slice(iCab + 1)) {

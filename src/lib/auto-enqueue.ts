@@ -21,6 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
+import { foraDoPerfil } from "@/lib/regras-perfil";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -274,6 +275,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const t = Math.max(total, 1); const tt = o.title || "";
     // 25/Nov (Bruno: "no brunotropolis quero que não poste brinquedos", depois de sair pista Hot Wheels F1 5Y+)
     if (c.perfil_id === PERFIL_GEEK && BRINQUEDO_GEEK.test(tt)) return false;
+    // 25/Nov (Bruno: "aplica a correção em tudo"): regra única do perfil, igual nos grupos e canais (regras-perfil.ts)
+    if (o.kind !== "cupom" && foraDoPerfil(c.perfil_id, tt)) return false;
     if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;

@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { foraDoPerfil } from "@/lib/regras-perfil";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -223,7 +224,7 @@ const PERFIL_ID = {
   mae: "aa6b7dcb-11c6-4e8f-bcab-5965ec51462d",
   geek: "f3887ae2-7b2c-462b-8984-e1e6618a0ba6",
 };
-const CRIANCA = /beb[eê]|infantil|crian[cç]a|\bkids?\b|\brn\b|rec[eé]m[- ]nascid|fralda|maternidade|chupeta|mamadeira/i;
+const CRIANCA = /beb[eê]|infantil|crian[cç]a|\bkids?\b|\brn\b|rec[eé]m[- ]nascid|fralda|maternidade|chupeta|mamadeira|ber[cç]o/i; // 25/Nov: "berço" conta (lençol "Berço Solteiro Casal" saiu no canal dos adultos)
 const DECOR = /decora|almofada|\bvaso|quadro|lumin[aá]ria|abajur|tapete (de sala|decorativo|felpudo|para sala|para quarto)|cortina|\bvela|aromatiz|difusor|espelho|porta[- ]retrato|cachep[oô]|planta|ta[cç]as?\b|jogo americano|toalha de mesa|manta|cobertor|edredom|len[cç]ol|organizador de (maquiagem|joias|bijuterias|acess[oó]rios)|cesto|bandeja|rel[oó]gio de parede|enfeite|fita de led/i;
 const LIMPEZA = /sab[aã]o|amaciante|detergente|desinfetante|[aá]gua sanit[aá]ria|alvejante|papel higi[eê]nico|lava[- ]?roupas?|limpador|multiuso|tira ?manchas|esponja|saco de lixo|inseticida|veneno|ra[cç][aã]o|\bmop\b|\brod(o|inho)\b|esfreg|vassoura|balde|papel toalha|limpa ?vidros?|escorredor|m[aá]quina de lavar|porta ovos|\bovos\b/i;
 const GAMER = /\bgam(e|er|ing)s?\b|console|playstation|\bps[345]\b|xbox|nintendo|\bswitch\b|joystick|controle (sem fio )?(ps|xbox|para (ps|xbox|switch))|headset gamer|cadeira gamer|funko|action figure|colecion[aá]vel|est[aá]tua|mang[aá]\b|\bhq\b|card ?game|pok[eé]mon|\brpg\b|cosplay|miniatura|boneco|figure|figura de a[cç][aã]o|dragon ball|one piece|naruto|pel[uú]cia/i;
@@ -253,7 +254,8 @@ async function escolherCanal(db: DB, c: Camp, n: number): Promise<string[]> {
       .eq("perfil_id", f.perfil).eq("kind", "produto").in("source", ["auto", "telegram"])
       .not("image_url", "is", null).not("affiliate_url", "is", null).not("price_current", "is", null)
       .gte("created_at", desde).order("discount_pct", { ascending: false, nullsFirst: false }).limit(800);
-    listas.push(((data ?? []) as Any[]).filter((o) => o.title && !f.fora.test(o.title) && (!f.entra || f.entra.test(o.title))));
+    // 25/Nov: o canal também passa pela regra do perfil de onde a oferta vem (a mesma dos grupos, regras-perfil.ts)
+    listas.push(((data ?? []) as Any[]).filter((o) => o.title && !f.fora.test(o.title) && (!f.entra || f.entra.test(o.title)) && !foraDoPerfil(f.perfil, o.title)));
   }
   const ids: string[] = [];
   const pos = listas.map(() => 0);
