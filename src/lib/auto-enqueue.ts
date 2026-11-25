@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
+import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -91,6 +92,10 @@ const META_ML = 0.45;
 const META_AMAZON = 0.33;
 // 20/Nov: Magalu entra nas Maternas (vitrine da Day, link sem API). Só aparece depois que o Chrome leu foto e preço.
 const META_MAGALU = 0.10;
+// 25/Nov (Bruno: "pode colocar Magalu para rodar novamente nos grupos de ofertas mas coloca nos grupos de lar"):
+// no grupo do Lar a Magalu vira 30% (era o que a equipe postava de Magalu: lavanderia, cozinha, casa).
+const PERFIL_LAR = "9b2a012e-4d44-41b3-8f1c-896c55c57d18";
+const metaMagalu = (perfil: string | null) => (perfil === PERFIL_LAR ? 0.30 : META_MAGALU);
 const CANAL_REF = "@promocaozinha"; // canal do Telegram mais parecido com o grupo real
 const CANAL_FRESCO_MS = 6 * 3600_000; // item do canal vale se chegou nas últimas 6h (canal parado → cai nos coletores)
 const isFralda = (t: string | null) => /\bfralda/i.test(t || "");
@@ -268,8 +273,24 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
+    if (o.platform === "magalu" && !magaluFresca.has(skuMagalu(o) ?? "")) return false;
     return true;
   };
+  // 25/Nov: Magalu só entra com leitura do Chrome fresca (o dispatcher recusa leitura de mais de 12h e o post se
+  // perde); as que faltam ganham pedido de leitura (15 por rodada) e entram nas próximas rodadas.
+  const skuMagalu = (o: Cand) => caminhoDaUrl(o.url ?? "")?.sku ?? null;
+  const magaluFresca = new Set<string>();
+  const candMagalu = [...poolCanal, ...poolCol].filter((o) => o.platform === "magalu");
+  if (candMagalu.length) {
+    const skus = [...new Set(candMagalu.map(skuMagalu).filter(Boolean))] as string[];
+    const { data: lidas } = await db.from("magalu_produtos").select("sku, disponivel")
+      .in("sku", skus.slice(0, 300)).eq("status", "ok").gte("lido_em", new Date(Date.now() - 10 * 3600_000).toISOString());
+    for (const l of (lidas ?? []) as { sku: string; disponivel: boolean | null }[]) if (l.disponivel !== false) magaluFresca.add(l.sku);
+    for (const o of candMagalu.filter((x) => !magaluFresca.has(skuMagalu(x) ?? "")).slice(0, 15)) {
+      const cm = caminhoDaUrl(o.url ?? "");
+      if (cm) await pedirLeituraMagalu(db, cm.sku, cm.caminho);
+    }
+  }
   const pega = (pred: (o: Cand) => boolean): Cand | null => {
     // data dupla: alterna Telegram e coletores (quem tem menos posts hoje vai primeiro)
     const ordem = dupla && nAuto < nTele ? [poolCol, poolCanal] : [poolCanal, poolCol];
@@ -304,7 +325,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
     if (!o && nLenco / t < META_LENCO) o = pega((x) => LENCO.test(x.title || ""));
     if (!o && shopees / t < metaShopee1111) o = pega((x) => x.platform === "shopee");
-    if (!o && magalus / t < META_MAGALU) o = pega((x) => x.platform === "magalu");
+    if (!o && magalus / t < metaMagalu(c.perfil_id)) o = pega((x) => x.platform === "magalu");
     if (!o && mls / t < META_ML && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
     if (!o && mls / t < META_ML) o = pega((x) => x.platform === "ml");
     if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
