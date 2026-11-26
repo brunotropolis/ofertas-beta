@@ -21,7 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
-import { foraDoPerfil } from "@/lib/regras-perfil";
+import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,9 +74,15 @@ function brtHour(): number {
 const META_FRALDA = 0.13;
 const TETO_FRALDA = 0.15;
 const FRALDA_BOA = /huggies|pampers/i;
-const META_SAUDE = 0.10;
+// 26/Nov (estudo produtos, Bruno: "pode aplicar as 5"): saúde era 10% (com Bepantol/assadura dentro) e os aparelhos
+// (termômetro, aspirador nasal, umidificador) chegaram a 5% dos posts contra ~1% da equipe. Meta 6% + teto de aparelho 3%.
+const META_SAUDE = 0.06;
+const SAUDE_APAR = /aspirador nasal|sugador|term[oô]metro|nebuliz|inalador|umidificador|seringa|lavagem nasal|soro fisiol/i;
+const TETO_SAUDE_APAR = 0.03;
 const SAUDE = /aspirador nasal|sugador nasal|term[oô]metro|nebuliz|inalador|esteriliz|aquecedor de mamadeira|umidificador|bepantol|pomada|assadura|desitin|weleda|hipogl|bab[aá] eletr|monitor de beb|ru[ií]do branco/i;
-const META_LENCO = 0.06;
+// 26/Nov: lenço/algodão foi a 12% dos posts (equipe 3–5%, e vendia igual). Meta 4% e teto 5% (vale também pro campeão).
+const META_LENCO = 0.04;
+const TETO_LENCO = 0.05;
 const LENCO = /len[çc]os? umedecid|toalhas? umedecid/i;
 const TETO_AMAMENTA = 0.06;
 const AMAMENTA = /mamadeira|bomba (de |tira )|tira ?leite|extrator|amamenta|chupeta|mordedor|copo de transi|prato|potinho|babador|cadeira de alimenta/i;
@@ -90,6 +96,27 @@ const GADGET = /bab[aá] eletr|air ?fryer|fritadeira|aspirador nasal|sugador nas
 /** tipo do aparelho (1ª palavra do que casou: "termometro", "baba", "air"...) — não repetir o mesmo tipo no dia */
 const tipoGadget = (t: string | null) => ((t || "").match(GADGET)?.[0] || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/\s+/)[0].replace(/^air$/, "fritadeira").replace(/^sugador$/, "aspirador");
 const ehGadget = (t: string | null) => !!t && GADGET.test(t) && !GEEK_SO_GEEK_RE.test(t);
+// 26/Nov (estudo produtos): o que a equipe postava e o robô parou. Só na geral das Maternas.
+//  - enxoval e equipamento de marca conhecida (cadeirão, carrinho, berço, babá, banheira, bomba, mamadeira, roupa):
+//    ~20% dos posts. A equipe tinha 15% e essa família chegou a 19% da comissão em agosto.
+//  - Natura (loja da Day): a equipe postava ~3%; hoje entrava quase nunca (sem meta).
+//  - leite, fórmula, papinha: equipe ~2%, robô 0,2%.
+//  - Shopee: teto 10% (foi a 18%), e genérico sem marca abaixo de R$ 20 só com nota ≥4,8 e 1.000+ vendidos.
+const META_EQUIP = 0.20;
+const META_NATURA = 0.04;
+const META_ALIMENTA = 0.02;
+const TETO_SHOPEE = 0.10;
+const ehEquipBom = (o: { title?: string | null; price_current?: number | null }) => { const t = o.title || ""; const p = o.price_current ?? 0; return EQUIP.test(t) && MARCA_BOA.test(t) && p >= 30 && p <= 800; };
+const ehEquipOk = (o: { title?: string | null; price_current?: number | null; platform?: string | null }) => { const t = o.title || ""; const p = o.price_current ?? 0; return EQUIP.test(t) && p >= 100 && p <= 800 && o.platform !== "shopee"; };
+const ehEquip = (o: { title?: string | null; price_current?: number | null; platform?: string | null }) => ehEquipBom(o) || ehEquipOk(o);
+const ehNatura = (o: { url?: string | null; affiliate_url?: string | null }) => /natura\.com/i.test(`${o.url ?? ""} ${o.affiliate_url ?? ""}`);
+/** "+8,2 mil" > 8200 · "+500" > 500 */
+const vendidosNum = (v: unknown) => { const s = String(v ?? "").toLowerCase().replace(/\+/g, "").trim(); const n = parseFloat(s.replace(/\.(?=\d{3})/g, "").replace(",", ".")); return Number.isFinite(n) ? (/mil/.test(s) ? n * 1000 : n) : 0; };
+const genericoShopee = (o: Cand) => {
+  if (o.platform !== "shopee" || (o.price_current ?? 0) >= 20 || MARCA_BOA.test(o.title || "")) return false;
+  const pm = (o.promo_meta ?? {}) as Record<string, unknown>;
+  return !(Number(pm.rating ?? 0) >= 4.8 && vendidosNum(pm.vendidos) >= 1000);
+};
 const META_ML = 0.45;
 const META_AMAZON = 0.33;
 // 20/Nov: Magalu entra nas Maternas (vitrine da Day, link sem API). Só aparece depois que o Chrome leu foto e preço.
@@ -191,6 +218,11 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nAmamenta = feitos.filter((o) => AMAMENTA.test(o.title || "")).length;
   let nBrinq = feitos.filter((o) => BRINQUEDO.test(o.title || "")).length;
   let nGadget = feitos.filter((o) => ehGadget(o.title)).length;
+  let nEquip = feitos.filter((o) => ehEquip(o)).length;
+  let nNatura = feitos.filter((o) => ehNatura(o)).length;
+  let nAlimenta = feitos.filter((o) => ALIMENTA.test(o.title || "")).length;
+  let nSaudeApar = feitos.filter((o) => SAUDE_APAR.test(o.title || "")).length;
+  const maternas = c.perfil_id === PERFIL_MATERNAS;
   const tiposGadget = new Set(feitos.filter((o) => ehGadget(o.title)).map((o) => tipoGadget(o.title)));
   // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
   const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
@@ -286,6 +318,11 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
+    if (maternas && o.kind !== "cupom") {
+      if (LENCO.test(tt) && nLenco / t >= TETO_LENCO) return false;
+      if (SAUDE_APAR.test(tt) && nSaudeApar / t >= TETO_SAUDE_APAR) return false;
+      if (o.platform === "shopee" && (shopees / t >= TETO_SHOPEE || genericoShopee(o))) return false;
+    }
     if (o.platform === "magalu" && !magaluFresca.has(skuMagalu(o) ?? "")) return false;
     return true;
   };
@@ -334,6 +371,9 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       if (!o) { const i = poolGadgetGeek.findIndex((x) => !jaFoi(x)); if (i >= 0) o = poolGadgetGeek.splice(i, 1)[0]; }
       if (o) tiposGadget.add(tipoGadget(o.title));
     }
+    if (!o && maternas && nEquip / t < META_EQUIP) o = pega(ehEquipBom) ?? pega(ehEquipOk);
+    if (!o && maternas && nNatura / t < META_NATURA) o = pega(ehNatura);
+    if (!o && maternas && nAlimenta / t < META_ALIMENTA) o = pega((x) => ALIMENTA.test(x.title || ""));
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
     if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
     if (!o && nLenco / t < META_LENCO) o = pega((x) => LENCO.test(x.title || ""));
@@ -352,7 +392,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const pid = idProduto(o.url);
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
-    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; }
+    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; if (ehEquip(o)) nEquip++; if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++; if (o.platform === "magalu") magalus++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;

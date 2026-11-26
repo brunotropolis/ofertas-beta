@@ -14,9 +14,12 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const LOMADEE_CANAL = "manualdorecemnascido";
 // só as marcas que trazem desconto no catálogo (24/11: Karsten, Arno, Granado, L'Occitane vieram sem nenhum)
 const MARCAS_AWIN = { lar: /tok ?& ?stok/i, mae: /^natura|oceane/i };
-const FORA = { lar: /beb[eê]|infantil|crian[cç]a|maquiag|perfume|batom|esmalte/i, mae: /beb[eê]|infantil|crian[cç]a|kids|masculin|barba|\bhomem\b|refil vazio/i };
+// 26/11 (estudo produtos, Bruno: "pode aplicar as 5"): Magalu também nas Maternas (equipe postava 8-10% de Magalu+Natura;
+// o robô 0%). Só a busca da vitrine, com palavras de enxoval/equipamento/rotina de bebê (marca boa primeiro).
+const PALAVRAS_MATERNAS = ["cadeira de alimentação bebê", "carrinho de bebê", "babá eletrônica", "berço portátil", "banheira bebê", "bomba tira leite", "mamadeira avent", "kit higiene bebê", "body bebê", "fralda pampers", "fralda huggies", "lenço umedecido pampers", "leite ninho", "fórmula infantil", "bebê conforto", "cadeirinha carro bebê", "sabão bebê", "esterilizador mamadeira", "tapete de atividades bebê", "cercadinho bebê"];
+const FORA = { maternas: /adulto|masculin|\bhomem\b|\bpet\b/i, lar: /beb[eê]|infantil|crian[cç]a|maquiag|perfume|batom|esmalte/i, mae: /beb[eê]|infantil|crian[cç]a|kids|masculin|barba|\bhomem\b|refil vazio/i };
 const quais = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const grupos = quais.length ? quais : ["lar", "mae"];
+const grupos = quais.length ? quais : ["lar", "mae", "maternas"];
 const sorteia = (l, n) => [...l].sort(() => Math.random() - 0.5).slice(0, n);
 const num = (s) => { const n = parseFloat(String(s ?? "").replace(",", ".")); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null; };
 const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -91,8 +94,9 @@ async function magalu(g, palavras) {
 
 for (const g of grupos) {
   const perfil = `ofertas-${g}`;
-  const palavras = (await (await fetch(`${APP}/api/keywords/collector?slug=${perfil}`, { headers: { "x-ingest-secret": SEC } })).json()).keywords || [];
-  const itens = [...(await awin(g)), ...(await lomadee(g, palavras)), ...(await magalu(g, palavras))].filter((p) => p.titulo && !FORA[g].test(p.titulo));
+  const palavras = g === "maternas" ? PALAVRAS_MATERNAS : (await (await fetch(`${APP}/api/keywords/collector?slug=${perfil}`, { headers: { "x-ingest-secret": SEC } })).json()).keywords || [];
+  const fontes = g === "maternas" ? [...(await magalu(g, palavras))] : [...(await awin(g)), ...(await lomadee(g, palavras)), ...(await magalu(g, palavras))];
+  const itens = fontes.filter((p) => p.titulo && !FORA[g].test(p.titulo));
   const tot = {};
   for (const p of itens) {
     const k = p.loja.split(" ·")[0];

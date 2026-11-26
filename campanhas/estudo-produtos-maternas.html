@@ -1,0 +1,215 @@
+<title>Prateleira das Ofertas Maternas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: leitura em coluna; cada bloco compara "equipe (abr/jul/ago)" x "robô (12-25/11)". Cor: equipe = azul-petróleo, robô = coral. */
+:root{
+  --bg:#f7f6f2; --surface:#ffffff; --ink:#22262a; --muted:#646c72; --line:#e2e0d9;
+  --eq:#2c6e7f; --eq-soft:#dcebee; --rb:#d0583c; --rb-soft:#f7e0d8; --ok:#3d7a4a; --ok-soft:#dfeee2;
+  --display:"Fraunces",Georgia,serif; --body:"Plus Jakarta Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15181a; --surface:#1d2124; --ink:#e8ebe9; --muted:#9aa3a8; --line:#2d3337;
+  --eq:#6fb6c8; --eq-soft:#1d3439; --rb:#ff8f72; --rb-soft:#432820; --ok:#7fc58f; --ok-soft:#1f3524; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15181a; --surface:#1d2124; --ink:#e8ebe9; --muted:#9aa3a8; --line:#2d3337;
+  --eq:#6fb6c8; --eq-soft:#1d3439; --rb:#ff8f72; --rb-soft:#432820; --ok:#7fc58f; --ok-soft:#1f3524; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px;display:flex;flex-direction:column;gap:46px}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.12;text-wrap:balance}
+h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:25px;font-weight:700}
+h3{font-size:18px;font-weight:500}
+p{margin:0;max-width:68ch}
+.eyebrow{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lead{font-size:18px;color:var(--muted)}
+section{display:flex;flex-direction:column;gap:16px}
+.key{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.k{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.k b{font-family:var(--display);font-size:20px;font-weight:700;line-height:1.2}
+.k span{color:var(--muted);font-size:14px}
+.pill{align-self:flex-start;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 9px;border-radius:99px}
+.p-ok{background:var(--ok-soft);color:var(--ok)} .p-rb{background:var(--rb-soft);color:var(--rb)} .p-eq{background:var(--eq-soft);color:var(--eq)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.bars{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.row{display:grid;grid-template-columns:minmax(150px,240px) 1fr;gap:6px 16px;align-items:center}
+.row .lab{font-size:14px;font-weight:600}
+.row .lab small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.track{display:flex;flex-direction:column;gap:4px;min-width:0}
+.b{height:14px;border-radius:4px;position:relative;min-width:2px}
+.b.eq{background:var(--eq)} .b.rb{background:var(--rb)}
+.bv{display:flex;align-items:center;gap:8px;font:12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+@media (max-width:560px){.row{grid-template-columns:1fr}}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:15px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line)}
+th{font:600 12px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.n{font-family:var(--mono)}
+td.rb{color:var(--rb);font-weight:600}
+tr:last-child td{border-bottom:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:700px){.cols{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:14px}
+.card.eqc{border-top:4px solid var(--eq)} .card.rbc{border-top:4px solid var(--rb)}
+.rec{display:flex;flex-direction:column;gap:12px}
+.r{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+.r .num{font-family:var(--display);font-size:28px;font-weight:700;color:var(--eq);line-height:1;grid-row:span 3}
+.r h3{font-size:19px}
+.r p{color:var(--muted);font-size:15px}
+.r .how{font:13px var(--mono);color:var(--ink);background:var(--eq-soft);border-radius:8px;padding:6px 10px;justify-self:start}
+.note{font-size:14px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:12px">
+    <span class="eyebrow">Ofertas Maternas · grupo #5 · estudo de 26/11/2026</span>
+    <h1>O que a equipe postava e o que o robô posta hoje</h1>
+    <p class="lead">5.870 posts lidos com o mesmo critério: 5.085 da equipe (abril, julho e agosto) e 785 do robô (12 a 25/11), cruzados com a comissão de cada mês. Só análise, nada foi mudado.</p>
+  </header>
+
+  <section>
+    <h2>O resumo</h2>
+    <div class="key">
+      <div class="k"><span class="pill p-eq">igual</span><b>O volume é o mesmo</b><span>63 a 69 posts por dia útil nas duas épocas. No fim de semana, o robô faz 25; a equipe fazia 17 a 24 (49 em abril).</span></div>
+      <div class="k"><span class="pill p-rb">mudou</span><b>Metade é produto de rotina</b><span>Fralda, lenço, assadura, banho e saúde viraram 49% dos posts (a equipe ficava entre 36% e 42%). Só o lenço foi de 3–5% pra 12%.</span></div>
+      <div class="k"><span class="pill p-rb">mudou</span><b>A variedade encolheu</b><span>Enxoval, rotina e "outros" caíram de 35–39% pra 28% dos posts. Essa fatia trazia de 35% a 40% da comissão.</span></div>
+      <div class="k"><span class="pill p-rb">mudou</span><b>Equipamento ficou nos extremos</b><span>A equipe postava carrinho, cadeirão e berço de R$ 200 a 800 de marca conhecida. O robô posta R$ 1.200+ (exclusivas da Black) ou genérico.</span></div>
+      <div class="k"><span class="pill p-rb">mudou</span><b>Shopee dobrou, Magalu e Natura sumiram</b><span>Shopee foi de 9–11% pra 18%, com muito item barato sem marca. Magalu e Natura eram 8–10% e hoje são 0%.</span></div>
+      <div class="k"><span class="pill p-eq">igual</span><b>O ticket mediano é o mesmo</b><span>R$ 46 a 50 nas duas épocas. O que mudou é a forma: o robô tem menos item de R$ 60 a 300.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>O que entra na prateleira</h2>
+    <p>Fatia de cada família nos posts. Equipe é a média de abril, julho e agosto.</p>
+    <div class="bars" id="familias"></div>
+    <div class="legend"><span><i style="background:var(--eq)"></i>equipe (abr, jul, ago)</span><span><i style="background:var(--rb)"></i>robô (12 a 25/11)</span></div>
+  </section>
+
+  <section>
+    <h2>Item por item</h2>
+    <p>Posts a cada 100 produtos. Os que você citou (babá, cadeirão) e o que mais mudou.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Tipo de produto</th><th class="n">Abril</th><th class="n">Julho</th><th class="n">Agosto</th><th class="n">Robô</th><th>Leitura</th></tr></thead>
+      <tbody>
+        <tr><td>Cadeirão de alimentação</td><td class="n">1,7</td><td class="n">1,5</td><td class="n">1,7</td><td class="n rb">0,3</td><td>caiu 5 vezes</td></tr>
+        <tr><td>Leite, fórmula, papinha</td><td class="n">1,9</td><td class="n">1,9</td><td class="n">2,1</td><td class="n rb">0,2</td><td>quase sumiu</td></tr>
+        <tr><td>Carrinho / travel system</td><td class="n">3,6</td><td class="n">2,3</td><td class="n">2,6</td><td class="n rb">1,8</td><td>caiu e ficou caro</td></tr>
+        <tr><td>Mamadeira, copo, prato</td><td class="n">5,7</td><td class="n">3,4</td><td class="n">4,7</td><td class="n">3,8</td><td>um pouco menos</td></tr>
+        <tr><td>Roupa e enxoval têxtil</td><td class="n">5,6</td><td class="n">5,3</td><td class="n">6,6</td><td class="n">5,4</td><td>igual</td></tr>
+        <tr><td>Berço, moisés, cercadinho</td><td class="n">4,3</td><td class="n">3,2</td><td class="n">3,4</td><td class="n">4,8</td><td>igual</td></tr>
+        <tr><td>Babá eletrônica</td><td class="n">1,1</td><td class="n">1,0</td><td class="n">0,8</td><td class="n">2,6</td><td>mais, mas de R$ 1.200+</td></tr>
+        <tr><td>Lenço e algodão</td><td class="n">3,1</td><td class="n">4,8</td><td class="n">3,8</td><td class="n rb">12,0</td><td>3 vezes mais</td></tr>
+        <tr><td>Saúde (termômetro, aspirador nasal)</td><td class="n">1,3</td><td class="n">1,2</td><td class="n">0,9</td><td class="n rb">5,3</td><td>4 vezes mais</td></tr>
+        <tr><td>Fralda</td><td class="n">23,4</td><td class="n">23,4</td><td class="n">20,8</td><td class="n">19,4</td><td>parecido (só premium)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>O mesmo tipo de produto, perfis diferentes</h2>
+    <div class="cols">
+      <div class="card eqc"><span class="pill p-eq">Equipe · julho e agosto</span>
+        <ul>
+          <li>Cadeira de refeição Burigotto Poke, R$ 219</li>
+          <li>Cadeira de alimentação Harmony Maxi Baby, R$ 229</li>
+          <li>Babá eletrônica Zoom Baby On Maxi Baby, R$ 186</li>
+          <li>Babá Motorola VM483, R$ 340</li>
+          <li>Carrinho Spot Voyage, R$ 669</li>
+          <li>Travel System Cosco Reverse Duo, R$ 750</li>
+          <li>Cadeira de balanço Happyful Clingo, R$ 394</li>
+          <li>Pacote com 5 bodies Carter's, R$ 123</li>
+          <li>Kit sabonete Natura Mamãe e Bebê</li>
+        </ul>
+      </div>
+      <div class="card rbc"><span class="pill p-rb">Robô · 12 a 25/11</span>
+        <ul>
+          <li>Babá eletrônica Maxi-Cosi See Pro, R$ 1.559</li>
+          <li>Babá eletrônica Philips Avent, R$ 1.203</li>
+          <li>Carrinho Infanti Romanzo Travel System, R$ 1.694</li>
+          <li>Cadeirinha Safety 1st i-NXT, R$ 1.257</li>
+          <li>Barbie Casa dos Sonhos, R$ 750 (já barrada)</li>
+          <li>Geleca slime kit festa, R$ 23</li>
+          <li>Seringa aspirador nasal, R$ 7,95</li>
+          <li>Toalha umedecida genérica 96 un., R$ 14</li>
+          <li>Pampers Premium Care Pants (14 vezes em 2 semanas)</li>
+        </ul>
+      </div>
+    </div>
+    <p>Quanto ao total de marcas, não houve queda: de 14% a 16% dos posts têm marca premium nas duas épocas. O que sumiu foi a faixa do meio, as marcas de equipamento que a mãe conhece e compra (Burigotto, Galzerano, Cosco, Kiddo, Maxi Baby, Voyage, Clingo, Mastela). O robô pula direto pro topo (Maxi-Cosi, Chicco, Philips) ou pro genérico.</p>
+  </section>
+
+  <section>
+    <h2>Ticket e loja</h2>
+    <div class="tablebox"><table>
+      <thead><tr><th>Medida</th><th class="n">Abril</th><th class="n">Julho</th><th class="n">Agosto</th><th class="n">Robô</th></tr></thead>
+      <tbody>
+        <tr><td>Preço mediano do post</td><td class="n">R$ 50</td><td class="n">R$ 46</td><td class="n">R$ 47</td><td class="n">R$ 50</td></tr>
+        <tr><td>Posts de R$ 60 a 300</td><td class="n">35%</td><td class="n">32%</td><td class="n">31%</td><td class="n rb">31%</td></tr>
+        <tr><td>Posts de R$ 300 ou mais</td><td class="n">7%</td><td class="n">6%</td><td class="n">7%</td><td class="n rb">10%</td></tr>
+        <tr><td>Shopee</td><td class="n">9%</td><td class="n">11%</td><td class="n">11%</td><td class="n rb">18%</td></tr>
+        <tr><td>Magalu e Natura</td><td class="n">8%</td><td class="n">10%</td><td class="n">10%</td><td class="n rb">0%</td></tr>
+        <tr><td>Marca mais postada</td><td class="n">Huggies 8%</td><td class="n">Huggies 8%</td><td class="n">Huggies 7%</td><td class="n rb">Pampers 16%</td></tr>
+        <tr><td>Comissão do mês (conta inteira)</td><td class="n">R$ 16,2 mil</td><td class="n">R$ 19,9 mil</td><td class="n">R$ 18,2 mil</td><td class="n rb">R$ 14,4 mil (nov)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Como melhorar</h2>
+    <div class="rec">
+      <div class="r"><span class="num">1</span><h3>Dar uma cota pra "enxoval e equipamento de marca conhecida"</h3>
+        <p>Cerca de 20% dos posts pra cadeirão, carrinho, berço, babá, banheira, bomba, mamadeira e roupa, na faixa de R$ 100 a 800, com marca da lista boa (Burigotto, Galzerano, Cosco, Kiddo, Maxi Baby, Voyage, Safety 1st, Chicco, Fisher-Price, Clingo, Motorola, Avent). Na época da equipe, essa família era 15% dos posts e chegou a 19% da comissão em agosto.</p>
+        <span class="how">nova meta no publicador + lista de marcas boas</span></div>
+      <div class="r"><span class="num">2</span><h3>Diminuir lenço e saúde</h3>
+        <p>Lenço de 12% pra uns 5% e saúde de 5% pra 2%. Hoje os dois têm meta própria (6% e 10%) e ainda entram pelos campeões, por isso passam do ponto. A equipe vendia lenço postando 4%.</p>
+        <span class="how">baixar META_LENCO e META_SAUDE, tirar lenço repetido dos campeões</span></div>
+      <div class="r"><span class="num">3</span><h3>Segurar o genérico barato da Shopee</h3>
+        <p>Shopee de volta pra uns 10%, e produto sem marca abaixo de R$ 20 só com nota alta e muitas vendas. É de onde vêm geleca, seringa de R$ 7,95 e toalha umedecida genérica.</p>
+        <span class="how">teto de Shopee + filtro de nota e vendidos</span></div>
+      <div class="r"><span class="num">4</span><h3>Trazer de volta Natura, Magalu e alimentação</h3>
+        <p>Kits Natura Mamãe e Bebê, sabão e amaciante da Magalu, leite Ninho e fórmula. Eram de 8% a 10% dos posts da equipe e hoje são quase zero. A Magalu já tem meta de 10% nas Maternas, mas só sai quando o Chrome lê o preço; o leitor de Magalu sem navegador, de 25/11, deveria destravar isso.</p>
+        <span class="how">conferir por que a Magalu não sai + fonte de Natura</span></div>
+      <div class="r"><span class="num">5</span><h3>Buscar equipamento de propósito</h3>
+        <p>O robô só posta o que os canais do Telegram e os coletores trazem, e eles quase não trazem cadeirão ou carrinho de faixa média. Uma busca diária por palavra (cadeirão, carrinho, babá eletrônica, berço portátil, banheira) no Mercado Livre e na Amazon, já filtrada pelas marcas boas, abastece a cota do item 1.</p>
+        <span class="how">coletor por palavra-chave e marca</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Limites deste estudo</h2>
+    <ul class="plain">
+      <li>O tipo e a marca saem do nome do produto, por regra de texto: é aproximado. "Outros" junta o que nenhuma regra pegou (cerca de 15% a 20%).</li>
+      <li>A época do robô é curta (2 semanas) e caiu na Black: ela puxa as exclusivas caras (babá de R$ 1.559, cadeirinhas de R$ 1.200+).</li>
+      <li>Na comissão da época do robô, a Amazon fica de fora: o relatório mensal da Amazon não separa a quinzena. A comparação de venda por família é só com ML e Shopee nesse período.</li>
+      <li>É o grupo #5. A equipe postava igual em todos, mas não conferi post a post.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(function(){
+  var F=[
+    ["Rotina","fralda, lenço, assadura, banho, saúde",[36.4,42.5,38.3],48.8],
+    ["Equipamento","babá, cadeirão, carrinho, berço, banheira, móveis",[17.5,14.4,15.0],16.0],
+    ["Enxoval e rotina do bebê","roupa, mamadeira, amamentação, alimentação",[19.1,15.3,17.9],13.8],
+    ["Variados","o que não cai nas outras",[20.1,19.7,20.9],14.5],
+    ["Brinquedo e livro","",[5.6,4.7,5.4],5.0],
+    ["Casa e limpeza","",[1.5,3.3,2.7],2.0]
+  ];
+  var box=document.getElementById('familias'),max=50;
+  F.forEach(function(f){
+    var eq=(f[2][0]+f[2][1]+f[2][2])/3;
+    var row=document.createElement('div');row.className='row';
+    row.innerHTML='<div class="lab">'+f[0]+(f[1]?'<small>'+f[1]+'</small>':'')+'</div>'+
+      '<div class="track"><div class="bv"><div class="b eq" style="width:'+(eq/max*85)+'%"></div>'+eq.toFixed(1).replace('.',',')+'%</div>'+
+      '<div class="bv"><div class="b rb" style="width:'+(f[3]/max*85)+'%"></div>'+String(f[3]).replace('.',',')+'%</div></div>';
+    box.appendChild(row);
+  });
+})();
+</script>
