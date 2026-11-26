@@ -1,0 +1,796 @@
+{
+ "Abril (equipe)": {
+  "posts": 1777,
+  "produtos": 1689,
+  "dias": 30,
+  "por_dia_util": 63,
+  "por_dia_fds": 49,
+  "cupons_pct": 5,
+  "unicos_pct": 58.7,
+  "tipos": {
+   "Fralda": 23.4,
+   "Outros": 20.1,
+   "Banho e higiene (sabonete, shampoo)": 6.9,
+   "Mamadeira / copo / prato": 5.7,
+   "Roupa / calçado / enxoval têxtil": 5.6,
+   "Brinquedo / atividade": 4.7,
+   "Berço / moisés / cercadinho": 4.3,
+   "Carrinho / travel system": 3.6,
+   "Amamentação (bomba, almofada)": 3.6,
+   "Lenço / algodão": 3.1,
+   "Banheira / banho": 3.1,
+   "Móveis (cômoda, trocador, poltrona)": 2,
+   "Alimentação (leite, fórmula, papinha)": 1.9,
+   "Cadeirão de alimentação": 1.7,
+   "Assadura / pele": 1.7,
+   "Cadeirinha / bebê conforto (carro)": 1.7,
+   "Casa e limpeza": 1.5,
+   "Saúde (termômetro, aspirador nasal, umidificador)": 1.3,
+   "Babá eletrônica / câmera": 1.1,
+   "Livro infantil": 0.9,
+   "Segurança da casa (trava, tomada, portão)": 0.8,
+   "Mochila / bolsa maternidade": 0.8,
+   "Mamãe (gestante, pós-parto)": 0.7
+  },
+  "preco_mediano": 49.98,
+  "preco_medio": 98,
+  "faixas": {
+   "até R$ 30": 24.4,
+   "R$ 30–60": 33.3,
+   "R$ 60–100": 18.7,
+   "R$ 100–300": 16.5,
+   "R$ 300+": 7
+  },
+  "marca_premium_pct": 15.9,
+  "marca_massa_pct": 32.7,
+  "sem_marca_pct": 51.4,
+  "top_marcas": [
+   [
+    "huggies",
+    7.6
+   ],
+   [
+    "pampers",
+    6
+   ],
+   [
+    "buba",
+    4.7
+   ],
+   [
+    "turma da monica",
+    3.7
+   ],
+   [
+    "personal",
+    3.2
+   ],
+   [
+    "johnson",
+    2
+   ],
+   [
+    "mamypoko",
+    1.9
+   ],
+   [
+    "pom pom",
+    1.8
+   ],
+   [
+    "granado",
+    1.4
+   ],
+   [
+    "maxi baby",
+    1.3
+   ],
+   [
+    "cremer",
+    1.3
+   ],
+   [
+    "ninho",
+    1.1
+   ],
+   [
+    "mustela",
+    1.1
+   ],
+   [
+    "natura",
+    1.1
+   ],
+   [
+    "galzerano",
+    1
+   ]
+  ],
+  "lojas": {
+   "Mercado Livre": 53.8,
+   "Amazon": 26.6,
+   "Shopee": 9.4,
+   "Magalu": 5.7,
+   "Natura": 2.5,
+   "Outra loja": 2
+  },
+  "exemplos": {
+   "Babá eletrônica / câmera": [
+    "Babá Eletrônica Câmera Sem Fio Visão Noturna/sensor De Temperatura Ala (R$ 499.12)",
+    "Baba eletrônica com monitor Motorola (R$ 474.9)",
+    "Babá Eletrônica com Monitor (R$ 228)",
+    "Babá Eletrônica Câmera Visão Noturna (R$ 218.8)"
+   ],
+   "Cadeirão de alimentação": [
+    "Cadeira De Refeição Prima Pappa Zero Gold Burigotto (R$ 530.1)",
+    "Cadeira De Alimentação Snack - Kiddo (R$ 372.39)",
+    "Cadeira Cadeirão Alimentação Bebe Dino Criança - Galzerano (R$ 294.38)",
+    "Cadeira De Alimentação Infantil 3 Em 1 (R$ 260.48)"
+   ],
+   "Cadeirinha / bebê conforto (carro)": [
+    "Carrinho de Bebe Infantil Berço Passeio Moises Reversível Bebê Confort (R$ 843.79)",
+    "Cadeira Para Carro Ajustavel 4 Road Burigotto 0-36kg Preta Cor Preto C (R$ 839)",
+    "Carrinho de Bebê Alça Reversível com Bebê Conforto Cosco Kids Travel S (R$ 836.91)",
+    "Cadeira de Carro Infantil All Stages 2.0 Isofix (R$ 727.9)"
+   ],
+   "Carrinho / travel system": [
+    "Carrinho de Bebê ZAP Metal Cobre Burigotto Compacto Dobrável (R$ 759.99)",
+    "Travel System Duo, Cosco Kids, Reverse, 0 a 15kg, Preto Rajado (R$ 726.18)",
+    "Carrinho de Bebê Zap, Preto Burigotto (R$ 659.9)",
+    "Carrinho De Passeio Para Bebê Spot até 15kg Voyage (R$ 639)"
+   ],
+   "Berço / moisés / cercadinho": [
+    "Quarto de Bebê Infantil com Armário Berço-Cômoda e Colchão Incluso (R$ 839.98)",
+    "Berço Balanço Portátil Moises Mosquiteiro E Trava Segurança (R$ 647.31)",
+    "Berço Portatil Desmontavel Com Trocador Mosquiteiro E Som (R$ 624.9)",
+    "Berço Portátil Infantil Cercado Luck Cinza Mescla - Voyage (R$ 530.1)"
+   ],
+   "Amamentação (bomba, almofada)": [
+    "Par De Bomba Tira Leite Elétricas Olanenem Invisíveis (R$ 312)",
+    "Kit Poltrona Amamentação e Puff (R$ 258.99)",
+    "Bomba Tira-leite Manual Mam (R$ 182.41)",
+    "Bomba De Tira Leite Portátil Invisível Bico, 240ml (R$ 161.33)"
+   ],
+   "Esterilizador / aquecedor / processador": [],
+   "Brinquedo / atividade": [
+    "Cadeira de balanço para bebê Mastela Premium elétrica rosa (R$ 487.9)",
+    "Cadeira Balanço Automática (R$ 389.45)",
+    "Cadeira de Descanso e Balanço Bebê Elétrica (R$ 369.77)",
+    "Balanço Elétrico 5 Em 1 Rosa Bebê Música Controle Remoto (R$ 329.8)"
+   ],
+   "Roupa / calçado / enxoval têxtil": [
+    "Kit 12 Pçs Body Manga Longa (R$ 159.2)",
+    "Kit Enxoval 36 Peças Roupa De Bebê Menino E Menina Algodão (R$ 157.62)",
+    "Kit Enxoval Bebê Completo34 Peças Menino E Menina Algodão (R$ 152.47)",
+    "Macacão Pijama Inverno Bebê Bichinhos (R$ 148.9)"
+   ]
+  },
+  "vendas": {
+   "comissao": 16243,
+   "lojas": "Amazon + ML + Shopee",
+   "ticket_mediano_vendido": 42,
+   "por_tipo": {
+    "Outros": 28.7,
+    "Fralda": 25.1,
+    "Lenço / algodão": 5.2,
+    "Banho e higiene (sabonete, shampoo)": 5.2,
+    "Assadura / pele": 3.6,
+    "Berço / moisés / cercadinho": 3.4,
+    "Roupa / calçado / enxoval têxtil": 3.4,
+    "Cadeirinha / bebê conforto (carro)": 3.3,
+    "Brinquedo / atividade": 2.8,
+    "Mamadeira / copo / prato": 2.7,
+    "Amamentação (bomba, almofada)": 2.6,
+    "Babá eletrônica / câmera": 2.4,
+    "Móveis (cômoda, trocador, poltrona)": 2.3,
+    "Carrinho / travel system": 1.5,
+    "Casa e limpeza": 1.4,
+    "Alimentação (leite, fórmula, papinha)": 1.3,
+    "Banheira / banho": 1.1,
+    "Livro infantil": 1,
+    "Cadeirão de alimentação": 1,
+    "Saúde (termômetro, aspirador nasal, umidificador)": 0.6,
+    "Mamãe (gestante, pós-parto)": 0.5,
+    "Mochila / bolsa maternidade": 0.5,
+    "Segurança da casa (trava, tomada, portão)": 0.3,
+    "Esterilizador / aquecedor / processador": 0
+   }
+  }
+ },
+ "Julho (equipe)": {
+  "posts": 1734,
+  "produtos": 1631,
+  "dias": 31,
+  "por_dia_util": 69,
+  "por_dia_fds": 17,
+  "cupons_pct": 5.9,
+  "unicos_pct": 59.5,
+  "tipos": {
+   "Fralda": 23.4,
+   "Outros": 19.7,
+   "Banho e higiene (sabonete, shampoo)": 9.4,
+   "Roupa / calçado / enxoval têxtil": 5.3,
+   "Lenço / algodão": 4.8,
+   "Assadura / pele": 3.7,
+   "Brinquedo / atividade": 3.4,
+   "Mamadeira / copo / prato": 3.4,
+   "Casa e limpeza": 3.3,
+   "Berço / moisés / cercadinho": 3.2,
+   "Amamentação (bomba, almofada)": 2.7,
+   "Banheira / banho": 2.6,
+   "Carrinho / travel system": 2.3,
+   "Móveis (cômoda, trocador, poltrona)": 2,
+   "Alimentação (leite, fórmula, papinha)": 1.9,
+   "Cadeirinha / bebê conforto (carro)": 1.8,
+   "Cadeirão de alimentação": 1.5,
+   "Livro infantil": 1.3,
+   "Mochila / bolsa maternidade": 1.2,
+   "Saúde (termômetro, aspirador nasal, umidificador)": 1.2,
+   "Babá eletrônica / câmera": 1,
+   "Segurança da casa (trava, tomada, portão)": 0.4,
+   "Mamãe (gestante, pós-parto)": 0.4
+  },
+  "preco_mediano": 46,
+  "preco_medio": 105,
+  "faixas": {
+   "até R$ 30": 29.3,
+   "R$ 30–60": 31.4,
+   "R$ 60–100": 16.2,
+   "R$ 100–300": 16.1,
+   "R$ 300+": 6.4
+  },
+  "marca_premium_pct": 14.2,
+  "marca_massa_pct": 37.8,
+  "sem_marca_pct": 48,
+  "top_marcas": [
+   [
+    "huggies",
+    7.7
+   ],
+   [
+    "pampers",
+    6.1
+   ],
+   [
+    "johnson",
+    4.4
+   ],
+   [
+    "personal",
+    4
+   ],
+   [
+    "buba",
+    3.6
+   ],
+   [
+    "turma da monica",
+    3.1
+   ],
+   [
+    "mamypoko",
+    2.1
+   ],
+   [
+    "maxi baby",
+    2
+   ],
+   [
+    "bepantol",
+    1.8
+   ],
+   [
+    "granado",
+    1.4
+   ],
+   [
+    "ninho",
+    1.2
+   ],
+   [
+    "pom pom",
+    1.2
+   ],
+   [
+    "babysec",
+    1.1
+   ],
+   [
+    "hipoglos",
+    1
+   ],
+   [
+    "cosco",
+    1
+   ]
+  ],
+  "lojas": {
+   "Amazon": 42.3,
+   "Mercado Livre": 35.1,
+   "Shopee": 11,
+   "Magalu": 7.5,
+   "Natura": 2.6,
+   "Outra loja": 1.3
+  },
+  "exemplos": {
+   "Babá eletrônica / câmera": [
+    "Babá Eletrônica Sem Fio Zoom Baby On Maxi Baby (R$ 447.82)",
+    "Motorola VM483 babá eletrônica tela 2.8 Lcd com zoom digital (R$ 339.91)",
+    "Babá Eletrônica Monitor 2.4 Sem Fio Zoom Baby On Maxi Baby (R$ 195.55)",
+    "Babá Eletrônica Easy Contact 3,2 Sem Fio Com Visão Noturna (R$ 185.68)"
+   ],
+   "Cadeirão de alimentação": [
+    "Safety 1st, Cadeira de Refeição Jelly, Verde (R$ 701.91)",
+    "Burigotto cadeira de alimentação portátil leve flexível (R$ 254.15)",
+    "Cadeira De Alimentação Infantil 3 Em 1 Harmony Maxi Baby (R$ 228.57)",
+    "Cadeira De Alimentação Portátil Infantil (R$ 206)"
+   ],
+   "Cadeirinha / bebê conforto (carro)": [
+    "Carrinho de Bebê Alça Reversível com Bebê Conforto Cosco Kids Travel S (R$ 876.9)",
+    "Cadeirinha Evolutty, 0 a 36kg, com Giro 360º, Isofix, Cosco - Preto (R$ 776.59)",
+    "Cadeira de Carro Infantil All Stages 2.0 Isofix (R$ 746.01)",
+    "Carrinho de Bebê Reversível com Bebê Conforto Avanti Travel System Owe (R$ 706.71)"
+   ],
+   "Carrinho / travel system": [
+    "3 Em 1 Carrinho Bebé ,dobrável, versátil E Prático! Reversível (R$ 1037.77)",
+    "Carrinho De Passeio Para Bebê Spot até 15kg Voyage (R$ 669)",
+    "Carrinho de Bebê Quinny Zapp Flex Bumper Bar - 3 Rodas (R$ 632.82)",
+    "Reverse Trio Travel System - Cosco Kids (R$ 619.9)"
+   ],
+   "Berço / moisés / cercadinho": [
+    "Quarto de Bebê Completo com Berço Americano 3 em 1 (R$ 1951.76)",
+    "Quarto De Bebê Completo Berço Americano (R$ 838.77)",
+    "Berço Moises Portatil Com Função Balanço e Mosquiteiro (R$ 526.94)",
+    "Berço 3 em 1 Americano Vira Mini Cama Com Colchão Probel (R$ 473.4)"
+   ],
+   "Amamentação (bomba, almofada)": [
+    "Bomba De Mama Vestível Mãos Livres De Cabeça Dupla 8×flanges (R$ 141.37)",
+    "Bomba Tira Leite Materno G-tech Automatica Comfort Charge (R$ 122.82)",
+    "Kit Ninho Redutor + Amamentação Algodão Babado (R$ 117.3)",
+    "Kit 2 Pijamas De Amamentação Para Gestantes Pós Parto (R$ 110.42)"
+   ],
+   "Esterilizador / aquecedor / processador": [],
+   "Brinquedo / atividade": [
+    "Cadeira Balanço Automática Happyful Para Bebê Clingo (R$ 899.9)",
+    "Cadeira de Descanso e Balanço Bebê Elétrica (R$ 430)",
+    "Andador de Empurrar Musical Bebê Divertido com Luz Rodinhas (R$ 288)",
+    "Tapete Interativo Bebe Bolinhas E Mobile Movie Maxi Baby (R$ 255.11)"
+   ],
+   "Roupa / calçado / enxoval têxtil": [
+    "Saco De Dormir Bebe Cobertor Manta De Vestir Microsoft Ziper (R$ 159.9)",
+    "3 Conjuntos Moletom Bebê Infantil Frio (R$ 139.54)",
+    "Macacão de dormir para bebês Cotton Sleep and Play, Pack of 2 Simple J (R$ 135.99)",
+    "Body Pacote com 8 bodies de manga curta Simple Joys by Carter'sUnisex  (R$ 119.47)"
+   ]
+  },
+  "vendas": {
+   "comissao": 19884,
+   "lojas": "Amazon + ML + Shopee",
+   "ticket_mediano_vendido": 44,
+   "por_tipo": {
+    "Fralda": 25.5,
+    "Outros": 25,
+    "Lenço / algodão": 9.5,
+    "Banho e higiene (sabonete, shampoo)": 7.9,
+    "Assadura / pele": 5.3,
+    "Roupa / calçado / enxoval têxtil": 3.6,
+    "Casa e limpeza": 3.4,
+    "Babá eletrônica / câmera": 2.6,
+    "Mamadeira / copo / prato": 1.9,
+    "Cadeirão de alimentação": 1.9,
+    "Amamentação (bomba, almofada)": 1.7,
+    "Alimentação (leite, fórmula, papinha)": 1.7,
+    "Brinquedo / atividade": 1.7,
+    "Cadeirinha / bebê conforto (carro)": 1.6,
+    "Saúde (termômetro, aspirador nasal, umidificador)": 1.4,
+    "Berço / moisés / cercadinho": 1.4,
+    "Livro infantil": 1.1,
+    "Banheira / banho": 0.7,
+    "Móveis (cômoda, trocador, poltrona)": 0.7,
+    "Mochila / bolsa maternidade": 0.5,
+    "Carrinho / travel system": 0.4,
+    "Segurança da casa (trava, tomada, portão)": 0.2,
+    "Mamãe (gestante, pós-parto)": 0.2,
+    "Esterilizador / aquecedor / processador": 0
+   }
+  }
+ },
+ "Agosto (equipe)": {
+  "posts": 1574,
+  "produtos": 1489,
+  "dias": 31,
+  "por_dia_util": 64,
+  "por_dia_fds": 24,
+  "cupons_pct": 5.4,
+  "unicos_pct": 63.2,
+  "tipos": {
+   "Outros": 20.9,
+   "Fralda": 20.8,
+   "Banho e higiene (sabonete, shampoo)": 9.9,
+   "Roupa / calçado / enxoval têxtil": 6.6,
+   "Mamadeira / copo / prato": 4.7,
+   "Brinquedo / atividade": 4.3,
+   "Lenço / algodão": 3.8,
+   "Berço / moisés / cercadinho": 3.4,
+   "Assadura / pele": 2.9,
+   "Casa e limpeza": 2.7,
+   "Carrinho / travel system": 2.6,
+   "Banheira / banho": 2.6,
+   "Cadeirinha / bebê conforto (carro)": 2.4,
+   "Amamentação (bomba, almofada)": 2.3,
+   "Alimentação (leite, fórmula, papinha)": 2.1,
+   "Cadeirão de alimentação": 1.7,
+   "Móveis (cômoda, trocador, poltrona)": 1.4,
+   "Livro infantil": 1.1,
+   "Segurança da casa (trava, tomada, portão)": 1.1,
+   "Saúde (termômetro, aspirador nasal, umidificador)": 0.9,
+   "Babá eletrônica / câmera": 0.8,
+   "Mochila / bolsa maternidade": 0.7,
+   "Mamãe (gestante, pós-parto)": 0.4,
+   "Esterilizador / aquecedor / processador": 0.1
+  },
+  "preco_mediano": 47.4,
+  "preco_medio": 109,
+  "faixas": {
+   "até R$ 30": 31.1,
+   "R$ 30–60": 31.2,
+   "R$ 60–100": 15.2,
+   "R$ 100–300": 15.3,
+   "R$ 300+": 6.6
+  },
+  "marca_premium_pct": 15.8,
+  "marca_massa_pct": 33.1,
+  "sem_marca_pct": 51.1,
+  "top_marcas": [
+   [
+    "huggies",
+    7.3
+   ],
+   [
+    "pampers",
+    6.8
+   ],
+   [
+    "buba",
+    4
+   ],
+   [
+    "johnson",
+    3.8
+   ],
+   [
+    "turma da monica",
+    2.6
+   ],
+   [
+    "personal",
+    2.6
+   ],
+   [
+    "maxi baby",
+    2.3
+   ],
+   [
+    "pom pom",
+    1.9
+   ],
+   [
+    "mamypoko",
+    1.8
+   ],
+   [
+    "granado",
+    1.7
+   ],
+   [
+    "ninho",
+    1.5
+   ],
+   [
+    "cosco",
+    1.5
+   ],
+   [
+    "babysec",
+    1.1
+   ],
+   [
+    "cremer",
+    0.9
+   ],
+   [
+    "mustela",
+    0.9
+   ]
+  ],
+  "lojas": {
+   "Amazon": 38.5,
+   "Mercado Livre": 37.9,
+   "Shopee": 11.4,
+   "Magalu": 7.7,
+   "Natura": 2.7,
+   "Outra loja": 1.7
+  },
+  "exemplos": {
+   "Babá eletrônica / câmera": [
+    "Baba Eletrônica Baby Monitor Vb603 Visão Noturna Dual Audio (R$ 899)",
+    "Babá Eletrônica Monitor 2.4 Sem Fio Zoom Baby On Maxi Baby (R$ 186.06)",
+    "Baba Eletrônica Baby Monitor Visão Noturna Dual Audio (R$ 180.57)",
+    "Suporte para Babá Eletrônica Para Berço (R$ 19.9)"
+   ],
+   "Cadeirão de alimentação": [
+    "Cadeira De Alimentação Bebê Portátil 2 em 1 (R$ 429)",
+    "Cadeira De Alimentação Portátil Para Bebê Altura Ajustável (R$ 339.64)",
+    "Cadeira De Alimentação Para Bebê 8 Em 1 Portátil (R$ 271.91)",
+    "Burigotto Cadeira De Refeição Poke (R$ 219.09)"
+   ],
+   "Cadeirinha / bebê conforto (carro)": [
+    "Carrinho Bebê Romano + Bebê Conforto Galzerano (R$ 1198)",
+    "Cadeira de Carro Infantil Isofix 4 Posições de Recline (R$ 866.4)",
+    "Cadeira Para Carro Com Isofix 0 A 36kg 360° Spin Burigotto (R$ 817.19)",
+    "Carrinho De Bebê Com Bebê Conforto Ecco (R$ 806.45)"
+   ],
+   "Carrinho / travel system": [
+    "Carrinho De Bebê Compacto Tipo Mala Bag Ruby Kikkaboo (R$ 999)",
+    "Carrinho de Bebê Safety 1st, Spark Plus, 0 meses a 22 kg, Grey Frost (R$ 839.99)",
+    "Travel System Cosco Kids, Reverse Duo, 0 a 15kg, Preto Bronze (R$ 749.9)",
+    "Carrinho Conforto Bebê Reversível Berço Moisés Dobrável (R$ 605)"
+   ],
+   "Berço / moisés / cercadinho": [
+    "Quarto De Bebê Completo Berço Americano (R$ 1149.9)",
+    "Berço Moises Portatil Com Função Balanço e Mosquiteiro (R$ 575.9)",
+    "Berço Multifuncional Americano 3x1 Bela Com Colchão Incluso (R$ 536.93)",
+    "Baby Trend XHRTWL180 chiqueirinho infantil com bordas laterais protegi (R$ 498.73)"
+   ],
+   "Amamentação (bomba, almofada)": [
+    "Bomba De Tirar Leite Materno Portátil Elétricas Antuvi Vestível (R$ 163.2)",
+    "Bomba Tira Leite Elétrica OLANENEM, Portátil e Sem Fio (R$ 160.42)",
+    "Bomba De Mama Vestível Mãos Livres De Cabeça Dupla 8×flanges (R$ 156.54)",
+    "Kit Camisola Amamentação Pós Parto Conforto Praticidade Camisola Longa (R$ 132.9)"
+   ],
+   "Esterilizador / aquecedor / processador": [
+    "Aquecedor Termoventilador Mondial Portátil (R$ 120.38)"
+   ],
+   "Brinquedo / atividade": [
+    "Balanço Infantil 3 em 1 Premium Resistênte Adesivos + Cordas Grátis (R$ 8999)",
+    "Cadeira de Descanso e Balanço Bebê Elétrica (R$ 445.42)",
+    "Cadeira De Balanço Automática Bluetooth Urso Mastela Bege Urso (R$ 431.39)",
+    "Cadeira Balanço Automática Happyful Para Bebê Clingo (R$ 394)"
+   ],
+   "Roupa / calçado / enxoval têxtil": [
+    "Swaddle Rosa Em Soft (R$ 219.9)",
+    "Kit Enxoval 36 Peças Bebê Algodão Antialérgico (R$ 135.9)",
+    "Body Pacote com 5 bodies de manga comprida Simple Joys by Carter's (R$ 123.22)",
+    "Saco De Dormir Infantil Microsoft Inverno Cobertor De Vestir (R$ 118.98)"
+   ]
+  },
+  "vendas": {
+   "comissao": 18182,
+   "lojas": "Amazon + ML + Shopee",
+   "ticket_mediano_vendido": 38,
+   "por_tipo": {
+    "Outros": 28.2,
+    "Fralda": 21.4,
+    "Lenço / algodão": 8.7,
+    "Roupa / calçado / enxoval têxtil": 6,
+    "Babá eletrônica / câmera": 4,
+    "Berço / moisés / cercadinho": 3.9,
+    "Carrinho / travel system": 3.7,
+    "Banho e higiene (sabonete, shampoo)": 3.1,
+    "Assadura / pele": 2.8,
+    "Mamadeira / copo / prato": 2.7,
+    "Cadeirinha / bebê conforto (carro)": 2.5,
+    "Brinquedo / atividade": 2.3,
+    "Banheira / banho": 2.2,
+    "Amamentação (bomba, almofada)": 1.5,
+    "Móveis (cômoda, trocador, poltrona)": 1.5,
+    "Cadeirão de alimentação": 1.3,
+    "Livro infantil": 1,
+    "Casa e limpeza": 1,
+    "Alimentação (leite, fórmula, papinha)": 0.6,
+    "Saúde (termômetro, aspirador nasal, umidificador)": 0.5,
+    "Segurança da casa (trava, tomada, portão)": 0.4,
+    "Mamãe (gestante, pós-parto)": 0.3,
+    "Mochila / bolsa maternidade": 0.2,
+    "Esterilizador / aquecedor / processador": 0.1
+   }
+  }
+ },
+ "Hoje (robô, 12 a 25/11)": {
+  "posts": 785,
+  "produtos": 661,
+  "dias": 14,
+  "por_dia_util": 69,
+  "por_dia_fds": 25,
+  "cupons_pct": 15.8,
+  "unicos_pct": 74.3,
+  "tipos": {
+   "Fralda": 19.4,
+   "Outros": 14.5,
+   "Lenço / algodão": 12,
+   "Banho e higiene (sabonete, shampoo)": 6.7,
+   "Roupa / calçado / enxoval têxtil": 5.4,
+   "Assadura / pele": 5.4,
+   "Saúde (termômetro, aspirador nasal, umidificador)": 5.3,
+   "Brinquedo / atividade": 5,
+   "Berço / moisés / cercadinho": 4.8,
+   "Mamadeira / copo / prato": 3.8,
+   "Babá eletrônica / câmera": 2.6,
+   "Amamentação (bomba, almofada)": 2.4,
+   "Banheira / banho": 2.1,
+   "Cadeirinha / bebê conforto (carro)": 2.1,
+   "Móveis (cômoda, trocador, poltrona)": 2,
+   "Casa e limpeza": 2,
+   "Carrinho / travel system": 1.8,
+   "Segurança da casa (trava, tomada, portão)": 0.9,
+   "Mochila / bolsa maternidade": 0.6,
+   "Mamãe (gestante, pós-parto)": 0.5,
+   "Cadeirão de alimentação": 0.3,
+   "Esterilizador / aquecedor / processador": 0.3,
+   "Alimentação (leite, fórmula, papinha)": 0.2
+  },
+  "preco_mediano": 49.89,
+  "preco_medio": 120,
+  "faixas": {
+   "até R$ 30": 24.8,
+   "R$ 30–60": 32.8,
+   "R$ 60–100": 12.7,
+   "R$ 100–300": 18.2,
+   "R$ 300+": 9.5
+  },
+  "marca_premium_pct": 14.1,
+  "marca_massa_pct": 36,
+  "sem_marca_pct": 49.9,
+  "top_marcas": [
+   [
+    "pampers",
+    16.3
+   ],
+   [
+    "huggies",
+    6.5
+   ],
+   [
+    "bepantol",
+    5.1
+   ],
+   [
+    "johnson",
+    3.9
+   ],
+   [
+    "mustela",
+    1.5
+   ],
+   [
+    "maxi baby",
+    1.2
+   ],
+   [
+    "mamypoko",
+    1.2
+   ],
+   [
+    "weleda",
+    1.2
+   ],
+   [
+    "buba",
+    1.2
+   ],
+   [
+    "bellacotton",
+    1.1
+   ],
+   [
+    "motorola",
+    0.8
+   ],
+   [
+    "cosco",
+    0.8
+   ],
+   [
+    "safety 1st",
+    0.8
+   ],
+   [
+    "granado",
+    0.8
+   ],
+   [
+    "burigotto",
+    0.8
+   ]
+  ],
+  "lojas": {
+   "Amazon": 44.5,
+   "Mercado Livre": 35.7,
+   "Shopee": 17.7,
+   "Outra loja": 2,
+   "Natura": 0.2
+  },
+  "exemplos": {
+   "Babá eletrônica / câmera": [
+    "Babá Eletrônica See Pro Com Monitor Maxi-cosi Cor Branco bivolt 220v (R$ 1559)",
+    "Babá Eletrônica Philips Avent, Full HD 1080p e Visão Noturna (R$ 1203)",
+    "Câmera Babá Eletrônica Motorola HD Com Zoom e Wi-Fi PIP1000 (R$ 399)",
+    "Dacdyi Babá Eletronica, 3.5\" HD 720P Bebê Câmera com Tela, 2.4GHz Tecn (R$ 285)"
+   ],
+   "Cadeirão de alimentação": [
+    "Cadeira de Alimentação Bebê, Cadeirão Bebê, Cadeira Bebê Comer, Cadeir (R$ 189.05)",
+    "Cadeira de Alimentação Bebê Portátil Zest Maxi Baby - 3 opções de core (R$ 184.9)"
+   ],
+   "Cadeirinha / bebê conforto (carro)": [
+    "Carrinho de Bebê Infanti Romanzo Travel System Completo com Bebê Confo (R$ 1694)",
+    "Cadeirinha i-NXT 360°, 0 a 36kg, com Giro 360° e Isofix, Safety 1st, G (R$ 1257.27)",
+    "Cadeirinha Único Evo i-Size com Isofix e Top Tether 40–150cm Preto Chi (R$ 1188)",
+    "Carrinho Passeio com Bebê Conforto Moisés Travel System Fechamento Uma (R$ 1093)"
+   ],
+   "Carrinho / travel system": [
+    "Travel System Safety 1st, Spark Plus Duo, 0 meses a 22 kg, Grey Frost (R$ 1196.81)",
+    "Carrinho De Bebê Gêmeos Reclinável 5 Posições - Hércules Cor Preto Cha (R$ 1047)",
+    "Carrinho De Bebê Passeio Galzerano Milano One Hand Preto (R$ 735.91)",
+    "Carrinho De Bebê Bytes Grey Denim, Safety 1st - Cinza (R$ 550.91)"
+   ],
+   "Berço / moisés / cercadinho": [
+    "Berço De Bebê Americano Doce Sonho World Baby Branco Com Rodízios Estr (R$ 530.83)",
+    "Berço de Bebê Americano World Baby Doce Sonho Branco Com Rodas e Estra (R$ 528)",
+    "Berço Americano 3 em 1 para Colchão 130x70cm Multimóveis 0527PA Off Wh (R$ 519)",
+    "Berço Bebê Moises Ajustável Mosqueteiro Portátil Infantil (R$ 474.71)"
+   ],
+   "Amamentação (bomba, almofada)": [
+    "Bomba Tira Leite Elétrica Solo Hands Free (R$ 721.58)",
+    "Bomba Tira Leite elétrica e Acessórios Sem Dor alta potência de sucção (R$ 89)",
+    "Bomba Tira Leite Elétrica Recarregável Portátil para Amamentação (R$ 59.99)",
+    "ALMOFADA  PARA  AUX. AMAMENTAÇÃO  -  517  LEÃOZINHO - PERSONALIZADO CO (R$ 59.9)"
+   ],
+   "Esterilizador / aquecedor / processador": [
+    "Coletor de Leite Materno em Concha Kit 2 Unidades Mãos Livres | Livre  (R$ 28.1)",
+    "Sacos para Armazenar Leite Materno Pré-Esterilizados Livres de BPA par (R$ 27.9)"
+   ],
+   "Brinquedo / atividade": [
+    "Barbie Casa dos Sonhos, Casa de Bonecas, 3+ Anos (R$ 749.98)",
+    "IDIMEX Cama Montessoriana Cabana Infantil Solteiro 88x188 Madeira Casi (R$ 718.99)",
+    "Fun Divirta-se Pelúcia Axolote Airbrush (R$ 329.99)",
+    "Boneca Barbie Pop Reveal Copo Roxo Mattel. Surpresa com boneca perfuma (R$ 148.99)"
+   ],
+   "Roupa / calçado / enxoval têxtil": [
+    "Tênis Nike Court Borough Low Recraft Infantil (R$ 195.49)",
+    "Simple Joys by Carter's Conjunto de sunga e rashguard para bebês e men (R$ 73.43)",
+    "Conjunto Musical - 3 Palavrinhas - Colorido - Yestoys (R$ 60.01)",
+    "Manta De Bebê Menina Minnie Disney 90x110cm Jolitex Bordada (R$ 60)"
+   ]
+  },
+  "vendas": {
+   "comissao": 3037,
+   "lojas": "ML + Shopee (Amazon do mês não separa a quinzena)",
+   "ticket_mediano_vendido": 42,
+   "por_tipo": {
+    "Outros": 32.9,
+    "Fralda": 12.3,
+    "Berço / moisés / cercadinho": 8.5,
+    "Assadura / pele": 6.3,
+    "Brinquedo / atividade": 5.8,
+    "Lenço / algodão": 5.3,
+    "Roupa / calçado / enxoval têxtil": 4,
+    "Banho e higiene (sabonete, shampoo)": 3.4,
+    "Mamadeira / copo / prato": 3.3,
+    "Casa e limpeza": 2.9,
+    "Banheira / banho": 2.6,
+    "Amamentação (bomba, almofada)": 2.2,
+    "Saúde (termômetro, aspirador nasal, umidificador)": 2,
+    "Babá eletrônica / câmera": 2,
+    "Móveis (cômoda, trocador, poltrona)": 1.3,
+    "Alimentação (leite, fórmula, papinha)": 1.1,
+    "Mamãe (gestante, pós-parto)": 0.8,
+    "Livro infantil": 0.7,
+    "Cadeirão de alimentação": 0.7,
+    "Cadeirinha / bebê conforto (carro)": 0.5,
+    "Esterilizador / aquecedor / processador": 0.4,
+    "Carrinho / travel system": 0.3,
+    "Segurança da casa (trava, tomada, portão)": 0.3
+   }
+  }
+ }
+}

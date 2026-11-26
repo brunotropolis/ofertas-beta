@@ -174,6 +174,26 @@
       "data": "2026-11-25",
       "tipo": "sistema",
       "o_que": "3 canais WhatsApp com post automatico (Manual RN, Achados da Day, Manual dos Adultos, 8/dia cada). TESTE grupo de Fraldas ate 02/12: 70/dia de qualquer loja > 12/dia so Pampers/Huggies Amazon/ML (jeito da equipe de setembro). Medir semana 26/11-02/12: Amazon mrnoffraldas-20 e unidades de fralda na Amazon."
+    },
+    {
+      "data": "2026-11-25",
+      "tipo": "regra",
+      "o_que": "Regra unica por perfil (grupos e canais iguais): Maternas exige sinal de bebe; Mae sem masculino/carro/infantil; Lar sem eletronico/brinquedo; Brunotropolis sem brinquedo/cama e banho. Titulo quebrado do Telegram fora. Filtro do De: acima de 3x o Por sai sem De; De falso conferido pelo id do produto (ASIN/MLB/Shopee)."
+    },
+    {
+      "data": "2026-11-25",
+      "tipo": "fonte",
+      "o_que": "Hot Deals BF da Amazon: 352 exclusivas nos 4 perfis (Maternas 33, Lar 125, Mae 84, Geek 110), teto de exclusiva = 30% do teto do grupo fora das Maternas. Shopee: variacao 2,5x+ mais cara que o preco do post nao posta."
+    },
+    {
+      "data": "2026-11-26",
+      "tipo": "regra",
+      "o_que": "Lista de bloqueio no painel (aba Bloqueados): kit berco, travesseiro, almofada de berco, complemento alimentar, bico de silicone, protetor de mamilo, concha, protetor de grade (menos tela respiravel), pelucia. Venda internacional do ML e Shopee fora (Amazon Global liberado)."
+    },
+    {
+      "data": "2026-11-26",
+      "tipo": "sistema",
+      "o_que": "Mix do estudo de produtos (equipe abr/jul/ago x robo 12-25/11): cota de enxoval/equipamento de marca boa 20% (cadeirao, carrinho, berco, baba, banheira, bomba, mamadeira, roupa; R$30-800 com marca ou R$100-800), Natura 4%, alimentacao 2%, saude 10>6% + aparelho teto 3%, lenco 6>4% + teto 5%, Shopee teto 10% e generico < R$20 so com nota 4,8 e 1000+ vendidos. Coletores novos: Magalu nas Maternas, Amazon por marca (coletor_equipamento a cada 2h), ML com 1 busca de equipamento por rodada. Medir semana 03-09/12 x 19-25/11: % equipamento/lenco/Shopee nos posts e comissao por familia."
     }
   ]
 }
