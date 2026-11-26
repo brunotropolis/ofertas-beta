@@ -1,0 +1,24 @@
+{
+ "gerado_em": "2026-11-26",
+ "o_que_e": "Comissão por mês e por loja, conta inteira, dos últimos 13 meses. Foto tirada em 26/11/2026 para comparar com o histórico de posts.",
+ "fontes": {
+  "2025-11 a 2026-09": "planilha da equipe (tabela ofertas_historico_comissao). Fica uns 3% acima do real, porque a equipe anotava antes dos cancelamentos.",
+  "2026-10 e 2026-11": "plataformas (affiliate_sales), só Amazon, ML e Shopee. Novembro é parcial: Amazon e Shopee até 25/11, ML até 26/11."
+ },
+ "meses": [
+  {"mes": "2025-11", "total": 27261, "amazon": 12995, "ml": 8760, "shopee": 3588, "outras": 1917, "fonte": "planilha"},
+  {"mes": "2025-12", "total": 17148, "amazon": 7665, "ml": 6331, "shopee": 2129, "outras": 1023, "fonte": "planilha"},
+  {"mes": "2026-01", "total": 18146, "amazon": 6877, "ml": 5853, "shopee": 4081, "outras": 1335, "fonte": "planilha"},
+  {"mes": "2026-02", "total": 17991, "amazon": 7181, "ml": 7219, "shopee": 3016, "outras": 575, "fonte": "planilha"},
+  {"mes": "2026-03", "total": 31695, "amazon": 17197, "ml": 8932, "shopee": 3946, "outras": 1621, "fonte": "planilha"},
+  {"mes": "2026-04", "total": 20941, "amazon": 7701, "ml": 8595, "shopee": 3583, "outras": 1062, "fonte": "planilha"},
+  {"mes": "2026-05", "total": 18534, "amazon": 9983, "ml": 5142, "shopee": 2607, "outras": 803, "fonte": "planilha"},
+  {"mes": "2026-06", "total": 18752, "amazon": 10030, "ml": 5496, "shopee": 2078, "outras": 1148, "fonte": "planilha"},
+  {"mes": "2026-07", "total": 23138, "amazon": 13675, "ml": 6270, "shopee": 2720, "outras": 472, "fonte": "planilha"},
+  {"mes": "2026-08", "total": 19616, "amazon": 8991, "ml": 7414, "shopee": 2418, "outras": 792, "fonte": "planilha"},
+  {"mes": "2026-09", "total": 17604, "amazon": 8404, "ml": 5733, "shopee": 2717, "outras": 750, "fonte": "planilha"},
+  {"mes": "2026-10", "total": 13767, "amazon": 6074, "ml": 5639, "shopee": 2054, "outras": 0, "fonte": "plataformas"},
+  {"mes": "2026-11", "total": 14323, "amazon": 6530, "ml": 5067, "shopee": 2726, "outras": 0, "fonte": "plataformas", "parcial_ate": "2026-11-25"}
+ ],
+ "ranking_12_meses": ["2026-03", "2026-07", "2026-04", "2026-08", "2026-06", "2026-05", "2026-01", "2026-02", "2026-09", "2025-12", "2026-11", "2026-10"]
+}
