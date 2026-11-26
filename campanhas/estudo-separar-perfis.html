@@ -51,6 +51,21 @@ ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-wid
   </section>
 
   <section>
+    <h2>O objetivo: medir quanto vende cada projeto</h2>
+    <p>Bruno (26/11): mesmos números de WhatsApp, mas vendas medidas por projeto (Fraldas, Cupons, Enxoval, Lar, Mãe), pra saber quanto cada iniciativa de produto segmentado dá de resultado. A venda é separada pela marca que vai dentro do link de cada post. Hoje está assim:</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Loja</th><th>Fraldas</th><th>Cupons</th><th>Enxoval</th><th>Lar</th><th>Mãe</th></tr></thead>
+      <tbody>
+        <tr><td>Amazon (ID por campanha)</td><td>✅ mrnoffraldas-20</td><td>✅ mrnofcupons-20</td><td>✅ mrnofenxoval-20</td><td>❌ cai no ID das Maternas</td><td>❌ cai no ID das Maternas</td></tr>
+        <tr><td>Shopee (marca no link)</td><td>✅ 0-f</td><td>❌ cupom vai pra carteira, sem marca</td><td>✅ 0-e</td><td>❌ 0-m (Maternas)</td><td>❌ 0-m (Maternas)</td></tr>
+        <tr><td>Mercado Livre (etiqueta)</td><td colspan="5">❌ uma etiqueta só (asofertasmaternas) pra todos os grupos; cupom vai pela vitrine com a etiqueta padrão da conta</td></tr>
+      </tbody>
+    </table></div>
+    <p>Pra medir os cinco: (1) Lar e Mãe ganham marca própria no link (hoje herdam a das Maternas porque são do tipo "mix"); (2) Amazon: criar os IDs <code>mrnoflar-20</code> e <code>mrnofmae-20</code> na conta de Associados; (3) Shopee: só mudar o código (aceita qualquer marca, sem cadastro); (4) Mercado Livre: criar uma etiqueta por projeto na conta de afiliados e gerar o link do produto com a etiqueta da campanha na hora de postar (hoje o link é gerado na coleta, com uma etiqueta só). Observação: a Amazon esconde valor pequeno por ID (grava 0), então projeto pequeno aparece com piso, não total.</p>
+    <p><b>Dá pra começar a medir antes da separação no painel</b>: as marcas no link não dependem do seletor. Ligando agora, a Black já entra medida por projeto.</p>
+  </section>
+
+  <section>
     <h2>Dois caminhos</h2>
     <div class="cols">
       <div class="card ca"><span class="tag ta">Caminho A · recomendado</span><h3>Projeto "de visão" no seletor</h3>
