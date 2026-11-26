@@ -23,6 +23,7 @@ import { tetoDoDia } from "@/lib/fim-de-semana";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA, CASA, BELEZA, catDe } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
+import { lerRegras, categoriaDe, palavraQueCasou, temMarca, type RegrasCampanha, type CategoriaRegra } from "@/lib/regras-campanha";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -37,6 +38,7 @@ interface AutoCampaign {
   auto_buffer: number;
   categoria?: Categoria | null;
   niche?: string | null;
+  regras?: unknown;
 }
 
 export interface AutoEnqueueResult {
@@ -241,9 +243,17 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nAlimenta = feitos.filter((o) => ALIMENTA.test(o.title || "")).length;
   let nSaudeApar = feitos.filter((o) => SAUDE_APAR.test(o.title || "")).length;
   const maternas = c.perfil_id === PERFIL_MATERNAS;
-  const cotas = c.perfil_id === PERFIL_LAR ? { tab: CASA, cota: COTA_LAR, marca: MARCA_CASA } : c.perfil_id === PERFIL_MAE ? { tab: BELEZA, cota: COTA_MAE, marca: MARCA_BELEZA } : null;
+  // 26/Nov (Bruno: "quero a segunda opção, mas quero por campanha"): categorias, cotas, tetos, marcas e filtros vêm de
+  // campaigns.regras (aba Regras no painel). Antes ficavam fixos aqui (COTA_LAR, COTA_MAE, META_EQUIP...).
+  const R: RegrasCampanha | null = lerRegras(c.regras);
   const nCat = new Map<string, number>();
-  if (cotas) feitos.forEach((o) => { const k = catDe(cotas.tab, o.title); if (k) nCat.set(k, (nCat.get(k) ?? 0) + 1); });
+  const nTipo = new Map<string, number>();
+  const contaCat = (o: { title?: string | null; url?: string | null; affiliate_url?: string | null }) => {
+    if (!R) return; const k = categoriaDe(R, o); if (!k) return;
+    nCat.set(k.nome, (nCat.get(k.nome) ?? 0) + 1);
+    if (k.variar) { const tp = k.nome + ":" + (palavraQueCasou(k.palavras, o.title) ?? ""); nTipo.set(tp, (nTipo.get(tp) ?? 0) + 1); }
+  };
+  feitos.forEach(contaCat);
   const tiposGadget = new Set(feitos.filter((o) => ehGadget(o.title)).map((o) => tipoGadget(o.title)));
   // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
   const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
@@ -340,11 +350,19 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
     // 26/Nov: no Mãe, sem marca conhecida abaixo de R$ 20 fica de fora (pincel descartável, pomada sem marca...)
-    if (c.perfil_id === PERFIL_MAE && o.kind !== "cupom" && (o.price_current ?? 0) < 20 && !MARCA_BELEZA.test(tt)) return false;
-    if (maternas && o.kind !== "cupom") {
-      if (LENCO.test(tt) && nLenco / t >= TETO_LENCO) return false;
-      if (SAUDE_APAR.test(tt) && nSaudeApar / t >= TETO_SAUDE_APAR) return false;
-      if (o.platform === "shopee" && (shopees / t >= TETO_SHOPEE || genericoShopee(o))) return false;
+    if (R && o.kind !== "cupom") {
+      const cat = categoriaDe(R, o);
+      if (R.so_categorias && !cat) return false;
+      if (cat?.teto != null && (nCat.get(cat.nome) ?? 0) / t >= cat.teto / 100) return false;
+      const preco = o.price_current ?? 0, marca = temMarca(R, tt);
+      if (R.sem_marca_abaixo_de != null && preco < R.sem_marca_abaixo_de && !marca) return false;
+      if (o.platform === "shopee") {
+        if (R.teto_shopee != null && shopees / t >= R.teto_shopee / 100) return false;
+        if (R.shopee_generico_abaixo_de != null && preco < R.shopee_generico_abaixo_de && !marca) {
+          const pm = (o.promo_meta ?? {}) as Record<string, unknown>;
+          if (!(Number(pm.rating ?? 0) >= 4.8 && vendidosNum(pm.vendidos) >= 1000)) return false;
+        }
+      }
     }
     if (o.platform === "magalu" && !magaluFresca.has(skuMagalu(o) ?? "")) return false;
     return true;
@@ -394,15 +412,21 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       if (!o) { const i = poolGadgetGeek.findIndex((x) => !jaFoi(x)); if (i >= 0) o = poolGadgetGeek.splice(i, 1)[0]; }
       if (o) tiposGadget.add(tipoGadget(o.title));
     }
-    if (!o && maternas && nEquip / t < META_EQUIP) o = pega((x) => ehEquipBom(x) && equipVaria(x)) ?? pega((x) => ehEquipOk(x) && equipVaria(x));
-    if (!o && maternas && nNatura / t < META_NATURA) o = pega(ehNatura);
-    if (!o && maternas && nAlimenta / t < META_ALIMENTA) o = pega((x) => ALIMENTA.test(x.title || ""));
-    if (!o && cotas) {
-      // categoria mais atrasada primeiro; marca conhecida antes do genérico; eletro grande só com 25%+ de desconto
-      const ordem = Object.entries(cotas.cota).map(([k, m]) => [k, (nCat.get(k) ?? 0) / t - m] as [string, number]).filter(([, d]) => d < 0).sort((a, b) => a[1] - b[1]);
+    if (!o && R) {
+      // categoria mais atrasada na cota primeiro; dentro dela, faixa de preço, desconto mínimo, marca e variação
+      const ordem = R.categorias.filter((k) => k.meta > 0).map((k) => [k, (nCat.get(k.nome) ?? 0) / t - k.meta / 100] as [CategoriaRegra, number]).filter(([, d]) => d < 0).sort((a, b) => a[1] - b[1]);
       for (const [k] of ordem) {
-        const daCat = (x: Cand) => catDe(cotas.tab, x.title) === k && (k !== "eletro_grande" || ehEletroGrandeBom(x));
-        o = pega((x) => daCat(x) && cotas.marca.test(x.title || "")) ?? pega(daCat);
+        const daCat = (x: Cand) => {
+          if (categoriaDe(R, x)?.nome !== k.nome) return false;
+          const p = x.price_current ?? 0;
+          if (k.preco_min != null && p < k.preco_min) return false;
+          if (k.preco_max != null && p > k.preco_max) return false;
+          if (k.desconto_min != null) { const d = x.discount_pct ?? (x.price_original && p ? Math.round((1 - p / x.price_original) * 100) : 0); if (d < k.desconto_min) return false; }
+          if (k.so_marca && !temMarca(R, x.title)) return false;
+          if (k.variar && (nTipo.get(k.nome + ":" + (palavraQueCasou(k.palavras, x.title) ?? "")) ?? 0) >= 2) return false;
+          return true;
+        };
+        o = (k.marca_primeiro || k.so_marca ? pega((x) => daCat(x) && temMarca(R, x.title)) : null) ?? (k.so_marca ? null : pega(daCat));
         if (o) break;
       }
     }
@@ -424,7 +448,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const pid = idProduto(o.url);
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
-    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; if (cotas) { const kc = catDe(cotas.tab, o.title); if (kc) nCat.set(kc, (nCat.get(kc) ?? 0) + 1); } if (ehEquip(o)) { nEquip++; const k = tipoEquip(o.title); tiposEquip.set(k, (tiposEquip.get(k) ?? 0) + 1); } if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
+    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; contaCat(o); if (ehEquip(o)) { nEquip++; const k = tipoEquip(o.title); tiposEquip.set(k, (tiposEquip.get(k) ?? 0) + 1); } if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++; if (o.platform === "magalu") magalus++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;
@@ -491,10 +515,12 @@ async function furarComExclusiva(db: DB, c: AutoCampaign, dayStart: string): Pro
   const agora = Date.now();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bloqueios = await carregarBloqueios(db);
+  const regrasEx = lerRegras(c.regras);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   // 26/Nov: exclusiva também respeita a regra do perfil e, nas Maternas, só fralda de marca forte (saiu Pom Pom como exclusiva)
   const vivos = ((cands ?? []) as any[]).filter((o) => exclusivaNoAr(o, agora) && !motivoBloqueio(bloqueios, c.perfil_id, o)
     && !foraDoPerfil(c.perfil_id, o.title) && !(c.perfil_id === PERFIL_MATERNAS && isFralda(o.title) && !FRALDA_BOA.test(o.title || ""))
+    && !(regrasEx?.so_categorias && !categoriaDe(regrasEx, o))
     && !(idProduto(o.url) && ids.has(idProduto(o.url))) && !nomes.has(chaveProduto(o.title)));
   if (!vivos.length) return "sem exclusiva no ar";
   // janela recém-aberta primeiro (é a "antecipada"), depois maior desconto
@@ -515,7 +541,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
 
   const { data: campaigns } = await db
     .from("campaigns")
-    .select("id, name, perfil_id, auto_daily_cap, auto_window_start, auto_window_end, auto_buffer, categoria, niche")
+    .select("id, name, perfil_id, auto_daily_cap, auto_window_start, auto_window_end, auto_buffer, categoria, niche, regras")
     .eq("is_active", true)
     .eq("auto_enqueue", true);
 

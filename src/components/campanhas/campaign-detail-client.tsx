@@ -7,6 +7,7 @@ import PhonesTab from "./phones-tab";
 import GroupsTab from "./groups-tab";
 import PlatformsTab from "./platforms-tab";
 import CampaignSettings from "./campaign-settings";
+import RegrasTab from "./regras-tab";
 import type { Numero } from "./perfil-saude";
 import type { Database } from "@/lib/types/database";
 
@@ -81,6 +82,9 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
       </div>
 
       <CampaignSettings campaign={campaign} onSaved={handleSaved} onDelete={onDelete} />
+
+      {/* 26/Nov: regras de produto por campanha (categorias, cotas, marcas, filtros) — só na campanha de mix (geral) */}
+      {((campaign as unknown as { categoria?: string }).categoria ?? "geral") === "geral" && <RegrasTab key={campaign.id} campaignId={campaign.id} />}
 
       {perfilId && numeros.length > 0 ? (
         <>

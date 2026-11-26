@@ -55,6 +55,8 @@ export function tituloQuebrado(titulo: string | null | undefined): boolean {
 
 // 26/Nov (Bruno: "manda ver em tudo", orientação de casa e beleza a partir dos concorrentes): Lar e Mãe passam a ter
 // lista do que PRECISA ter (antes só havia "nunca"; no teste 274 de 284 produtos de casa passariam no Mãe).
+// 26/Nov (mais tarde): "só entra o que bate numa categoria" passou pra regra de cada campanha (campaigns.regras,
+// aba Regras). CASA e BELEZA ficaram aqui só como origem das listas que foram pro banco.
 // Categoria = a primeira que casar (a ordem importa: mais específica primeiro, cozinha e corpo por último). Usado também nas cotas por categoria do auto-enqueue.
 export const CASA: Record<string, RegExp> = {
   eletro_grande: /geladeira|refrigerador|freezer|m[aá]quina de lavar|lavadora de roupas|lava e seca|lava.?lou[cç]as|fog[aã]o|cooktop|forno de embutir|ar.?condicionado|split|adega|tanquinho|secadora de roupa/i,
@@ -93,14 +95,12 @@ export function foraDoPerfil(perfilId: string | null | undefined, titulo: string
       if (CARRO.test(t)) return "coisa de carro";
       if (/beb[eê]|\bbaby\b|infantil|crian[cç]a|\bkids?\b|\brn\b|rec[eé]m[- ]?nascid|fralda|mamadeira|chupeta|brinquedo/i.test(t)) return "infantil";
       if (ELETRONICO.test(t)) return "eletrônico";
-      if (!catDe(BELEZA, t)) return "sem sinal de beleza ou bem-estar";
       return null;
     }
     case PERFIL.lar: {
       if (ELETRONICO.test(t)) return "eletrônico";
       if (BRINQUEDO.test(t) && !/organizador/i.test(t)) return "brinquedo";
       if (SINAL_BEBE.test(t)) return "infantil";
-      if (!catDe(CASA, t)) return "sem sinal de casa";
       return null;
     }
     case PERFIL.geek: {
