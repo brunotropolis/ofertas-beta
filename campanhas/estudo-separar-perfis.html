@@ -1,0 +1,80 @@
+<title>Separar Fraldas, Cupons e Enxoval</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: coluna de leitura; hoje > o que depende do perfil > 2 caminhos lado a lado > recomendação e passos. */
+:root{--bg:#f7f6f2;--surface:#fff;--ink:#22262a;--muted:#646c72;--line:#e2e0d9;--a:#2c6e7f;--a-soft:#dcebee;--b:#a2572f;--b-soft:#f5e3d8;
+--display:"Fraunces",Georgia,serif;--body:"Plus Jakarta Sans",system-ui,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15181a;--surface:#1d2124;--ink:#e8ebe9;--muted:#9aa3a8;--line:#2d3337;--a:#6fb6c8;--a-soft:#1d3439;--b:#e8a07a;--b-soft:#3d281d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15181a;--surface:#1d2124;--ink:#e8ebe9;--muted:#9aa3a8;--line:#2d3337;--a:#6fb6c8;--a-soft:#1d3439;--b:#e8a07a;--b-soft:#3d281d;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(28px,5vw,42px)}h2{font-size:24px}h3{font-size:19px}
+p{margin:0;max-width:68ch}.muted{color:var(--muted)}
+section{display:flex;flex-direction:column;gap:14px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.ca{border-top:4px solid var(--a)}.cb{border-top:4px solid var(--b)}
+.tag{align-self:flex-start;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 9px;border-radius:99px}
+.ta{background:var(--a-soft);color:var(--a)}.tb{background:var(--b-soft);color:var(--b)}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}tr:last-child td{border-bottom:0}
+ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;max-width:72ch}
+</style>
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <span class="eyebrow">Ofertas Beta · estudo de 26/11/2026 · fazer depois da Black</span>
+    <h1>Fraldas, Cupons e Enxoval como projetos separados</h1>
+    <p class="muted">O pedido: que os três apareçam no seletor de projetos do painel e sejam tratados à parte do Ofertas Maternas. Abaixo, como está hoje, o que depende disso e dois caminhos.</p>
+  </header>
+
+  <section>
+    <h2>Como está hoje</h2>
+    <p>Os três são campanhas dentro do perfil Ofertas Maternas. Cada um já tem grupos próprios, regras próprias (aba Regras de produto) e etiqueta de venda própria no link (Amazon <code>mrnoffraldas-20</code> e afins, etiqueta do ML, utm da Shopee). O que eles dividem com o Maternas:</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>O que é dividido</th><th>Onde mora</th><th>Peso na separação</th></tr></thead>
+      <tbody>
+        <tr><td>Números de WhatsApp que postam (2019, 9476, 7531) e o domínio de link</td><td>tabela <code>perfis</code> (waha_urls, short_domain)</td><td>Baixo: dá pra apontar os perfis novos pros mesmos números</td></tr>
+        <tr><td>Estoque de produtos e cupons (coletores, Telegram, WhatsApp, planilhas)</td><td><code>offers.perfil_id</code> = Maternas</td><td>Alto: Cupons e Enxoval escolhem do estoque do Maternas</td></tr>
+        <tr><td>Palavras-chave dos coletores</td><td>palavras do perfil</td><td>Médio</td></tr>
+        <tr><td>Leitor do Telegram (pra qual perfil manda cada post)</td><td><code>scripts/telegram-leitor.core.js</code></td><td>Médio</td></tr>
+        <tr><td>Telas do painel filtradas pelo seletor (Campanhas, Fila, Publicações, Vendas, Início)</td><td>~40 arquivos usam <code>perfil_id</code></td><td>Médio</td></tr>
+        <tr><td>Vendas e Tio Patinhas</td><td>somam o Maternas inteiro</td><td>Baixo: as etiquetas por campanha já separam</td></tr>
+        <tr><td>Travas por perfil (bebê, masculino...), canais, convites</td><td><code>regras-perfil.ts</code>, campanhas</td><td>Baixo</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Dois caminhos</h2>
+    <div class="cols">
+      <div class="card ca"><span class="tag ta">Caminho A · recomendado</span><h3>Projeto "de visão" no seletor</h3>
+        <p>Fraldas, Cupons e Enxoval entram no seletor como projetos ligados ao Maternas ("filhos"). Ao escolher um, o painel mostra só a campanha dele: grupos, regras, fila, publicações, vendas pela etiqueta própria e números. O estoque continua um só (o que o Maternas coleta serve aos quatro), e os números de WhatsApp também.</p>
+        <ul><li>Nada muda no que o robô posta</li><li>Vendas por projeto usando as etiquetas que já existem</li><li>Esforço: 1 a 2 dias</li><li>Risco baixo</li></ul>
+      </div>
+      <div class="card cb"><span class="tag tb">Caminho B</span><h3>Projeto completo, independente</h3>
+        <p>Cada um vira perfil de verdade, com estoque próprio (ofertas gravadas no perfil dele), palavras e coletores próprios, leitor do Telegram mandando cupom direto pro Cupons, e opcionalmente números de WhatsApp próprios.</p>
+        <ul><li>Separação total, inclusive de coleta</li><li>Coletores e leitores duplicados (mais custo de API e de manutenção)</li><li>Esforço: 4 a 6 dias + 1 semana de acompanhamento</li><li>Risco médio: mexe em coleta, leitor, publicador e vendas ao mesmo tempo</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recomendação</h2>
+    <p>Começar pelo Caminho A: ele entrega o que você pediu (os três separados no seletor, tratados à parte) sem mexer na coleta e no envio, que é onde as coisas quebram. Se depois algum deles precisar de estoque ou números próprios (por exemplo, Fraldas com chip próprio), esse vira o Caminho B só pra ele.</p>
+    <h3>Passos do Caminho A</h3>
+    <ol>
+      <li>Banco: coluna "projeto pai" em <code>perfis</code> e 3 perfis filhos (Fraldas, Cupons, Enxoval) apontando pro Maternas e pros mesmos números.</li>
+      <li>Campanhas Fraldas, Cupons e Enxoval passam a pertencer ao perfil filho; o robô continua lendo o estoque do pai.</li>
+      <li>Seletor mostra os filhos (agrupados embaixo do Maternas); Início, Campanhas, Fila, Publicações e Vendas filtram pelo filho.</li>
+      <li>Vendas por projeto pelas etiquetas já existentes (Amazon por ID, ML por etiqueta, Shopee por utm).</li>
+      <li>Tio Patinhas: relatório por projeto.</li>
+      <li>Simular 1 dia antes de ligar e conferir que nada mudou no que sai nos grupos.</li>
+    </ol>
+  </section>
+</div>
