@@ -109,6 +109,8 @@ const TETO_SHOPEE = 0.10;
 const ehEquipBom = (o: { title?: string | null; price_current?: number | null }) => { const t = o.title || ""; const p = o.price_current ?? 0; return EQUIP.test(t) && MARCA_BOA.test(t) && p >= 30 && p <= 800; };
 const ehEquipOk = (o: { title?: string | null; price_current?: number | null; platform?: string | null }) => { const t = o.title || ""; const p = o.price_current ?? 0; return EQUIP.test(t) && p >= 100 && p <= 800 && o.platform !== "shopee"; };
 const ehEquip = (o: { title?: string | null; price_current?: number | null; platform?: string | null }) => ehEquipBom(o) || ehEquipOk(o);
+/** tipo do equipamento (carrinho, berco, baba...) pra variar no dia: na simulação saíram 4 carrinhos Burigotto em 25 posts */
+const tipoEquip = (t: string | null) => ((t || "").match(EQUIP)?.[0] || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/\s+/)[0];
 const ehNatura = (o: { url?: string | null; affiliate_url?: string | null }) => /natura\.com/i.test(`${o.url ?? ""} ${o.affiliate_url ?? ""}`);
 /** "+8,2 mil" > 8200 · "+500" > 500 */
 const vendidosNum = (v: unknown) => { const s = String(v ?? "").toLowerCase().replace(/\+/g, "").trim(); const n = parseFloat(s.replace(/\.(?=\d{3})/g, "").replace(",", ".")); return Number.isFinite(n) ? (/mil/.test(s) ? n * 1000 : n) : 0; };
@@ -219,6 +221,9 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nBrinq = feitos.filter((o) => BRINQUEDO.test(o.title || "")).length;
   let nGadget = feitos.filter((o) => ehGadget(o.title)).length;
   let nEquip = feitos.filter((o) => ehEquip(o)).length;
+  const tiposEquip = new Map<string, number>();
+  feitos.filter((o) => ehEquip(o)).forEach((o) => { const k = tipoEquip(o.title); tiposEquip.set(k, (tiposEquip.get(k) ?? 0) + 1); });
+  const equipVaria = (x: Cand) => (tiposEquip.get(tipoEquip(x.title)) ?? 0) < 2; // no máx. 2 do mesmo tipo por dia antes de repetir
   let nNatura = feitos.filter((o) => ehNatura(o)).length;
   let nAlimenta = feitos.filter((o) => ALIMENTA.test(o.title || "")).length;
   let nSaudeApar = feitos.filter((o) => SAUDE_APAR.test(o.title || "")).length;
@@ -371,7 +376,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
       if (!o) { const i = poolGadgetGeek.findIndex((x) => !jaFoi(x)); if (i >= 0) o = poolGadgetGeek.splice(i, 1)[0]; }
       if (o) tiposGadget.add(tipoGadget(o.title));
     }
-    if (!o && maternas && nEquip / t < META_EQUIP) o = pega(ehEquipBom) ?? pega(ehEquipOk);
+    if (!o && maternas && nEquip / t < META_EQUIP) o = pega((x) => ehEquipBom(x) && equipVaria(x)) ?? pega((x) => ehEquipOk(x) && equipVaria(x));
     if (!o && maternas && nNatura / t < META_NATURA) o = pega(ehNatura);
     if (!o && maternas && nAlimenta / t < META_ALIMENTA) o = pega((x) => ALIMENTA.test(x.title || ""));
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
@@ -392,7 +397,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const pid = idProduto(o.url);
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
-    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; if (ehEquip(o)) nEquip++; if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
+    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; if (ehEquip(o)) { nEquip++; const k = tipoEquip(o.title); tiposEquip.set(k, (tiposEquip.get(k) ?? 0) + 1); } if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++; if (o.platform === "magalu") magalus++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;
