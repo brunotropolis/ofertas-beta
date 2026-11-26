@@ -460,7 +460,9 @@ async function furarComExclusiva(db: DB, c: AutoCampaign, dayStart: string): Pro
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bloqueios = await carregarBloqueios(db);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // 26/Nov: exclusiva também respeita a regra do perfil e, nas Maternas, só fralda de marca forte (saiu Pom Pom como exclusiva)
   const vivos = ((cands ?? []) as any[]).filter((o) => exclusivaNoAr(o, agora) && !motivoBloqueio(bloqueios, c.perfil_id, o)
+    && !foraDoPerfil(c.perfil_id, o.title) && !(c.perfil_id === PERFIL_MATERNAS && isFralda(o.title) && !FRALDA_BOA.test(o.title || ""))
     && !(idProduto(o.url) && ids.has(idProduto(o.url))) && !nomes.has(chaveProduto(o.title)));
   if (!vivos.length) return "sem exclusiva no ar";
   // janela recém-aberta primeiro (é a "antecipada"), depois maior desconto
