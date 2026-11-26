@@ -68,7 +68,7 @@ export default function BloqueadosClient() {
         <h1 className="text-3xl font-display font-semibold text-white tracking-tightest">Produtos bloqueados</h1>
         <p className="text-zinc-500 text-sm mt-1 max-w-3xl">
           O robô não posta nenhum produto cujo título tenha um destes termos, nos grupos, nos canais e até no envio manual.
-          Não importa acento nem maiúscula. Venda internacional (Amazon Global, compra internacional do ML, AliExpress) já fica de fora sozinha.
+          Não importa acento nem maiúscula. Venda internacional do Mercado Livre e da Shopee (e AliExpress, Temu, Shein) já fica de fora sozinha. Internacional da Amazon pode.
         </p>
       </div>
 

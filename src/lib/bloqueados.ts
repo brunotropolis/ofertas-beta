@@ -49,6 +49,10 @@ interface OfertaB {
 }
 /** true quando a oferta é de venda internacional */
 export function ehInternacional(o: OfertaB): boolean {
+  // 26/Nov ~10h (Bruno: "pelos da amazon, acho que podemos deixar as compras internacionais dela; só mercado livre e
+  // shopee que temos que ter cuidado"): Amazon Global volta a postar. promo_meta.internacional segue marcado pelo
+  // Amazon Refresh só como informação. Desfazer: tirar esta linha.
+  if (o.platform === "amazon") return false;
   const pm = (o.promo_meta ?? {}) as Record<string, unknown>;
   if (pm.internacional === true) return true;
   if (o.platform === "aliexpress" || LOJA_INTERNACIONAL.test(`${o.url ?? ""} ${o.affiliate_url ?? ""}`)) return true;
