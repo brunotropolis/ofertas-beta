@@ -153,7 +153,10 @@ export async function POST(request: Request) {
   // ── Magalu (20/Nov): link de qualquer afiliado/página vira o da vitrine do perfil; o Chrome do operador lê
   //    título/foto/preço depois (o site bloqueia servidor). Perfil sem vitrine Magalu = não entra.
   let pedirMagalu: { sku: string; caminho: string } | null = null;
-  if (p.platform === "magalu" || (p.kind === "produto" && ehMagalu(p.affiliate_url || p.url))) {
+  // 26/Nov (Bruno: "pq não estão indo os cupons da magalu para os grupos"): o cupom Magalu do leitor vem com
+  // platform "magalu" e o link da VITRINE (não de produto); caía aqui e saía como "link_magalu_sem_produto".
+  // Cupom pula a leitura de produto e segue com o link da vitrine que o leitor já montou.
+  if (p.kind !== "cupom" && (p.platform === "magalu" || (p.kind === "produto" && ehMagalu(p.affiliate_url || p.url)))) {
     if (!vitrineMagalu) return NextResponse.json({ skipped: "perfil_sem_vitrine_magalu" });
     const c = await magaluCaminho(p.affiliate_url || p.url);
     if (!c) return NextResponse.json({ skipped: "link_magalu_sem_produto" });
