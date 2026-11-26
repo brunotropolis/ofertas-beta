@@ -18,7 +18,6 @@ import {
   Home,
   Wallet,
   History,
-  GalleryHorizontal,
   Menu,
   X,
   Puzzle, Thermometer, Ban } from "lucide-react";
@@ -33,17 +32,20 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "Setup",
-    items: [{ href: "/campanhas", label: "Campanhas", icon: Megaphone }],
+    // 26/Nov (Bruno: "nosso menu está muito cheio"): Amazon exclusivas e Bloqueados foram pro Setup das campanhas
+    items: [
+      { href: "/campanhas", label: "Campanhas", icon: Megaphone },
+      { href: "/exclusivas", label: "Amazon exclusivas", icon: Zap },
+      { href: "/bloqueados", label: "Bloqueados", icon: Ban },
+    ],
   },
   {
     title: "Postagens",
     items: [
       { href: "/ofertas", label: "Nova oferta", icon: Tag },
-      { href: "/exclusivas", label: "Amazon exclusivas", icon: Zap },
-      { href: "/carrossel", label: "Carrossel", icon: GalleryHorizontal },
+      // 26/Nov: Carrossel oculto do menu por enquanto (a página segue em /carrossel)
       { href: "/publicacoes", label: "Publicações", icon: List },
       { href: "/fila", label: "Fila", icon: Clock },
-      { href: "/bloqueados", label: "Bloqueados", icon: Ban },
       { href: "/agendamento", label: "Agendamento", icon: CalendarClock },
       { href: "/calendario", label: "Calendário", icon: CalendarDays },
     ],
@@ -53,12 +55,12 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/vendas", label: "Vendas", icon: Wallet },
       { href: "/precos", label: "Caro ou barato", icon: Thermometer },
+      { href: "/historico", label: "Histórico", icon: History },
     ],
   },
   {
     title: "Utilidades",
     items: [
-      { href: "/historico", label: "Histórico", icon: History },
       { href: "/extensao", label: "Extensão do Chrome", icon: Puzzle },
     ],
   },
