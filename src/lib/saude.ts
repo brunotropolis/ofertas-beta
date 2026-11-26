@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { intervaloFimDeSemana, tetoDoDia } from "@/lib/fim-de-semana";
+import { comPlantao } from "@/lib/plantao";
 import { amazonCurtoStatus } from "@/lib/encurtar";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,7 +128,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
     .eq("perfil_id", id).eq("is_active", true);
   const minBrt = hBrt * 60 + new Date(agora - BRT_MS).getUTCMinutes();
   const inicioDiaUtc = Date.parse(`${hojeBrt}T00:00:00Z`) + BRT_MS;
-  const campanhas = await Promise.all(((campsAtivas ?? []) as Any[]).map(async (c) => {
+  const campanhas = await Promise.all(((campsAtivas ?? []) as Any[]).map((c0) => comPlantao({ ...c0, perfil_id: id, auto_daily_cap: c0.auto_daily_cap != null ? tetoDoDia(c0) : null })).map(async (c) => {
     const ini = (c.auto_window_start ?? 8) * 60, fim = (c.auto_window_end ?? 20) * 60;
     const naJanela = minBrt >= ini && minBrt < fim;
     const [{ data: ult }, { data: fila }, { count: hoje }] = await Promise.all([
@@ -149,7 +150,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
       return u?.sent_at ? (agora - Date.parse(u.sent_at)) / 60000 : (agora - Date.parse(i.created_at)) / 60000 - timer;
     }));
     const esperandoMin = itens.filter((i) => i.status === "pending").map((i) => (agora - Date.parse(i.created_at)) / 60000);
-    const tetoOk = (hoje ?? 0) >= (c.auto_daily_cap != null ? tetoDoDia(c) : 9999);
+    const tetoOk = (hoje ?? 0) >= (c.auto_daily_cap != null ? c.auto_daily_cap : 9999);
     const geral = (c.categoria ?? "geral") === "geral";
     let luz: Luz = "verde", motivo = "Postando normalmente";
     if (!naJanela) motivo = `Fora do horário (${ini / 60}h–${fim / 60}h)`;
