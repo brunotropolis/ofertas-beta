@@ -194,6 +194,11 @@
       "data": "2026-11-26",
       "tipo": "sistema",
       "o_que": "Mix do estudo de produtos (equipe abr/jul/ago x robo 12-25/11): cota de enxoval/equipamento de marca boa 20% (cadeirao, carrinho, berco, baba, banheira, bomba, mamadeira, roupa; R$30-800 com marca ou R$100-800), Natura 4%, alimentacao 2%, saude 10>6% + aparelho teto 3%, lenco 6>4% + teto 5%, Shopee teto 10% e generico < R$20 so com nota 4,8 e 1000+ vendidos. Coletores novos: Magalu nas Maternas, Amazon por marca (coletor_equipamento a cada 2h), ML com 1 busca de equipamento por rodada. Medir semana 03-09/12 x 19-25/11: % equipamento/lenco/Shopee nos posts e comissao por familia."
+    },
+    {
+      "data": "2026-11-26",
+      "tipo": "sistema",
+      "o_que": "Lar e Mae com regra do que entra (Lar so casa, Mae so beleza/bem-estar) e cotas por categoria (Lar: cozinha 30%, limpeza 25%, cama e banho 15%, eletroportatil 15%, organizacao 10%, eletro grande 4% com 25%+ off; Mae: cabelo 25%, pele 20%, corpo 20%, bem-estar 15%, maquiagem 12%, aparelho 8%), marca conhecida primeiro, Mae sem marca < R$20 fora e sem masculino. Fraldas: tamanho pelo que vende (G/XG ~metade, RN 5%). Coletores: Boticario no Mae, Karsten e Emma no Lar (Awin, preco de corrigido), Amazon por marca pra casa e beleza. Cupom Magalu destravado no ingest. Medir semana 03-09/12."
     }
   ]
 }
