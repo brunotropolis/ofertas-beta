@@ -299,9 +299,7 @@ export async function GET() {
 
 /** arte de cupom por loja (public/cupons/*.png) — foto do card e do post de cupom */
 function imagemCupom(loja: string | null | undefined): string | null {
-  // 25/Nov: cupom Magalu ficava com a arte do ML. Arte própria (public/cupons/magalu.png) aguardando o OK do Bruno:
-  // até lá sai sem arte (o card mostra a vitrine). Aprovou = trocar null por "magalu" e subir o png.
-  if (loja === "magalu") return null;
-  const k = loja === "shopee" || loja === "amazon" ? loja : "ml";
+  // 25/Nov: cupom Magalu ficava com a arte do ML. 26/Nov (Bruno: "manda ver no cupom da magalu"): arte própria aprovada.
+  const k = loja === "shopee" || loja === "amazon" || loja === "magalu" ? loja : "ml";
   return `https://app.buscadorgeek.com.br/cupons/${k}.png`;
 }
