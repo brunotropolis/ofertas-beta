@@ -53,6 +53,28 @@ export function tituloQuebrado(titulo: string | null | undefined): boolean {
   return t.length < 12 ||/:\s*$/.test(t) || /^(rn|p|m|g|xg|xxg|xxxg|gg|eg)\s+com\s+\d/i.test(t);
 }
 
+// 26/Nov (Bruno: "manda ver em tudo", orientação de casa e beleza a partir dos concorrentes): Lar e Mãe passam a ter
+// lista do que PRECISA ter (antes só havia "nunca"; no teste 274 de 284 produtos de casa passariam no Mãe).
+// Categoria = a primeira que casar (a ordem importa: mais específica primeiro, cozinha e corpo por último). Usado também nas cotas por categoria do auto-enqueue.
+export const CASA: Record<string, RegExp> = {
+  eletro_grande: /geladeira|refrigerador|freezer|m[aá]quina de lavar|lavadora de roupas|lava e seca|lava.?lou[cç]as|fog[aã]o|cooktop|forno de embutir|ar.?condicionado|split|adega|tanquinho|secadora de roupa/i,
+  eletroportatil: /panificadora|moedor de caf|m[aá]quina de (p[aã]o|gelo|algod[aã]o doce)|air ?fryer|fritadeira|liquidificador|batedeira|mixer|processador|sanduicheira|grill|torradeira|cafeteira|chaleira|panela el[eé]trica|panela de press[aã]o el|forno el[eé]trico|micro.?ondas|espremedor|ferro de passar|vaporizador de roupa|aspirador|rob[oô] aspirador|ventilador|climatizador|purificador|umidificador|desumidificador|mop el[eé]trico|lavadora de alta|seladora|m[aá]quina de caf[eé]|nespresso|dolce gusto/i,
+  limpeza: /sacos? (para|de) lixo|dover.?roll|desengordurante|pastilha (de limpeza|degreaser)|cif\b|pano m[aá]gico|microfibra (de limpeza|para limpeza)|papa.?bolinha|removedor de fiapo|toalha de papel|armadilha|mata.?mosquito|raquete el[eé]trica|ratoeira|tela protetor(a)? de ralo|desentupidor|sab[aã]o|amaciante|lava.?roupas?|detergente|desinfetante|[aá]gua sanit[aá]ria|alvejante|tira.?manchas|multiuso|limpador|limpa vidro|lustra|esponja|pano de (ch[aã]o|prato|limpeza)|papel higi[eê]nico|papel toalha|guardanapo|saco de lixo|vassoura|rodo|\bmop\b|balde|inseticida|repelente (el[eé]trico|de tomada)|neutralizador|odorizador|bom ar|veja|omo|yp[eê]|downy|comfort|vanish|brilhante|ariel|lysoform|pinho sol|neve|scott|personal (vip|folha)/i,
+  cama_banho: /toalha|jogo de banho|beliche|cabeceira|cama box|\bcama (casal|solteiro|queen|king)|len[cç][oó]is|jogo (de )?cama|coberdrom|edredom|capacho|toalha (de )?mesa|jogo americano|cobre.?sof[aá]|manta|roupa de cama|len[cç]ol|edredom|edredon|cobertor|manta (de sof[aá]|para cama|microfibra)|colcha|cobre.?leito|travesseiro|fronha|jogo de cama|toalha de (banho|rosto|mesa)|toalh[aã]o|jogo de toalha|roup[aã]o|tapete|cortina|almofada|capa de (sof[aá]|almofada)|colch[aã]o|protetor de colch[aã]o|buddemeyer|santista|altenburg|karsten|teka|emma/i,
+  decoracao: /adorno|flor artificial|flores artificiais|planner|lugar americano|decora|vaso|quadro|lumin[aá]ria|abajur|lustre|vela|aromatiz|difusor|espelho|planta artificial|enfeite|porta.?retrato|rel[oó]gio de parede|fita de led|natal|arranjo/i,
+  organizacao: /guarda.?roupa|cadeira|mesa (de jantar|lateral|de centro|dobr[aá]vel)|banqueta|sof[aá]|aparador|poltrona|puff|cabideiro|moldura|desk ?pad|torneira|ducha|chuveiro|ralo|assento sanit[aá]rio|kit banheiro|porta.?escova|organizador|caixa organiz|cesto|cabide|varal|sapateira|prateleira|nicho|gancho|suporte (de|para) parede|porta.?(objetos|treco|controle|papel)|arm[aá]rio|estante|gaveteiro|rack|cômoda|comoda|mala|necessaire de viagem/i,
+  cozinha: /saladeira|copos?\b|bowl|petisqueira|kit bartender|coqueteleira|ma[cç]arico de cozinha|cortador|ta[cç]as?\b|jogo de jantar|aparelho de jantar|jogo de x[ií]caras|filme (pvc|pl[aá]stico)|papel alum[ií]nio|saco (zip|herm[eé]tico)|lixeira|porta.?frios|descascador|peneira|centr[ií]fuga de alimentos|cuscuzeira|chaleira de inox|panela|frigideira|ca[cç]arola|wok|jogo de panelas|faqueiro|talher|faca|t[aá]bua|pote|marmita|garrafa t[eé]rmica|copo t[eé]rmico|caneca|x[ií]cara|prato|travessa|assadeira|forma (de|para)|refrat[aá]ri|escorredor|porta.?temper|lixeira de pia|utens[ií]lio|esp[aá]tula|concha de cozinha|abridor|ralador|tupperware|jarra|squeeze|stanley|tramontina|brinox|oikos|marinex|electrolux.*(pia|filtro)/i,
+};
+export const BELEZA: Record<string, RegExp> = {
+  bem_estar: /col[aá]geno|verisol|whey|creatina|vitamina (d|c|b|e)\b|multivitam|[oô]mega.?3|magn[eé]sio|suplemento|biotina|termog[eê]nico|pr[eé].?treino|prote[ií]na|caf[eé] (em c[aá]psula|gourmet|especial|em gr[aã]os|mo[ií]do)|c[aá]psulas? de caf[eé]|ch[aá] (verde|detox|de)|vitafor|growth|integralmedica|max titanium|dux|essential nutrition|sanavita|melatonina/i,
+  aparelho: /depilar|venus|balan[cç]a (corporal|de bioimped)|modelador(a)?|cacheador(a)?|chapinha|prancha|secador|chapinha|prancha (alisadora|de cabelo)|escova (secadora|alisadora|rotativa|modeladora)|babyliss|modelador de cachos|depilador|epilador|escova (de dente|dental) el[eé]trica|oral.?b|irrigador oral|massageador|aparelho de (manicure|pedicure)|lixa el[eé]trica|taiff|cadence|gama italy/i,
+  maquiagem: /manicure|pedicure|esp[aá]tula.*(unha|cut[ií]cula)|alicate de cut[ií]cula|batons?\b|baton|maquiag|batom|base (l[ií]quida|matte|de maquiagem)|corretivo|p[oó] (compacto|solto|facial)|blush|bronzer|iluminador|sombra|paleta|r[ií]mel|m[aá]scara de c[ií]lios|delineador|l[aá]pis de (olho|boca)|gloss|primer|fixador de maquiagem|esponja de maquiagem|pinc[eé]is? de maquiagem|esmalte|unha|removedor de esmalte|ruby rose|vult|maybelline|max love|dailus|mari maria|bruna tavares|boca rosa|\bmac\b/i,
+  cabelo: /m[aá]scara.{0,30}capilar|terapia capilar|hen[eê]\b|reposi[cç][aã]o de (massa|carbono)|creme (para|pra) pentear|creme pentear|ampola|blindagem|plancton|relaxamento|alisamento|progressiva|botox capilar|cronograma capilar|widi care|bra[eé]\b|apice|cadiveu|lowell|forever liss|novex|skala|cantu|nutri waves|kit capilar|shampoo|condicionador|m[aá]scara (capilar|de hidrata|de tratamento)|creme de pentear|[oó]leo capilar|leave.?in|finalizador|tonalizante|tintura|colora[cç][aã]o|kit (capilar|cronograma|tratamento)|ampola capilar|elseve|pantene|wella|k[eé]rastase|redken|joico|lola|salon line|truss|siage|inoar|tresemm[eé]|seda\b|haskell|bio extratus|cachos|antiqueda|reconstru[cç][aã]o/i,
+  pele: /ampoule|centella|base stick|skin1004|retinal|soro facial|booster|m[aá]scara facial|estrias|celimax|skin ?care|hidratante (para estria|facial)|gel facial|ac[ií]do|protetor labial|s[eé]rum|hidratante facial|creme facial|protetor solar|filtro solar|sabonete facial|gel de limpeza|[aá]gua micelar|t[oô]nico facial|esfoliante facial|anti.?idade|antissinais|retinol|vitamina c|niacinamida|[aá]cido hialur|cetaphil|neutrogena|la roche|vichy|cerave|bioderma|eucerin|principia|sallve|creamy|episol|isdin|nivea (facial|cellular)|photoage|demaquilante|olheira|clareador|cicatricure|aquaphor/i,
+  corpo_perfume: /kit perfumado|sabonetes?\b|sab[aã]o em barra|fragr[aâ]ncia|\bedp\b|\bedt\b|deo parfum|deo col[oô]nia|[oó]leo de am[eê]ndoas|creme de massagem|hidratante (para (as )?m[aã]os|de m[aã]os)|enxaguante bucal|listerine|creme dental|clareamento dental|xerjoff|una\b|humor\b|rhenuks|glitter|perfume|eau de (parfum|toilette)|col[oô]nia|desodorante|body splash|hidratante corporal|lo[cç][aã]o (hidratante|corporal)|[oó]leo corporal|creme (corporal|para (as )?m[aã]os|para os p[eé]s)|manteiga corporal|sabonete (l[ií]quido|em barra)|esfoliante corporal|natura|botic[aá]rio|eudora|o\.?u\.?i|granado|l.?occitane|oc[eé]ane|bio.?oil|dove|nivea|tododia|ekos|kaiak|lily|malbec|egeo|floratta|essencial/i,
+};
+export const catDe = (cats: Record<string, RegExp>, titulo: string | null | undefined): string | null => { const t = titulo || ""; for (const [k, r] of Object.entries(cats)) if (r.test(t)) return k; return null; };
+
 export function foraDoPerfil(perfilId: string | null | undefined, titulo: string | null | undefined): string | null {
   const t = titulo || "";
   if (!t) return null;
@@ -71,12 +93,14 @@ export function foraDoPerfil(perfilId: string | null | undefined, titulo: string
       if (CARRO.test(t)) return "coisa de carro";
       if (/beb[eê]|\bbaby\b|infantil|crian[cç]a|\bkids?\b|\brn\b|rec[eé]m[- ]?nascid|fralda|mamadeira|chupeta|brinquedo/i.test(t)) return "infantil";
       if (ELETRONICO.test(t)) return "eletrônico";
+      if (!catDe(BELEZA, t)) return "sem sinal de beleza ou bem-estar";
       return null;
     }
     case PERFIL.lar: {
       if (ELETRONICO.test(t)) return "eletrônico";
       if (BRINQUEDO.test(t) && !/organizador/i.test(t)) return "brinquedo";
       if (SINAL_BEBE.test(t)) return "infantil";
+      if (!catDe(CASA, t)) return "sem sinal de casa";
       return null;
     }
     case PERFIL.geek: {

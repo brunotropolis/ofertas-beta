@@ -82,9 +82,27 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
   }
 
   const ids: string[] = [];
-  const tamanhosUsados = new Set<string>();
-  // varia o tamanho: 1 por tamanho por rodada antes de repetir tamanho
-  const ordem = [...cands.filter((p) => { const ok = !tamanhosUsados.has(p.tamanho); tamanhosUsados.add(p.tamanho); return ok; }), ...cands];
+  // 26/Nov (Bruno: "manda ver em tudo", estudo Fraldas): tamanho pelo que vende (comissão 90 dias: G 33%, XG 20%,
+  // M 19%, P 13%, XXG 6%, RN 4%). Era: 1 de cada tamanho por rodada (RN saía 16% dos posts e vende 4%).
+  const ALVO_TAM: Record<string, number> = { G: 0.27, XG: 0.22, M: 0.20, P: 0.13, XXG: 0.10, XXXG: 0.03, RN: 0.05 };
+  const tamDe = (t: string | null | undefined) => { const m = ` ${(t || "").toUpperCase()} `.match(/[^A-Z](RN\+?|XXXG|XXG|XG|G|M|P)[^A-Z]/); return m ? m[1].replace("+", "") : "?"; };
+  const brt = new Date(Date.now() - 3 * 3600_000);
+  const hojeFeitos = await jaDaCampanha(db, c.id, new Date(Date.UTC(brt.getUTCFullYear(), brt.getUTCMonth(), brt.getUTCDate(), 3)).toISOString());
+  const nTam = new Map<string, number>();
+  hojeFeitos.forEach((o) => { const k = tamDe(o.title); nTam.set(k, (nTam.get(k) ?? 0) + 1); });
+  let totTam = hojeFeitos.length;
+  const resto = [...cands];
+  const ordem: Any[] = [];
+  while (ordem.length < n * 3 && resto.length) {
+    const tams = [...new Set(resto.map((p) => (p.tamanho || "?").replace("+", "")))];
+    const deficit = (k: string) => (ALVO_TAM[k] ?? 0.02) - (nTam.get(k) ?? 0) / (totTam + 1);
+    const k = tams.sort((a, b) => deficit(b) - deficit(a))[0];
+    if (deficit(k) <= -0.5) break;
+    const i = resto.findIndex((p) => (p.tamanho || "?").replace("+", "") === k);
+    ordem.push(resto.splice(i, 1)[0]);
+    nTam.set(k, (nTam.get(k) ?? 0) + 1); totTam++;
+  }
+  ordem.push(...resto);
   const vistos = new Set<string>();
   for (const p of ordem) {
     if (ids.length >= n) break;

@@ -21,7 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
-import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA } from "@/lib/regras-perfil";
+import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA, CASA, BELEZA, catDe } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,6 +118,19 @@ const genericoShopee = (o: Cand) => {
   if (o.platform !== "shopee" || (o.price_current ?? 0) >= 20 || MARCA_BOA.test(o.title || "")) return false;
   const pm = (o.promo_meta ?? {}) as Record<string, unknown>;
   return !(Number(pm.rating ?? 0) >= 4.8 && vendidosNum(pm.vendidos) >= 1000);
+};
+// 26/Nov (Bruno: "manda ver em tudo", orientação de casa e beleza tirada dos concorrentes, 40 posts/dia cada):
+//  Lar: cozinha ~12, limpeza ~10, cama e banho ~6, eletroportátil ~6, organização ~4, eletro grande 1-2 (só com desconto forte).
+//  Mãe: cabelo ~10, pele ~8, perfume e corpo ~8, bem-estar ~6, maquiagem ~5, aparelho ~3. Natura e Boticário dentro de corpo.
+//  Marca conhecida primeiro em cada categoria; no Mãe, produto sem marca abaixo de R$ 20 fica de fora.
+const PERFIL_MAE = "aa6b7dcb-11c6-4e8f-bcab-5965ec51462d";
+const COTA_LAR: Record<string, number> = { cozinha: 0.30, limpeza: 0.25, cama_banho: 0.15, eletroportatil: 0.15, organizacao: 0.10, eletro_grande: 0.04 };
+const COTA_MAE: Record<string, number> = { cabelo: 0.25, pele: 0.20, corpo_perfume: 0.20, bem_estar: 0.15, maquiagem: 0.12, aparelho: 0.08 };
+const MARCA_CASA = /tramontina|brinox|oikos|marinex|electrolux|brastemp|consul|philco|mondial|arno|oster|brit[aâ]nia|walita|philips|wap\b|midea|samsung|\blg\b|black.?decker|cadence|karsten|buddemeyer|santista|altenburg|teka|emma|tok ?& ?stok|stanley|lyor|oxford|rochedo|panelux|tupperware|electrolux|omo\b|yp[eê]|downy|comfort|vanish|veja\b|brilhante|ariel|neve\b|lysoform|cif\b|scott|kitchenaid|nespresso|dolce gusto|tres cora|mallory|gallant|hamilton beach|ordene|plasutil|sanremo|coza|polishop/i;
+const MARCA_BELEZA = /natura|botic[aá]rio|eudora|\bo\.u\.i\b|oc[eé]ane|granado|l.?occitane|lor[eé]al|elseve|pantene|wella|k[eé]rastase|redken|joico|lola|salon line|truss|siage|inoar|tresemm[eé]|cadiveu|bra[eé]\b|nivea|dove|neutrogena|cetaphil|la roche|vichy|cerave|bioderma|eucerin|principia|sallve|creamy|episol|isdin|bio.?oil|ruby rose|vult|maybelline|max love|mari maria|bruna tavares|boca rosa|philips|taiff|brit[aâ]nia|mondial|cadence|gama|oral.?b|vitafor|growth|integralmedica|max titanium|dux\b|essential nutrition|sanavita|verisol|nestl[eé]|tr[eê]s cora|melitta|nescaf[eé]/i;
+const ehEletroGrandeBom = (o: { title?: string | null; price_current?: number | null; price_original?: number | null; discount_pct?: number | null }) => {
+  const d = o.discount_pct ?? (o.price_original && o.price_current ? Math.round((1 - o.price_current / o.price_original) * 100) : 0);
+  return d >= 25;
 };
 const META_ML = 0.45;
 const META_AMAZON = 0.33;
@@ -228,6 +241,9 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   let nAlimenta = feitos.filter((o) => ALIMENTA.test(o.title || "")).length;
   let nSaudeApar = feitos.filter((o) => SAUDE_APAR.test(o.title || "")).length;
   const maternas = c.perfil_id === PERFIL_MATERNAS;
+  const cotas = c.perfil_id === PERFIL_LAR ? { tab: CASA, cota: COTA_LAR, marca: MARCA_CASA } : c.perfil_id === PERFIL_MAE ? { tab: BELEZA, cota: COTA_MAE, marca: MARCA_BELEZA } : null;
+  const nCat = new Map<string, number>();
+  if (cotas) feitos.forEach((o) => { const k = catDe(cotas.tab, o.title); if (k) nCat.set(k, (nCat.get(k) ?? 0) + 1); });
   const tiposGadget = new Set(feitos.filter((o) => ehGadget(o.title)).map((o) => tipoGadget(o.title)));
   // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
   const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
@@ -323,6 +339,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
+    // 26/Nov: no Mãe, sem marca conhecida abaixo de R$ 20 fica de fora (pincel descartável, pomada sem marca...)
+    if (c.perfil_id === PERFIL_MAE && o.kind !== "cupom" && (o.price_current ?? 0) < 20 && !MARCA_BELEZA.test(tt)) return false;
     if (maternas && o.kind !== "cupom") {
       if (LENCO.test(tt) && nLenco / t >= TETO_LENCO) return false;
       if (SAUDE_APAR.test(tt) && nSaudeApar / t >= TETO_SAUDE_APAR) return false;
@@ -379,6 +397,15 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (!o && maternas && nEquip / t < META_EQUIP) o = pega((x) => ehEquipBom(x) && equipVaria(x)) ?? pega((x) => ehEquipOk(x) && equipVaria(x));
     if (!o && maternas && nNatura / t < META_NATURA) o = pega(ehNatura);
     if (!o && maternas && nAlimenta / t < META_ALIMENTA) o = pega((x) => ALIMENTA.test(x.title || ""));
+    if (!o && cotas) {
+      // categoria mais atrasada primeiro; marca conhecida antes do genérico; eletro grande só com 25%+ de desconto
+      const ordem = Object.entries(cotas.cota).map(([k, m]) => [k, (nCat.get(k) ?? 0) / t - m] as [string, number]).filter(([, d]) => d < 0).sort((a, b) => a[1] - b[1]);
+      for (const [k] of ordem) {
+        const daCat = (x: Cand) => catDe(cotas.tab, x.title) === k && (k !== "eletro_grande" || ehEletroGrandeBom(x));
+        o = pega((x) => daCat(x) && cotas.marca.test(x.title || "")) ?? pega(daCat);
+        if (o) break;
+      }
+    }
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
     if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
     if (!o && nLenco / t < META_LENCO) o = pega((x) => LENCO.test(x.title || ""));
@@ -397,7 +424,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const pid = idProduto(o.url);
     if (pid) idsUsados.add(pid);
     if (o.source === "telegram") nTele++; else if (o.source === "auto") nAuto++;
-    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; if (ehEquip(o)) { nEquip++; const k = tipoEquip(o.title); tiposEquip.set(k, (tiposEquip.get(k) ?? 0) + 1); } if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
+    { const tt = o.title || ""; if (SAUDE.test(tt)) nSaude++; if (LENCO.test(tt)) nLenco++; if (AMAMENTA.test(tt)) nAmamenta++; if (BRINQUEDO.test(tt)) nBrinq++; if (ehGadget(tt)) nGadget++; if (cotas) { const kc = catDe(cotas.tab, o.title); if (kc) nCat.set(kc, (nCat.get(kc) ?? 0) + 1); } if (ehEquip(o)) { nEquip++; const k = tipoEquip(o.title); tiposEquip.set(k, (tiposEquip.get(k) ?? 0) + 1); } if (ehNatura(o)) nNatura++; if (ALIMENTA.test(tt)) nAlimenta++; if (SAUDE_APAR.test(tt)) nSaudeApar++; }
     total++; if (isFralda(o.title)) fraldas++; if (o.platform === "amazon") amazons++; if (o.platform === "ml") mls++; if (o.platform === "shopee") shopees++; if (o.platform === "magalu") magalus++;
     if (ehMlCaro(o)) nMlCaro++;
     if (o.geek) nGeek++;
