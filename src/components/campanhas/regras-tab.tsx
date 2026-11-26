@@ -3,15 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Loader2, Plus, RotateCcw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { categoriaDe, palavraQueCasou, temMarca, type CategoriaRegra, type RegrasCampanha } from "@/lib/regras-campanha";
+import { categoriaDe, palavraQueCasou, temMarca, foraDasRegras, type CategoriaRegra, type RegrasCampanha } from "@/lib/regras-campanha";
 
 // Aba "Regras de produto" da campanha (26/Nov): o que o robô posta nessa campanha. Lida pelo auto-enqueue.
-const vazia: RegrasCampanha = { so_categorias: false, marcas: [], categorias: [], teto_shopee: null, sem_marca_abaixo_de: null, shopee_generico_abaixo_de: null };
+const vazia: RegrasCampanha = { so_categorias: false, marcas: [], categorias: [], teto_shopee: null, sem_marca_abaixo_de: null, shopee_generico_abaixo_de: null, nunca: [], lojas: [], so_marcas: false, so_promocao: false };
 const lista = (s: string) => s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
 const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
 const inputCls = "bg-zinc-900/70 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-sm text-zinc-100 outline-none focus:border-orange-400/60 w-full";
 
-export default function RegrasTab({ campaignId }: { campaignId: string }) {
+// dica por tipo de campanha (campaigns.categoria)
+const DICA: Record<string, string> = {
+  geral: "Campanha de mix: as cotas por categoria disputam espaço com o mix padrão (cupom, campeões, fralda...).",
+  fraldas: "Fraldas: cada categoria é um TAMANHO (nome = RN, P, M, G, XG, XXG, XXXG) e a cota é a % de posts daquele tamanho. Marcas e lojas filtram o que entra.",
+  cupons: "Cupons: valem as lojas permitidas e as palavras que nunca entram. Categorias não são usadas aqui.",
+  enxoval: "Enxoval: o produto precisa bater em alguma categoria (o que entra) e não pode ter palavra da lista do que nunca entra.",
+};
+
+export default function RegrasTab({ campaignId, tipo = "geral" }: { campaignId: string; tipo?: string }) {
   const [regras, setRegras] = useState<RegrasCampanha | null>(null);
   const [original, setOriginal] = useState<string>("null");
   const [carregando, setCarregando] = useState(true);
@@ -54,6 +62,8 @@ export default function RegrasTab({ campaignId }: { campaignId: string }) {
     const marca = temMarca(r, teste);
     const preco = num(testePreco);
     const motivos: string[] = [];
+    const fora = foraDasRegras({ ...r, lojas: [] }, { title: teste });
+    if (fora) motivos.push(fora);
     if (r.so_categorias && !cat) motivos.push("não bate em nenhuma categoria");
     if (preco != null && r.sem_marca_abaixo_de != null && preco < r.sem_marca_abaixo_de && !marca) motivos.push(`sem marca boa e abaixo de R$ ${r.sem_marca_abaixo_de}`);
     if (cat && preco != null && cat.preco_min != null && preco < cat.preco_min) motivos.push(`abaixo do preço mínimo da cota (R$ ${cat.preco_min})`);
@@ -70,6 +80,7 @@ export default function RegrasTab({ campaignId }: { campaignId: string }) {
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-white"><SlidersHorizontal className="w-4 h-4 text-orange-400" strokeWidth={1.75} />Regras de produto</h3>
           <p className="text-xs text-zinc-500 mt-1 max-w-2xl">O que o robô posta nesta campanha. As palavras valem sem acento e sem maiúscula, no começo da palavra (&quot;toalha&quot; pega &quot;toalhas&quot;); palavra de até 4 letras só vale inteira. A ordem das categorias importa: o produto entra na primeira que bater. Bebê fora do Lar, masculino fora do Mãe e a lista de Bloqueados continuam valendo sempre.</p>
+          {DICA[tipo] && <p className="text-xs text-orange-200/80 mt-1 max-w-2xl">{DICA[tipo]}</p>}
         </div>
         <div className="flex items-center gap-2">
           {mudou && <button onClick={() => setRegras(JSON.parse(original))} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 hover:text-white"><RotateCcw className="w-3.5 h-3.5" />Desfazer</button>}
@@ -103,6 +114,21 @@ export default function RegrasTab({ campaignId }: { campaignId: string }) {
           <label className="text-xs text-zinc-400 flex flex-col gap-1 md:col-span-2">Shopee sem marca abaixo de (R$) só com nota 4,8 e 1.000+ vendidos
             <input id="rg-shopeegen" className={inputCls} value={r.shopee_generico_abaixo_de ?? ""} onChange={(e) => set({ shopee_generico_abaixo_de: num(e.target.value) })} placeholder="não usa" inputMode="decimal" />
           </label>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-3">
+          <label className="text-xs text-zinc-400 flex flex-col gap-1">Palavras que nunca entram ({(r.nunca ?? []).length}) · separe com vírgula
+            <textarea id="rg-nunca" rows={2} className={cn(inputCls, "resize-y")} value={(r.nunca ?? []).join(", ")} onChange={(e) => set({ nunca: lista(e.target.value) })} placeholder="ex.: adulto, pet, fralda descartável" />
+          </label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs text-zinc-400 flex flex-col gap-1">Lojas permitidas (vazio = todas): amazon, ml, shopee, magalu, natura
+              <input id="rg-lojas" className={inputCls} value={(r.lojas ?? []).join(", ")} onChange={(e) => set({ lojas: lista(e.target.value).map((x) => x.toLowerCase()) })} placeholder="todas" />
+            </label>
+            <div className="flex items-center gap-4 flex-wrap text-xs text-zinc-400">
+              <label className="flex items-center gap-1.5"><input id="rg-somarcas" type="checkbox" checked={!!r.so_marcas} onChange={(e) => set({ so_marcas: e.target.checked })} className="accent-orange-500" />Só produto de marca boa</label>
+              {tipo === "fraldas" && <label className="flex items-center gap-1.5"><input id="rg-sopromo" type="checkbox" checked={!!r.so_promocao} onChange={(e) => set({ so_promocao: e.target.checked })} className="accent-orange-500" />Só em promoção</label>}
+            </div>
+          </div>
         </div>
 
         <label className="text-xs text-zinc-400 flex flex-col gap-1">Marcas boas ({r.marcas.length}) · separe com vírgula

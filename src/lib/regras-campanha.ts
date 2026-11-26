@@ -41,6 +41,37 @@ export interface RegrasCampanha {
   sem_marca_abaixo_de?: number | null;
   /** Shopee sem marca abaixo deste preço só com nota ≥4,8 e 1.000+ vendidos */
   shopee_generico_abaixo_de?: number | null;
+  /** 26/Nov: palavras que tiram o produto da campanha (ex.: Enxoval = "fralda descartavel", "adulto") */
+  nunca?: string[];
+  /** lojas permitidas (amazon, ml, shopee, magalu, natura). Vazio = todas */
+  lojas?: string[];
+  /** só posta produto de marca boa */
+  so_marcas?: boolean;
+  /** Fraldas: só produto em promoção (menor preço do mês, desconto ≥15% ou bem abaixo da mediana) */
+  so_promocao?: boolean;
+}
+
+/** loja da oferta pelo campo platform ou pelo link */
+export function lojaDe(o: { platform?: string | null; url?: string | null; affiliate_url?: string | null; marketplace?: string | null }): string {
+  const p = (o.platform || o.marketplace || "").toLowerCase();
+  if (p) return p;
+  const l = `${o.url ?? ""} ${o.affiliate_url ?? ""}`.toLowerCase();
+  if (/natura/.test(l)) return "natura";
+  if (/amazon|amzn/.test(l)) return "amazon";
+  if (/mercadoliv|meli.la/.test(l)) return "ml";
+  if (/shopee/.test(l)) return "shopee";
+  if (/magalu|magazine/.test(l)) return "magalu";
+  return "outra";
+}
+
+/** motivo pra campanha não aceitar a oferta pelas regras gerais (nunca, lojas, só marcas), ou null */
+export function foraDasRegras(r: RegrasCampanha | null, o: { title?: string | null; platform?: string | null; url?: string | null; affiliate_url?: string | null; marketplace?: string | null }): string | null {
+  if (!r) return null;
+  const nunca = palavraQueCasou(r.nunca ?? [], o.title);
+  if (nunca) return `palavra proibida: ${nunca}`;
+  if (r.lojas?.length && !r.lojas.map((x) => x.toLowerCase()).includes(lojaDe(o))) return `loja fora da lista (${lojaDe(o)})`;
+  if (r.so_marcas && !temMarca(r, o.title)) return "sem marca boa";
+  return null;
 }
 
 export const norm = (s: string | null | undefined) => ` ${(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9%+&]+/g, " ").trim()} `;
@@ -100,5 +131,8 @@ export function lerRegras(v: unknown): RegrasCampanha | null {
     teto_shopee: r.teto_shopee == null || r.teto_shopee === ("" as unknown) ? null : Number(r.teto_shopee),
     sem_marca_abaixo_de: r.sem_marca_abaixo_de == null || r.sem_marca_abaixo_de === ("" as unknown) ? null : Number(r.sem_marca_abaixo_de),
     shopee_generico_abaixo_de: r.shopee_generico_abaixo_de == null || r.shopee_generico_abaixo_de === ("" as unknown) ? null : Number(r.shopee_generico_abaixo_de),
+    nunca: Array.isArray(r.nunca) ? r.nunca.map(String).filter(Boolean) : [],
+    lojas: Array.isArray(r.lojas) ? r.lojas.map((x) => String(x).toLowerCase().trim()).filter(Boolean) : [],
+    so_marcas: !!r.so_marcas, so_promocao: !!r.so_promocao,
   };
 }

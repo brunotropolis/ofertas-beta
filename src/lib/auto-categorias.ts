@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { foraDoPerfil } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
+import { lerRegras, categoriaDe, foraDasRegras } from "@/lib/regras-campanha";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -21,7 +22,7 @@ type Any = any;
 
 export type Categoria = "geral" | "fraldas" | "cupons" | "enxoval" | "canal";
 
-interface Camp { id: string; perfil_id: string | null; niche?: string | null }
+interface Camp { id: string; perfil_id: string | null; niche?: string | null; regras?: unknown }
 
 const chave = (t: string | null) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 40);
 
@@ -63,9 +64,12 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
   // equipe de setembro, só Pampers e Huggies da Amazon/ML (a equipe postava ~10/dia, quase tudo Amazon, e a Amazon vendia
   // 458 fraldas/mês; com 60/dia misturando lojas caiu pra ~6/dia). Em promoção primeiro, mas sem exigir promoção.
   // Volume (12/dia, 1 por hora) fica na campanha. Desfazer: TESTE_FRALDAS_ATE = "" (ou esperar a data) + cap 70 / timer 10.
-  const teste = brtHoje() <= TESTE_FRALDAS_ATE;
-  const base = teste ? lista.filter((p) => ["amazon", "ml"].includes(p.marketplace) && /pampers|huggies/i.test(p.titulo || "")) : lista;
-  const promo = teste ? base : base.filter(emPromo);
+  // 26/Nov (Bruno: "separar fraldas, cupons e enxoval como campanhas também"): com regras na campanha (aba Regras de
+  // produto), marcas, lojas, "só em promoção" e a cota por tamanho vêm de lá; sem regras, segue o teste até 02/12.
+  const R = lerRegras(c.regras);
+  const teste = !R && brtHoje() <= TESTE_FRALDAS_ATE;
+  const base = R ? lista.filter((p) => !foraDasRegras(R, { title: p.titulo, marketplace: p.marketplace })) : teste ? lista.filter((p) => ["amazon", "ml"].includes(p.marketplace) && /pampers|huggies/i.test(p.titulo || "")) : lista;
+  const promo = R ? (R.so_promocao ? base.filter(emPromo) : base) : teste ? base : base.filter(emPromo);
 
   // sem repetir: produto postado pela campanha nos últimos 3 dias / mesmo título hoje
   const feitos = await jaDaCampanha(db, c.id, new Date(Date.now() - 3 * 86400_000).toISOString());
@@ -75,7 +79,7 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
     .filter((p) => !refs.has(p.id) && !titulos.has(chave(p.titulo)))
     .sort((a, b) => (Number(emPromo(b)) - Number(emPromo(a))) || (Number(noMinimo(b)) - Number(noMinimo(a))) || score(a) - score(b));
   // no teste a lista é curta (~40 produtos): acabou o que não saiu em 3 dias, repete o que não saiu nas últimas 24 h
-  if (teste && cands.length < n) {
+  if ((teste || (R && !R.so_promocao)) && cands.length < n) {
     const dia = await jaDaCampanha(db, c.id, new Date(Date.now() - 86400_000).toISOString());
     const refsDia = new Set(dia.map((o) => o.source_ref).filter(Boolean));
     cands = [...cands, ...promo.filter((p) => refs.has(p.id) && !refsDia.has(p.id))];
@@ -84,7 +88,7 @@ async function escolherFraldas(db: DB, c: Camp, n: number): Promise<string[]> {
   const ids: string[] = [];
   // 26/Nov (Bruno: "manda ver em tudo", estudo Fraldas): tamanho pelo que vende (comissão 90 dias: G 33%, XG 20%,
   // M 19%, P 13%, XXG 6%, RN 4%). Era: 1 de cada tamanho por rodada (RN saía 16% dos posts e vende 4%).
-  const ALVO_TAM: Record<string, number> = { G: 0.27, XG: 0.22, M: 0.20, P: 0.13, XXG: 0.10, XXXG: 0.03, RN: 0.05 };
+  const ALVO_TAM: Record<string, number> = R?.categorias.length ? Object.fromEntries(R.categorias.map((k) => [k.nome.toUpperCase().replace("+", "").trim(), (k.meta || 0) / 100])) : { G: 0.27, XG: 0.22, M: 0.20, P: 0.13, XXG: 0.10, XXXG: 0.03, RN: 0.05 };
   const tamDe = (t: string | null | undefined) => { const m = ` ${(t || "").toUpperCase()} `.match(/[^A-Z](RN\+?|XXXG|XXG|XG|G|M|P)[^A-Z]/); return m ? m[1].replace("+", "") : "?"; };
   const brt = new Date(Date.now() - 3 * 3600_000);
   const hojeFeitos = await jaDaCampanha(db, c.id, new Date(Date.UTC(brt.getUTCFullYear(), brt.getUTCMonth(), brt.getUTCDate(), 3)).toISOString());
@@ -162,7 +166,7 @@ const PALAVRA_SOLTA = new Set(["DISPON", "INSERIR", "RESGATAR", "RESGATE", "SEMP
 async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Promise<string[]> {
   const desde = new Date(Date.now() - 3 * 3600_000).toISOString();
   const { data } = await db.from("offers")
-    .select("id, title, extra_text, coupon_code, coupon_meta, created_at")
+    .select("id, title, extra_text, coupon_code, coupon_meta, created_at, platform, affiliate_url")
     .eq("perfil_id", c.perfil_id!).eq("kind", "cupom").in("source", ["telegram", "auto"]) // auto = lista da página de Cupons do ML (26/Out)
     .not("affiliate_url", "is", null).gte("created_at", desde)
     .order("created_at", { ascending: false }).limit(200);
@@ -178,10 +182,12 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
   const mortos = new Set<string>();
   for (const o of lista) if (MORTO.test(`${o.title} ${o.extra_text} ${o.coupon_meta?.regra ?? ""}`)) codigosDe(o).forEach((k) => mortos.add(k));
 
+  const Rc = lerRegras(c.regras);
   const ids: string[] = [];
   for (const o of lista) {
     if (ids.length >= n) break;
     if (MORTO.test(`${o.title} ${o.extra_text} ${o.coupon_meta?.regra ?? ""}`)) continue;
+    if (Rc && foraDasRegras({ ...Rc, so_marcas: false }, { title: o.title, platform: o.coupon_meta?.loja ?? o.platform, url: o.affiliate_url })) continue; // 26/Nov: regras da campanha (lojas, palavras proibidas)
     // lista de cupons do ML (sem código pra conferir): entra 1x por campanha
     if (Array.isArray(o.coupon_meta?.lista) && o.coupon_meta.lista.length) {
       if (!idsFeitos.has(o.id)) { ids.push(o.id); idsFeitos.add(o.id); }
@@ -223,10 +229,11 @@ async function escolherEnxoval(db: DB, c: Camp, n: number): Promise<string[]> {
   const feitos = await jaDaCampanha(db, c.id, new Date(Date.now() - 7 * 86400_000).toISOString());
   const usados = new Set(feitos.map((o) => chave(o.title)));
   const bloqueios = await carregarBloqueios(db);
+  const Re = lerRegras(c.regras); // 26/Nov: com regras na campanha, as palavras do que entra e do que nunca entra vêm de lá
   const ids: string[] = [];
   for (const o of (data ?? []) as Any[]) {
     if (ids.length >= n) break;
-    if (!ehEnxoval(o.title) || usados.has(chave(o.title))) continue;
+    if ((Re ? (!!foraDasRegras(Re, o) || (!!Re.so_categorias && !categoriaDe(Re, o))) : !ehEnxoval(o.title)) || usados.has(chave(o.title))) continue;
     if (motivoBloqueio(bloqueios, c.perfil_id, o)) continue; // 26/Nov: lista de bloqueio + internacional
     usados.add(chave(o.title));
     ids.push(o.id);

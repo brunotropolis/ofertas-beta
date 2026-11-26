@@ -23,7 +23,7 @@ import { tetoDoDia } from "@/lib/fim-de-semana";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA, CASA, BELEZA, catDe } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
-import { lerRegras, categoriaDe, palavraQueCasou, temMarca, type RegrasCampanha, type CategoriaRegra } from "@/lib/regras-campanha";
+import { lerRegras, categoriaDe, palavraQueCasou, temMarca, foraDasRegras, type RegrasCampanha, type CategoriaRegra } from "@/lib/regras-campanha";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -351,6 +351,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
     // 26/Nov: no Mãe, sem marca conhecida abaixo de R$ 20 fica de fora (pincel descartável, pomada sem marca...)
     if (R && o.kind !== "cupom") {
+      if (foraDasRegras(R, o)) return false; // palavras proibidas, lojas permitidas, só marcas boas
       const cat = categoriaDe(R, o);
       if (R.so_categorias && !cat) return false;
       if (cat?.teto != null && (nCat.get(cat.nome) ?? 0) / t >= cat.teto / 100) return false;

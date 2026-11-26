@@ -83,8 +83,10 @@ export default function CampaignDetailClient({ campaign: initial, initialPhones,
 
       <CampaignSettings campaign={campaign} onSaved={handleSaved} onDelete={onDelete} />
 
-      {/* 26/Nov: regras de produto por campanha (categorias, cotas, marcas, filtros) — só na campanha de mix (geral) */}
-      {((campaign as unknown as { categoria?: string }).categoria ?? "geral") === "geral" && <RegrasTab key={campaign.id} campaignId={campaign.id} />}
+      {/* 26/Nov: regras de produto por campanha (categorias, cotas, marcas, filtros): mix, fraldas, cupons e enxoval */}
+      {["geral", "fraldas", "cupons", "enxoval"].includes((campaign as unknown as { categoria?: string }).categoria ?? "geral") && (
+        <RegrasTab key={campaign.id} campaignId={campaign.id} tipo={(campaign as unknown as { categoria?: string }).categoria ?? "geral"} />
+      )}
 
       {perfilId && numeros.length > 0 ? (
         <>
