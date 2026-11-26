@@ -13,7 +13,12 @@ const DRY = process.argv.includes("--dry");
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 const LOMADEE_CANAL = "manualdorecemnascido";
 // só as marcas que trazem desconto no catálogo (24/11: Karsten, Arno, Granado, L'Occitane vieram sem nenhum)
-const MARCAS_AWIN = { lar: /tok ?& ?stok/i, mae: /^natura|oceane/i };
+// 26/11 (Bruno: "sobre beleza, temos outros sites agora no nosso sistema que podem buscar produtos de beleza não?"):
+// Boticário, Karsten e Emma tinham desconto, mas o preço "de" vinha em outro campo (product_price_old / base_price)
+// e o coletor só lia rrp_price. Com a leitura corrigida: Boticário 735 com 15%+, Karsten 319, Emma 49.
+const MARCAS_AWIN = { lar: /tok ?& ?stok|karsten|^emma/i, mae: /^natura|oceane|botic/i };
+/** preço "de" de cada loja da Awin: rrp_price (padrão), product_price_old ("59.85 BRL", Boticário), base_price ("R$ 319,90", Karsten) */
+const precoDe = (l) => { for (const v of [l.rrp_price, l.product_price_old, l.base_price]) { const s = String(v ?? "").replace(/BRL|R\$/g, "").trim(); if (!s) continue; const n = /,\d{1,2}$/.test(s) ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : parseFloat(s); if (n > 0) return Math.round(n * 100) / 100; } return null; };
 // 26/11 (estudo produtos, Bruno: "pode aplicar as 5"): Magalu também nas Maternas (equipe postava 8-10% de Magalu+Natura;
 // o robô 0%). Só a busca da vitrine, com palavras de enxoval/equipamento/rotina de bebê (marca boa primeiro).
 const PALAVRAS_MATERNAS = ["cadeira de alimentação bebê", "carrinho de bebê", "babá eletrônica", "berço portátil", "banheira bebê", "bomba tira leite", "mamadeira avent", "kit higiene bebê", "body bebê", "fralda pampers", "fralda huggies", "lenço umedecido pampers", "leite ninho", "fórmula infantil", "bebê conforto", "cadeirinha carro bebê", "sabão bebê", "esterilizador mamadeira", "tapete de atividades bebê", "cercadinho bebê"];
@@ -45,9 +50,9 @@ async function awin(g) {
     try {
       const buf = Buffer.from(await (await fetch(f.URL, { signal: AbortSignal.timeout(120000) })).arrayBuffer());
       const linhas = tabela((buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf) : buf).toString("utf8"));
-      const bons = linhas.filter((l) => !(l.in_stock === "0" || /^(no|false)$/i.test(l.in_stock || "")) && num(l.search_price) && num(l.rrp_price) >= num(l.search_price) * 1.15 && /^https?:/.test(l.aw_deep_link || "") && (l.merchant_image_url || l.aw_image_url));
+      const bons = linhas.filter((l) => !(l.in_stock === "0" || /^(no|false)$/i.test(l.in_stock || "")) && num(l.search_price) && precoDe(l) >= num(l.search_price) * 1.15 && /^https?:/.test(l.aw_deep_link || "") && (l.merchant_image_url || l.aw_image_url));
       for (const l of sorteia(bons, 15)) out.push({ loja: "awin · " + f["Advertiser Name"].replace(/\s+BR$/i, ""), ref: `awin_${f["Advertiser ID"]}_${l.aw_product_id || l.merchant_product_id}`, link: l.aw_deep_link,
-        url: l.merchant_deep_link || l.aw_deep_link, titulo: l.product_name, imagem: l.merchant_image_url || l.aw_image_url, preco: num(l.search_price), de: num(l.rrp_price) });
+        url: l.merchant_deep_link || l.aw_deep_link, titulo: l.product_name, imagem: l.merchant_image_url || l.aw_image_url, preco: num(l.search_price), de: precoDe(l) });
       console.log(g, "awin", f["Advertiser Name"], linhas.length, "linhas,", bons.length, "com desconto");
     } catch (e) { console.log(g, "awin erro", f["Advertiser Name"], e.message); }
   }

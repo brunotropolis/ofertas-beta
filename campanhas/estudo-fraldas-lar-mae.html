@@ -1,0 +1,137 @@
+<title>Prateleira de Fraldas, Lar e Mãe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: 3 blocos (Fraldas, Lar, Mãe), cada um: o que posta x o que vende > proposta. Cor por grupo. */
+:root{
+  --bg:#f7f6f2; --surface:#ffffff; --ink:#22262a; --muted:#646c72; --line:#e2e0d9;
+  --fr:#3b6fb6; --fr-soft:#dfe8f5; --lar:#3d7a4a; --lar-soft:#dfeee2; --mae:#b0487a; --mae-soft:#f5dfe9; --warn:#c0582f;
+  --display:"Fraunces",Georgia,serif; --body:"Plus Jakarta Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15181a; --surface:#1d2124; --ink:#e8ebe9; --muted:#9aa3a8; --line:#2d3337;
+  --fr:#86b1ea; --fr-soft:#1e2c40; --lar:#7fc58f; --lar-soft:#1f3524; --mae:#ec8ab8; --mae-soft:#3e2130; --warn:#ff9a72; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15181a; --surface:#1d2124; --ink:#e8ebe9; --muted:#9aa3a8; --line:#2d3337;
+  --fr:#86b1ea; --fr-soft:#1e2c40; --lar:#7fc58f; --lar-soft:#1f3524; --mae:#ec8ab8; --mae-soft:#3e2130; --warn:#ff9a72; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px;display:flex;flex-direction:column;gap:50px}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.12;text-wrap:balance}
+h1{font-size:clamp(30px,5vw,44px);font-weight:700}
+h2{font-size:27px;font-weight:700;display:flex;align-items:center;gap:12px}
+h3{font-size:18px;font-weight:500}
+p{margin:0;max-width:68ch}
+.eyebrow{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lead{font-size:18px;color:var(--muted)}
+section{display:flex;flex-direction:column;gap:16px}
+.dot{width:14px;height:14px;border-radius:50%;display:inline-block;flex:none}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:15px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line)}
+th{font:600 12px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.n{font-family:var(--mono)}
+td.warn{color:var(--warn);font-weight:600}
+tr:last-child td{border-bottom:0}
+.prop{border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.prop ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+.prop li span{color:var(--muted)}
+.p-fr{background:var(--fr-soft)} .p-lar{background:var(--lar-soft)} .p-mae{background:var(--mae-soft)}
+.prop b.t{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.note{font-size:14px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:12px">
+    <span class="eyebrow">Ofertas Maternas · Fraldas, Lar e Mãe · estudo de 26/11/2026</span>
+    <h1>O que cada grupo posta e o que vende</h1>
+    <p class="lead">Mesma ideia do estudo das Maternas. Nas Fraldas existe histórico da equipe. Lar e Mãe começaram em 24/11, então a régua é o que vende na conta inteira nessas categorias (90 dias). Só análise, nada foi mudado.</p>
+  </header>
+
+  <section>
+    <h2><span class="dot" style="background:var(--fr)"></span>Fraldas</h2>
+    <p>Pampers e Huggies fazem 85% da comissão de fralda, e a Amazon faz 74%. Até 24/11 o grupo postava o contrário: 45% Shopee e Turma da Mônica como marca mais postada. O teste que começou em 25/11 (só Pampers e Huggies, Amazon e ML) já corrigiu isso.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Medida</th><th class="n">Equipe (abr/jul/ago)</th><th class="n">Grupo até 24/11</th><th class="n">Teste desde 25/11</th><th class="n">O que vende (90 dias)</th></tr></thead>
+      <tbody>
+        <tr><td>Pampers + Huggies</td><td class="n">49%</td><td class="n warn">23%</td><td class="n">100%</td><td class="n">85% da comissão</td></tr>
+        <tr><td>Linha premium (Premium Care, Supreme, Natural Care, Pants, Máxima)</td><td class="n">37%</td><td class="n warn">13%</td><td class="n">73%</td><td class="n">46% da comissão</td></tr>
+        <tr><td>Amazon</td><td class="n">62%</td><td class="n warn">31%</td><td class="n">73%</td><td class="n">74%</td></tr>
+        <tr><td>Shopee</td><td class="n">3%</td><td class="n warn">45%</td><td class="n">0%</td><td class="n">11%</td></tr>
+        <tr><td>Tamanho RN</td><td class="n">10%</td><td class="n warn">16%</td><td class="n">7%</td><td class="n">4%</td></tr>
+        <tr><td>Tamanhos G e XG</td><td class="n">25%</td><td class="n">33%</td><td class="n">33%</td><td class="n">53%</td></tr>
+        <tr><td>Preço mediano do post</td><td class="n">R$ 51</td><td class="n">R$ 55</td><td class="n">R$ 96</td><td class="n">—</td></tr>
+      </tbody>
+    </table></div>
+    <p>Mais vendidas: Pampers Pants Ajuste Total G 90 (R$ 477), Confort Sec P 50 (R$ 334), Premium Care Pants XG 96 (R$ 302), Huggies Supreme Care M 196 (R$ 275), Confort Sec M 108 (R$ 238).</p>
+    <div class="prop p-fr"><b class="t">Proposta</b>
+      <ol>
+        <li>Manter o teste até 02/12, como combinado, e medir na semana fechada. <span>Ele já está no desenho certo.</span></li>
+        <li>Puxar os tamanhos pro que vende: G e XG perto de metade dos posts, M e P no meio, RN no máximo 5%. <span>Hoje o teste sorteia tamanho por igual.</span></li>
+        <li>Depois do teste, se a Amazon das fraldas subir: deixar Pampers e Huggies em ~85% e abrir 15% pra MamyPoko e Turma da Mônica, só quando o preço por fralda estiver no menor dos 30 dias.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="dot" style="background:var(--lar)"></span>Lar</h2>
+    <p>O grupo está concentrado em cozinha e limpeza (73% dos posts). O que vende em casa está bem mais espalhado: cama, mesa e banho é a categoria que mais rende, e decoração e eletrodoméstico grande somam um quarto da comissão. Esses dois hoje não aparecem no grupo.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Categoria</th><th class="n">Grupo Lar (24-26/11)</th><th class="n">Equipe no grupo #5</th><th class="n">Comissão de casa (90 dias)</th></tr></thead>
+      <tbody>
+        <tr><td>Cozinha e eletroportátil</td><td class="n warn">43%</td><td class="n">17%</td><td class="n">20%</td></tr>
+        <tr><td>Limpeza e lavanderia</td><td class="n">30%</td><td class="n">31%</td><td class="n">19%</td></tr>
+        <tr><td>Cama, mesa e banho</td><td class="n warn">7%</td><td class="n">30%</td><td class="n">22%</td></tr>
+        <tr><td>Decoração</td><td class="n warn">0%</td><td class="n">5%</td><td class="n">14%</td></tr>
+        <tr><td>Eletrodoméstico grande (ar, purificador, geladeira, robô aspirador)</td><td class="n warn">0%</td><td class="n">5%</td><td class="n">12%</td></tr>
+        <tr><td>Organização e utilidades</td><td class="n">4%</td><td class="n">12%</td><td class="n">12%</td></tr>
+      </tbody>
+    </table></div>
+    <p>Mais vendidos de casa: jogo de toalhas banhão (R$ 174), ar-condicionado Midea 9000 (R$ 99), robô aspirador Xiaomi (R$ 75), purificador Electrolux (R$ 73), Omo 2,2 kg família (R$ 69), geladeira Electrolux (R$ 57). 41% dos posts do grupo têm marca conhecida; o resto é genérico, como raquete mata-mosquito e coberdrom sem marca.</p>
+    <div class="prop p-lar"><b class="t">Proposta</b>
+      <ol>
+        <li>Mix por categoria: cama, mesa e banho ~20%, cozinha ~25%, limpeza ~25%, organização ~10%, decoração ~10% e 1 a 2 eletrodomésticos grandes por dia.</li>
+        <li>Marca conhecida primeiro: Tramontina, Electrolux, Mondial, Arno, Oster, Karsten, Santista, Buddemeyer, Omo, Ypê, Comfort, Stanley, Lyor. Genérico só com nota alta.</li>
+        <li>Coletor de casa por palavra e marca, igual ao de equipamento das Maternas: toalha banhão Karsten, jogo de cama 400 fios, purificador Electrolux, ar-condicionado inverter, robô aspirador.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="dot" style="background:var(--mae)"></span>Mãe (beleza e bem-estar)</h2>
+    <p>Só 23% dos posts têm marca conhecida e 25% custam menos de R$ 20: pincel descartável, pomada sem marca, lenço com perfume. A Natura, que é a loja da Day, ficou em 10% (na equipe ela era 21% do que se postava de beleza). Bem-estar (colágeno, whey, ômega 3, café) é o que mais rende na conta e quase não aparece.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Medida</th><th class="n">Grupo Mãe (24-26/11)</th><th class="n">Equipe no grupo #5</th><th class="n">Comissão de beleza (90 dias)</th></tr></thead>
+      <tbody>
+        <tr><td>Marca conhecida</td><td class="n warn">23%</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td>Abaixo de R$ 20</td><td class="n warn">25%</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td>Natura</td><td class="n warn">10%</td><td class="n">21%</td><td class="n">—</td></tr>
+        <tr><td>Corpo e perfumaria</td><td class="n">21%</td><td class="n">44%</td><td class="n">32%</td></tr>
+        <tr><td>Bem-estar (colágeno, whey, ômega, café)</td><td class="n warn">2%</td><td class="n">29%</td><td class="n">45%</td></tr>
+        <tr><td>Cabelo</td><td class="n">17%</td><td class="n">8%</td><td class="n">9%</td></tr>
+        <tr><td>Pele e skincare</td><td class="n">12%</td><td class="n">2%</td><td class="n">6%</td></tr>
+        <tr><td>Maquiagem e unhas</td><td class="n">10%</td><td class="n">12%</td><td class="n">4%</td></tr>
+        <tr><td>Não encaixa em nada (genérico)</td><td class="n warn">29%</td><td class="n">—</td><td class="n">—</td></tr>
+      </tbody>
+    </table></div>
+    <div class="prop p-mae"><b class="t">Proposta</b>
+      <ol>
+        <li>Natura em ~20% dos posts (a loja da Day já está no coletor, só falta meta).</li>
+        <li>Bem-estar em ~15%: colágeno Verisol, whey, ômega 3, café em cápsula, de marca.</li>
+        <li>Marca conhecida primeiro (Natura, Boticário, L'Oréal, Nivea, Neutrogena, La Roche, Wella, Lola, Salon Line, Granado, Bio Oil; aparelhos Philips, Taiff, Britânia, Mondial). Sem marca abaixo de R$ 20 fica de fora.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>Limites</h2>
+    <ul class="plain">
+      <li>Lar e Mãe têm só 3 dias de posts (56 e 52). É cedo pra cravar, mas o desenho é claro.</li>
+      <li>A comissão de casa e de beleza é da conta inteira e vem quase toda dos grupos das Maternas e da bio. Serve como direção do que a mãe compra, não como venda desses grupos novos.</li>
+      <li>Categoria e marca saem do nome do produto, por regra de texto. É aproximado.</li>
+      <li>O teste das Fraldas segue até 02/12 (decisão de 25/11). Nada aqui muda isso antes da medição.</li>
+    </ul>
+  </section>
+</div>
