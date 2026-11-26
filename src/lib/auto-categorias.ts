@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { foraDoPerfil } from "@/lib/regras-perfil";
+import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -196,17 +197,19 @@ export const ehEnxoval = (t: string | null) => {
 
 async function escolherEnxoval(db: DB, c: Camp, n: number): Promise<string[]> {
   const { data } = await db.from("offers")
-    .select("id, title, source, created_at")
+    .select("id, title, source, created_at, url, affiliate_url, platform, extra_text, promo_meta")
     .eq("perfil_id", c.perfil_id!).eq("kind", "produto").in("source", ["auto", "telegram"])
     .not("image_url", "is", null).not("affiliate_url", "is", null)
     .gte("created_at", new Date(Date.now() - 48 * 3600_000).toISOString())
     .order("created_at", { ascending: false }).limit(600);
   const feitos = await jaDaCampanha(db, c.id, new Date(Date.now() - 7 * 86400_000).toISOString());
   const usados = new Set(feitos.map((o) => chave(o.title)));
+  const bloqueios = await carregarBloqueios(db);
   const ids: string[] = [];
   for (const o of (data ?? []) as Any[]) {
     if (ids.length >= n) break;
     if (!ehEnxoval(o.title) || usados.has(chave(o.title))) continue;
+    if (motivoBloqueio(bloqueios, c.perfil_id, o)) continue; // 26/Nov: lista de bloqueio + internacional
     usados.add(chave(o.title));
     ids.push(o.id);
   }
@@ -247,15 +250,16 @@ async function escolherCanal(db: DB, c: Camp, n: number): Promise<string[]> {
   const feitos = await jaDaCampanha(db, c.id, new Date(Date.now() - 7 * 86400_000).toISOString());
   const usados = new Set(feitos.map((o) => chave(o.title)));
   const desde = new Date(Date.now() - 48 * 3600_000).toISOString();
+  const bloqueios = await carregarBloqueios(db);
   const listas: Any[][] = [];
   for (const f of cfg.fontes) {
     const { data } = await db.from("offers")
-      .select("id, title, discount_pct, price_current")
+      .select("id, title, discount_pct, price_current, url, affiliate_url, platform, extra_text, promo_meta")
       .eq("perfil_id", f.perfil).eq("kind", "produto").in("source", ["auto", "telegram"])
       .not("image_url", "is", null).not("affiliate_url", "is", null).not("price_current", "is", null)
       .gte("created_at", desde).order("discount_pct", { ascending: false, nullsFirst: false }).limit(800);
     // 25/Nov: o canal também passa pela regra do perfil de onde a oferta vem (a mesma dos grupos, regras-perfil.ts)
-    listas.push(((data ?? []) as Any[]).filter((o) => o.title && !f.fora.test(o.title) && (!f.entra || f.entra.test(o.title)) && !foraDoPerfil(f.perfil, o.title)));
+    listas.push(((data ?? []) as Any[]).filter((o) => o.title && !f.fora.test(o.title) && (!f.entra || f.entra.test(o.title)) && !foraDoPerfil(f.perfil, o.title) && !motivoBloqueio(bloqueios, f.perfil, o)));
   }
   const ids: string[] = [];
   const pos = listas.map(() => 0);

@@ -22,6 +22,7 @@ import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 import { foraDoPerfil } from "@/lib/regras-perfil";
+import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any>;
@@ -112,6 +113,7 @@ interface Cand {
   id: string; title: string | null; platform: string | null; source: string;
   kind?: string | null; url?: string | null; discount_pct?: number | null; price_current?: number | null; price_original?: number | null;
   coupon_code?: string | null;
+  extra_text?: string | null; promo_meta?: Record<string, unknown> | null;
   geek?: boolean;
 }
 
@@ -199,7 +201,9 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   const jaFoi = (o: Cand) => usados.has(chaveProduto(o.title)) || (!!idProduto(o.url) && idsUsados.has(idProduto(o.url)!));
 
   const dupla = ehDataDupla();
-  const campos = "id, title, platform, source, kind, url, discount_pct, price_current, price_original, coupon_code";
+  // 26/Nov: extra_text e promo_meta entram pra lista de bloqueio e venda internacional (bloqueados.ts)
+  const campos = "id, title, platform, source, kind, url, discount_pct, price_current, price_original, coupon_code, extra_text, promo_meta";
+  const bloqueios = await carregarBloqueios(db);
   const base = () => db.from("offers").select(campos).eq("perfil_id", c.perfil_id!).eq("status", "draft")
     .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null);
   const fresco = new Date(Date.now() - CANAL_FRESCO_MS).toISOString();
@@ -250,7 +254,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   // O que saiu há mais tempo vai primeiro.
   const poolCampeao: Cand[] = [];
   if (!dupla) {
-    const { data: camps } = await db.from("offers").select(campos + ", promo_meta").eq("perfil_id", c.perfil_id!).eq("campeao", true)
+    const { data: camps } = await db.from("offers").select(campos).eq("perfil_id", c.perfil_id!).eq("campeao", true)
       .in("status", ["draft", "published"]).not("image_url", "is", null).not("affiliate_url", "is", null).limit(200);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const vivos = ((camps ?? []) as any[]).filter((o) => !o.promo_meta?.esgotado && (o.platform !== "amazon"
@@ -277,6 +281,8 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (c.perfil_id === PERFIL_GEEK && BRINQUEDO_GEEK.test(tt)) return false;
     // 25/Nov (Bruno: "aplica a correção em tudo"): regra única do perfil, igual nos grupos e canais (regras-perfil.ts)
     if (o.kind !== "cupom" && foraDoPerfil(c.perfil_id, tt)) return false;
+    // 26/Nov (Bruno): lista de bloqueio do painel + nada de venda internacional
+    if (o.kind !== "cupom" && motivoBloqueio(bloqueios, c.perfil_id, o)) return false;
     if (isFralda(tt) && (!FRALDA_BOA.test(tt) || fraldas / t >= TETO_FRALDA)) return false;
     if (AMAMENTA.test(tt) && !ehGadget(tt) && nAmamenta / t >= TETO_AMAMENTA) return false;
     if (BRINQUEDO.test(tt) && nBrinq / t >= TETO_BRINQUEDO) return false;
@@ -405,14 +411,16 @@ async function furarComExclusiva(db: DB, c: AutoCampaign, dayStart: string): Pro
   const nomes = new Set(feitos.map((o) => chaveProduto(o.title)));
 
   const { data: cands } = await db.from("offers")
-    .select("id, title, url, platform, price_current, price_original, promo_meta")
+    .select("id, title, url, platform, price_current, price_original, promo_meta, extra_text")
     .eq("perfil_id", c.perfil_id!).eq("status", "draft").eq("kind", "produto")
     .not("image_url", "is", null).not("affiliate_url", "is", null)
     .not("promo_meta->exclusiva", "is", null)
     .limit(1000);
   const agora = Date.now();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vivos = ((cands ?? []) as any[]).filter((o) => exclusivaNoAr(o, agora)
+  const bloqueios = await carregarBloqueios(db);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vivos = ((cands ?? []) as any[]).filter((o) => exclusivaNoAr(o, agora) && !motivoBloqueio(bloqueios, c.perfil_id, o)
     && !(idProduto(o.url) && ids.has(idProduto(o.url))) && !nomes.has(chaveProduto(o.title)));
   if (!vivos.length) return "sem exclusiva no ar";
   // janela recém-aberta primeiro (é a "antecipada"), depois maior desconto

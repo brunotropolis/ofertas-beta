@@ -17,6 +17,7 @@
 import { ehDia1111, PERFIL_GEEK } from "./auto-enqueue";
 import { conferirPrecoAntesDePostar } from "@/lib/conferir-preco";
 import { filtroGoogle } from "@/lib/filtro-google";
+import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
@@ -529,6 +530,11 @@ export async function publishQueueItemForCampaign(
   // promo_meta.aviso = { descricao }. Sai com o texto do jeito que foi escrito (extra_text), sem IA, sem cupom do dia,
   // sem trocar o link. Card do WhatsApp usa a arte (image_url) e o link (affiliate_url).
   const aviso = (o.promo_meta as { aviso?: { descricao?: string } } | null)?.aviso ?? null;
+  // 26/Nov (Bruno): última barreira, vale até pro post manual: lista de bloqueio do painel e venda internacional
+  if (!aviso && o.kind !== "cupom") {
+    const m = motivoBloqueio(await carregarBloqueios(db), (o as { perfil_id?: string | null }).perfil_id ?? campaign.perfil_id, o as unknown as Parameters<typeof motivoBloqueio>[2]);
+    if (m) throw new Error(`bloqueado: ${m}`);
+  }
   // 18/Nov: Shopee e ML conferem o preço na loja antes de postar (a Amazon já passa pelo Amazon Refresh)
   const conf = await conferirPrecoAntesDePostar(db, o as unknown as Parameters<typeof conferirPrecoAntesDePostar>[1]);
   if (!conf.ok) throw new Error(`preço não confere: ${conf.motivo}`);

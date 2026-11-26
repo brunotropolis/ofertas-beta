@@ -21,7 +21,7 @@ import {
   GalleryHorizontal,
   Menu,
   X,
-  Puzzle, Thermometer } from "lucide-react";
+  Puzzle, Thermometer, Ban } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 type NavSection = { title: string; items: NavItem[] };
@@ -43,6 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/carrossel", label: "Carrossel", icon: GalleryHorizontal },
       { href: "/publicacoes", label: "Publicações", icon: List },
       { href: "/fila", label: "Fila", icon: Clock },
+      { href: "/bloqueados", label: "Bloqueados", icon: Ban },
       { href: "/agendamento", label: "Agendamento", icon: CalendarClock },
       { href: "/calendario", label: "Calendário", icon: CalendarDays },
     ],

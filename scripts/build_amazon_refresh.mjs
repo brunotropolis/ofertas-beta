@@ -64,7 +64,9 @@ for (const asin of asins) {
     out.push({ id: it.id, price_current: price, price_original: orig && price && orig > price ? orig : null, promo: {
       prime_exclusive: d.accessType === 'PRIME_EXCLUSIVE', badge: d.badge || null, deal_end: d.endTime || null,
       unit_price: ppu && /unidade/i.test(ppu.displayAmount || '') ? ppu.amount : null,
-      amazon_seller: l.merchantInfo && l.merchantInfo.name ? /amazon/i.test(l.merchantInfo.name) : null } });
+      amazon_seller: l.merchantInfo && l.merchantInfo.name ? /amazon/i.test(l.merchantInfo.name) && !/global/i.test(l.merchantInfo.name) : null,
+      // 26/Nov (Bruno: "nao quero mais nenhuma venda internacional"): Amazon Global (vendedor A2EB9PYM83FCP9) = envio do exterior
+      internacional: !!(l.merchantInfo && (l.merchantInfo.id === 'A2EB9PYM83FCP9' || /global/i.test(l.merchantInfo.name || ''))) } });
   }
 }
 // grava em lotes: 1 POST com centenas de itens passava dos 100s da Cloudflare (524)
