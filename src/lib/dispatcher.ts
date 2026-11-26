@@ -21,7 +21,7 @@ import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCouponCaption, buildMaternityCaption, isFralda, type PromoMeta } from "@/lib/caption";
 import { loadCuponsDoDia, melhorCupom } from "@/lib/cupom-do-dia";
-import { CAMPANHA_CODIGO, comGrupo, linkDaLoja, marcaGrupo } from "@/lib/encurtar";
+import { CAMPANHA_CODIGO, codigoCampanha, comGrupo, linkDaLoja, marcaGrupo } from "@/lib/encurtar";
 import { intervaloFimDeSemana } from "@/lib/fim-de-semana";
 
 const EVO_URL = process.env.EVOLUTION_API_URL!;
@@ -557,7 +557,7 @@ export async function publishQueueItemForCampaign(
     // 04/Nov: perfil que não é o Maternas (BRUNOTROPOLIS/geek) usa marca "g": Amazon com a tag própria
     // buscadorgeek-20 (desde 16/Nov; antes era a manualdorec0c-20), Shopee com sub_id 0-g, ML etiqueta buscadorgeek — não mistura com as campanhas do Maternas.
     // 25/Nov: Lar e Mãe (e os canais Manual RN / Achados / Adultos) são da conta do Manual, não do Geek.
-    const cod = pf?.slug && !["ofertas-maternas", "ofertas-lar", "ofertas-mae"].includes(pf.slug as string) ? "g" : CAMPANHA_CODIGO[campaign.categoria ?? "geral"] ?? "m";
+    const cod = pf?.slug && !["ofertas-maternas", "ofertas-lar", "ofertas-mae"].includes(pf.slug as string) ? "g" : codigoCampanha(pf?.slug as string | undefined, campaign.categoria);
     linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
   }

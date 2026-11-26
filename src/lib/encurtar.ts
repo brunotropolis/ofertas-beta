@@ -80,7 +80,73 @@ async function registrar(db: DB, offerId: string, link: string, shortDomain: str
 // grupo (encurtador); a campanha segue marcada dentro do próprio link (tag Amazon, sub_id Shopee, etiqueta ML).
 // Desfazer: no dispatcher, voltar a chamar garantirLinkCurto no lugar de linkDaLoja.
 // ─────────────────────────────────────────────────────────────────────────────
-const AMAZON_TAG_CAMPANHA: Record<string, string> = { m: "mrnofmaternas-20", f: "mrnoffraldas-20", c: "mrnofcupons-20", e: "mrnofenxoval-20", g: "buscadorgeek-20" }; // g = Buscador Geek (16/Nov)
+const AMAZON_TAG_CAMPANHA: Record<string, string> = { m: "mrnofmaternas-20", f: "mrnoffraldas-20", c: "mrnofcupons-20", e: "mrnofenxoval-20", l: "mrnoflar-20", b: "mrnofmae-20", g: "buscadorgeek-20" }; // g = Buscador Geek (16/Nov); l/b = Lar e Mãe (26/Nov)
+// 26/Nov (Bruno: medir as vendas de cada projeto): etiqueta do ML por campanha, gerada na hora de postar (antes o
+// meli.la vinha da coleta com uma etiqueta só). Etiquetas criadas na conta do Manual. m segue asofertasmaternas
+// (a etiqueta de sempre dos grupos, não quebra o histórico desde 23/10).
+const ML_ETIQUETA_CAMPANHA: Record<string, string> = { m: "asofertasmaternas", f: "mrnoffraldas", c: "mrnofcupons", e: "mrnofenxoval", l: "mrnoflar", b: "mrnofmae" };
+// Sessões candidatas, em ordem: 1) campanha LAR (slot só do servidor, gravado com a sessão da conta do Manual, que é
+// a dona das etiquetas mrnof*); 2) campanha principal das Maternas (a extensão grava ali a sessão do Chrome dela, que em
+// 26/11 era a conta Brunotropolis). Só vale o link se o ML devolver a MESMA etiqueta pedida (conta errada devolve a
+// etiqueta padrão dela): assim nunca sai venda pra conta errada.
+const ML_SESSOES = ["6ce489b0-dcfe-4726-a4a8-83eb6ba7ca21", "c3fa658f-fb1d-4a65-a978-3576506e62a0"];
+let sessoesMl: { cookies: string[]; em: number } = { cookies: [], em: 0 };
+async function cookiesMl(): Promise<string[]> {
+  if (Date.now() - sessoesMl.em < 10 * 60e3) return sessoesMl.cookies;
+  const out: string[] = [];
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const db = createAdminClient();
+    for (const id of ML_SESSOES) {
+      const { data } = await db.rpc("get_platform_secrets", { p_campaign_id: id, p_platform: "ml" });
+      const c = ((Array.isArray(data) ? data[0] : data) as { cookie?: string } | null)?.cookie;
+      if (c && /(?:^|;\s*)_csrf=/.test(c)) out.push(c);
+    }
+  } catch { /* banco fora: segue sem trocar a etiqueta */ }
+  sessoesMl = { cookies: out, em: Date.now() };
+  return out;
+}
+/** meli.la com a etiqueta da campanha (sessão do ML guardada no painel); falhou = null e o post sai com o link de antes */
+async function mlComEtiqueta(link: string, campanha: string): Promise<string | null> {
+  const tag = ML_ETIQUETA_CAMPANHA[campanha];
+  if (!tag) return null;
+  let url = link;
+  try {
+    for (let i = 0; i < 4 && /meli\.la\//.test(url); i++) {
+      const r = await fetch(url, { redirect: "manual", headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(6000) });
+      const loc = r.headers.get("location"); if (!loc) break; url = new URL(loc, url).toString();
+    }
+  } catch { return null; }
+  // o meli.la de produto abre a vitrine (/social/<conta>?ref=...) com o produto no 1º card: pega o link dele
+  if (/\/social\//.test(url) && /[?&]ref=/.test(url)) {
+    try {
+      const h = await (await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0 Safari/537.36" }, signal: AbortSignal.timeout(8000) })).text();
+      const i = h.indexOf('"polycards"');
+      const m = i >= 0 ? h.slice(i, i + 6000).match(/"url":"([^"]+)"/) : null;
+      if (!m) return null;
+      url = "https://" + m[1].replace(/\\u002F/g, "/").replace(/^https?:\/\//, "");
+    } catch { return null; }
+  }
+  if (!/mercadolivre\.com\.br\//.test(url) || /\/social\//.test(url) || !/MLB/i.test(url)) return null; // só página de produto
+  const produto = url.split("#")[0].split("?")[0];
+  for (const cookie of await cookiesMl()) {
+    const csrf = cookie.match(/(?:^|;\s*)_csrf=([^;]+)/)?.[1];
+    if (!csrf) continue;
+    try {
+      const r = await fetch("https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json", origin: "https://www.mercadolivre.com.br", referer: "https://www.mercadolivre.com.br/afiliados/linkbuilder", "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0 Safari/537.36", "x-csrf-token": decodeURIComponent(csrf), cookie },
+        body: JSON.stringify({ urls: [produto], tag }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) continue;
+      const u0 = (await r.json())?.urls?.[0];
+      if (u0?.short_url && u0.tag === tag) return u0.short_url;
+    } catch { /* tenta a próxima sessão */ }
+  }
+  return null;
+}
+export const __mlComEtiqueta = mlComEtiqueta; // teste local
 const ML_VITRINE_CURTO = "https://meli.la/2Axm7cw"; // vitrine social/manualdorecemnascido (link da equipe, conta Manual RN)
 
 async function shopeeLinkCurto(origem: string, campanha: string): Promise<string | null> {
@@ -239,6 +305,10 @@ export async function linkDaLoja(link: string, shortDomain: string | null, plata
     if (m) {
       const curto = await shopeeLinkCurto(`https://shopee.com.br/product/${m[1]}/${m[2]}`, campanha);
       if (curto) return curto;
+    } else if (/shopee\.com\.br\/(user\/voucher|m\/|search|collections|shop)/.test(u)) {
+      // 26/Nov: link de cupom (carteira, página de campanha) também leva a marca da campanha
+      const curto = await shopeeLinkCurto(u, campanha);
+      if (curto) return curto;
     }
     return destino;
   }
@@ -246,6 +316,10 @@ export async function linkDaLoja(link: string, shortDomain: string | null, plata
   // Bruno: "link de cupom do ML indo com URL gigante"). O gerador do ML (createLink) só aceita produto, então não dá pra
   // gerar um por campanha; este leva pra social/manualdorecemnascido com a etiqueta padrão da conta.
   if (/mercadolivre\.com\.br\/social\/manualdorecemnascido/.test(destino)) return ML_VITRINE_CURTO;
+  if (plataforma === "ml" || /meli\.la\/|mercadolivre\.com\.br/.test(destino)) {
+    const comTag = await mlComEtiqueta(destino, campanha);
+    if (comTag) return comTag;
+  }
   return destino;
 }
 
@@ -257,5 +331,9 @@ export function marcaGrupo(groupName: string | null | undefined, jid: string): s
 
 /** Marca no link: grupo (g) + campanha (c: m=Maternas, f=Fraldas, c=Cupons, e=Enxoval) — lidos pelo encurtador no clique. */
 export const CAMPANHA_CODIGO: Record<string, string> = { geral: "m", fraldas: "f", cupons: "c", enxoval: "e" };
+/** 26/Nov: Lar e Mãe são "mix" (geral) mas medem venda à parte: l = Lar, b = Mãe (beleza e bem-estar) */
+export const PERFIL_CODIGO: Record<string, string> = { "ofertas-lar": "l", "ofertas-mae": "b" };
+export const codigoCampanha = (slug: string | null | undefined, categoria: string | null | undefined) =>
+  (slug && PERFIL_CODIGO[slug] && (categoria ?? "geral") === "geral") ? PERFIL_CODIGO[slug] : (CAMPANHA_CODIGO[categoria ?? "geral"] ?? "m");
 export const comGrupo = (link: string, g: string, c?: string) =>
   `${link}${link.includes("?") ? "&" : "?"}g=${g}${c ? `&c=${c}` : ""}`;
