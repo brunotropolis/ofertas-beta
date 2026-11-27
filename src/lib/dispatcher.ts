@@ -595,7 +595,11 @@ export async function publishQueueItemForCampaign(
     o.affiliate_url = linkBase;
   }
   if (viaWaha && !aviso && o.kind !== "cupom") await garantirNomeCurto(db, o);
-  const caption = aviso ? (o.extra_text || "").trim() : await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
+  let caption = aviso ? (o.extra_text || "").trim() : await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
+  // 26/11: a WAHA recusa o card quando o texto não tem o link do preview ("text must include the URL") e o aviso
+  // ficava tentando de novo e travando a fila. Aviso sem o link no texto ganha o link no fim.
+  const urlCard = o.affiliate_url || o.url;
+  if (aviso && caption && urlCard && !caption.includes(urlCard)) caption = `${caption}\n\n👉 ${urlCard}`;
   if (aviso && !caption) throw new Error("aviso sem texto (extra_text)");
   let successes = 0;
   let failures = 0;

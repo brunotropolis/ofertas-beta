@@ -40,7 +40,8 @@ for (const [i, [arte, titulo, texto]] of P.entries()) {
   const ja = await (await fetch(`${U}/offers?source_ref=eq.${ref}&select=id`, { headers: H })).json();
   if (ja.length) { console.log("ja existe", ref); continue; }
   const oferta = { source: "manual", source_ref: ref, platform: null, kind: "produto", status: "queued", url: LINK, affiliate_url: LINK,
-    title: titulo, image_url, extra_text: texto, perfil_id: PERFIL, source_channel: "aviso grupos",
+    // WAHA recusa o card quando o texto não tem o link do preview (26/11: os avisos travaram a fila por isso)
+    title: titulo, image_url, extra_text: `${texto}\n\n👉 ${LINK}`, perfil_id: PERFIL, source_channel: "aviso grupos",
     expires_at: new Date(quando.getTime() + 12 * 3600_000).toISOString(),
     promo_meta: { aviso: { descricao: "plantão da Black amanhã, 6h à meia-noite", campanha: "plantão Black" } } };
   const r = await fetch(`${U}/offers`, { method: "POST", headers: H, body: JSON.stringify(oferta) });
