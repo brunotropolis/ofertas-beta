@@ -6,10 +6,13 @@
 // No dia 28 volta sozinho pro que está no banco.
 
 const PERFIL_GEEK = "f3887ae2-7b2c-462b-8984-e1e6618a0ba6";
-type Plantao = { ini?: number; fim: number; mult: number; pausa?: [number, number] };
+// fritar = mecânica do 11.11 (26/11, Bruno: "tem que ser uma mecânica tipo do 11.11", "pode ligar"): ritmo fixo na
+// geral, 25 exclusivas, geek que serve pra mãe na geral, fila com folga; tetos = teto do dia por nome de campanha.
+type Plantao = { ini?: number; fim: number; mult: number; pausa?: [number, number]; fritar?: boolean; tetos?: Record<string, number> };
 const DIAS: Record<string, Plantao> = {
   "2026-11-26": { fim: 24, mult: 1.16 },
-  "2026-11-27": { ini: 0, fim: 24, mult: 1.46, pausa: [2, 6] },
+  "2026-11-27": { ini: 0, fim: 24, mult: 1.46, pausa: [2, 6], fritar: true,
+    tetos: { "OFERTAS MATERNAS": 140, "OFERTAS CUPONS": 120, "OFERTAS LAR": 80, "OFERTAS MÃE": 80 } },
 };
 
 /** madrugada sem post no dia de plantão (entre a virada e as 6h) */
@@ -24,7 +27,7 @@ export function plantaoHoje(): Plantao | null {
   return DIAS[d] ?? null;
 }
 
-type CampJanela = { perfil_id?: string | null; auto_window_start?: number | null; auto_window_end?: number | null; auto_daily_cap?: number | null };
+type CampJanela = { name?: string | null; perfil_id?: string | null; auto_window_start?: number | null; auto_window_end?: number | null; auto_daily_cap?: number | null };
 
 /** janela e teto valendo hoje (plantão estica a janela e sobe o teto na proporção) */
 export function comPlantao<T extends CampJanela>(c: T): T {
@@ -33,6 +36,6 @@ export function comPlantao<T extends CampJanela>(c: T): T {
   const ini0 = c.auto_window_start ?? 8, fim0 = c.auto_window_end ?? 20;
   const ini = Math.min(ini0, p.ini ?? ini0), fim = Math.max(fim0, p.fim);
   const out = { ...c, auto_window_start: ini, auto_window_end: fim };
-  if (c.auto_daily_cap != null) out.auto_daily_cap = Math.round(c.auto_daily_cap * p.mult);
+  if (c.auto_daily_cap != null) out.auto_daily_cap = (c.name && p.tetos?.[c.name]) || Math.round(c.auto_daily_cap * p.mult);
   return out;
 }

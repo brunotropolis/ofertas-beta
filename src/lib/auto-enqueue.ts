@@ -20,7 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
-import { comPlantao, emPausaPlantao } from "@/lib/plantao";
+import { comPlantao, emPausaPlantao, plantaoHoje } from "@/lib/plantao";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA, CASA, BELEZA, catDe } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
@@ -292,7 +292,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   const ordenar = (l: Cand[]) => (dupla ? l.sort((a, b) => desconto(b) - desconto(a)) : l.sort((a, b) => pref(b) - pref(a)));
   const poolCanal = ordenar((canal ?? []) as Cand[]);
   const poolCol = ordenar((coletores ?? []) as Cand[]);
-  if (ehDia1111() && c.perfil_id === PERFIL_MATERNAS) {
+  if (ehDiaFritar() && c.perfil_id === PERFIL_MATERNAS) {
     const { data: doGeek } = await db.from("offers").select(campos).eq("perfil_id", PERFIL_GEEK).eq("status", "draft")
       .eq("kind", "produto").not("image_url", "is", null).not("affiliate_url", "is", null).in("source", ["auto", "telegram"])
       .gte("created_at", new Date(Date.now() - 36 * 3600_000).toISOString()).order("created_at", { ascending: false }).limit(400);
@@ -465,13 +465,17 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
 // 11/11 (Bruno: "das 6 da manhã até meia-noite", muita oferta e cupom): janela 6h–24h, teto do dia em dobro na
 // geral e nos cupons, e o dobro de exclusivas. Só nesse dia; no 12 volta sozinho.
 export { PERFIL_GEEK };
+/** dia de "fritar" (11/11 e plantão com fritar, ex. Black 27/11): ritmo fixo, 25 exclusivas, geek pra mãe na geral */
+export function ehDiaFritar(): boolean {
+  return ehDia1111() || !!plantaoHoje()?.fritar;
+}
 export function ehDia1111(): boolean {
   const brt = new Date(Date.now() - 3 * 3600_000);
   return brt.getUTCMonth() === 10 && brt.getUTCDate() === 11;
 }
 // 25/Nov (planilha Hot Deals BF nos 4 perfis): fora das Maternas o teto vira ~30% do teto do grupo, até 15
 // (Lar/Mãe 40/dia → 12; Brunotropolis Ofertas 20 → 6; Brunotropolis Canal 4 → 1), pra exclusiva não tomar o grupo pequeno.
-const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? (ehDia1111() ? 25 : 10) : Math.max(1, Math.min(15, Math.round(c.auto_daily_cap * 0.3))));
+const EXCLUSIVA_TETO = (c: AutoCampaign) => (c.perfil_id === PERFIL_MATERNAS ? (ehDiaFritar() ? 25 : 10) : Math.max(1, Math.min(15, Math.round(c.auto_daily_cap * 0.3))));
 const EXCLUSIVA_GAP_MS = 20 * 60_000;
 const EXCLUSIVA_FIM_MARGEM_MS = 30 * 60_000;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -562,6 +566,8 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       // fila com folga pra ter produto comum entre cupom/eletro/exclusiva (Bruno 11/11: "mesclar com os produtos padrões")
       if ((c.categoria ?? "geral") === "geral") c.auto_buffer = Math.max(c.auto_buffer ?? 6, 4);
     }
+    // plantão "fritar" (27/11): mesma folga de fila do 11.11 na geral das Maternas (janela e teto vêm do comPlantao)
+    if (!ehDia1111() && ehDiaFritar() && c.perfil_id === PERFIL_MATERNAS && (c.categoria ?? "geral") === "geral") c.auto_buffer = Math.max(c.auto_buffer ?? 6, 4);
     if (ehDia1111() && c.perfil_id === PERFIL_GEEK) {
       result.skipped.push({ campaign: c.name, reason: "11/11: Brunotropolis parado (Bruno)" });
       continue;
@@ -602,7 +608,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
     // 11/11 (Bruno: "mesclar com os produtos padrões"): na geral das Maternas o buffer conta só PRODUTO comum
     // (cupom fresco, exclusiva e eletro agendado furam a fila e enchiam o buffer — 9 cupons na fila, zero produto)
     let cuponsNaFila = 0;
-    const maternasGeral1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS && (c.categoria ?? "geral") === "geral";
+    const maternasGeral1111 = ehDiaFritar() && c.perfil_id === PERFIL_MATERNAS && (c.categoria ?? "geral") === "geral";
     if (maternasGeral1111) {
       const { data: pend } = await db.from("publication_queue").select("scheduled_at, offer:offers(kind, promo_meta)")
         .in("status", ["pending", "publishing"]).is("created_by", null).contains("campaign_ids", [c.id]).limit(200);
