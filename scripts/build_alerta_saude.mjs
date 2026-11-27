@@ -63,6 +63,7 @@ if (r.statusCode >= 300) {
   // 11/11: Brunotropolis parado de propósito (Bruno, 10/Nov) — não avisa nada dele nesse dia
   const brt = new Date(Date.now() - 3 * 3600000);
   const dia1111 = brt.getUTCMonth() === 10 && brt.getUTCDate() === 11;
+  const scores = {};
   for (const p of r.body.perfis || []) {
     if (dia1111 && /BRUNOTROPOLIS/i.test(p.perfil || '')) continue;
     for (const n of p.numeros || []) {
@@ -70,7 +71,12 @@ if (r.statusCode >= 300) {
       // 11/Nov: "Servidor fora do ar" era o vigia sem resposta em 6 s no meio de um envio (os envios seguiam
       // sem erro) → só avisa se repetir em 2 checagens seguidas (10 min). Sessão desconectada de verdade avisa na hora.
       (n.motivo === 'Servidor fora do ar' ? mudaConfirmado : muda)('num:' + n.url, n.luz === 'vermelho', 'Número final ' + fim + ' (' + p.perfil + ') caiu: ' + n.motivo, 'Número final ' + fim + ' (' + p.perfil + ') voltou e está conectado');
-      if (n.score != null && n.luz !== 'vermelho') muda('score:' + n.url, n.score < 60, 'Número final ' + fim + ': score caiu pra ' + n.score + ' (' + (n.score_motivos || []).join(', ') + ')', 'Número final ' + fim + ': score voltou pra ' + n.score);
+      // 26/11 (/chips): o mesmo número aparece em mais de um perfil com score diferente (80 num, 50 noutro) e o aviso
+      // ficava trocando "caiu/voltou" a cada 5 min. Agora junta por número (pior score) e decide uma vez só, no fim.
+      if (n.score != null && n.luz !== 'vermelho') {
+        const a = scores[n.url];
+        if (!a || n.score < a.score) scores[n.url] = { score: n.score, fim, motivos: n.score_motivos || [] };
+      }
     }
     for (const x of p.plataformas || []) {
       muda('plat:' + p.perfil + ':' + x.plataforma, x.luz === 'vermelho', x.nome + ' (' + p.perfil + '): ' + x.motivo, x.nome + ' (' + p.perfil + ') voltou a trazer ofertas');
@@ -80,6 +86,9 @@ if (r.statusCode >= 300) {
     for (const c of p.campanhas || []) {
       mudaConfirmado('camp:' + c.id, c.luz === 'vermelho', c.nome + ': ' + c.motivo, c.nome + ': voltou a postar');
     }
+  }
+  for (const [url, s] of Object.entries(scores)) {
+    muda('score:' + url, s.score < 60, 'Número final ' + s.fim + ': score caiu pra ' + s.score + ' (' + s.motivos.join(', ') + ')', 'Número final ' + s.fim + ': score voltou pra ' + s.score);
   }
 }
 
