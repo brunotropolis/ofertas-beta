@@ -12,7 +12,7 @@ const http = async ({ url, method = "GET", headers = {}, body, manual }) => {
   const res = await runLeitor({
     http, sha256: (s) => crypto.createHash("sha256").update(s).digest("hex"), state: {}, kw: [],
     cfg: {
-      channels: ["grupo_promocoes", "amigacompra", "promocaozinha", "cuponsm", "afiliadosshopeebroficial", "cuponsdasho", "fadadoscupons"],
+      channels: (process.env.CANAIS || "grupo_promocoes,amigacompra,promocaozinha,cuponsm,afiliadosshopeebroficial,cuponsdasho,fadadoscupons").split(","),
       shopee: { appId: env.SHOPEE_APP_ID, secret: env.SHOPEE_APP_SECRET },
       ml: { cookie: env.ML_COOKIE_MATERNA, csrf: "Mqp1xO_51aAxfOR-BiDjSQnt", tag: "manualmanual20230331072922", social: "https://www.mercadolivre.com.br/social/manualdorecemnascido" },
       amazon: { accessKey: env.AMAZON_ACCESS_KEY, secretKey: env.AMAZON_SECRET_KEY, partnerTag: env.AMAZON_PARTNER_TAG },

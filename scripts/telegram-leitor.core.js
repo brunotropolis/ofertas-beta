@@ -103,7 +103,9 @@ function platformOf(u) {
   if (/amzn\.|amazon\.|link\.amazon/.test(u)) return "amazon";
   if (/meli\.la|mercadoli|mercadolibre/.test(u)) return "ml";
   if (/magazineluiza\.com|magazinevoce\.com|divulgador\.magalu|magalu\.com|mglu\.io|magazineluiza\.onelink/.test(u)) return "magalu";
-  if (/reduz\.|cutt\.ly|bit\.ly|tinyurl/.test(u)) return "short";
+  // 26/11: Natura Minha Loja (canais postam produto Natura com o link da loja de outra consultora; trocamos pra da Day)
+  if (/minhaloja\.natura\.com|natura\.com\.br\/p\//.test(u)) return "natura";
+  if (/reduz\.|cutt\.ly|bit\.ly|tinyurl|prmcz\.com/.test(u)) return "short";
   return null;
 }
 
@@ -271,6 +273,15 @@ async function productLink(ctx, links) {
       const info = await shopeeInfo(ctx, m[1], m[2]).catch(() => null);
       return { platform: "shopee", ref: m[2], url: clean, affiliate_url: aff, image: info?.imageUrl || null, officialTitle: info?.productName || null, lojaPreco: info?.priceMin ? +info.priceMin : null };
     }
+    if (p2 === "natura") {
+      const m = url.match(/\/p\/([^/?#]+)\/((?:NAT|AVN)BRA-\d+)/i);
+      if (!m) continue;
+      const marca = /^AVN/i.test(m[2]) || /marca=avon/i.test(url) ? "avon" : "natura";
+      const aff = `https://www.minhaloja.natura.com/p/${m[1]}/${m[2].toUpperCase()}?consultoria=manualdorecemnascido&marca=${marca}`;
+      const og = (k) => (String(body || "").match(new RegExp(`<meta property="og:${k}" content="([^"]+)"`)) || [])[1] || null;
+      // preço da página é o cheio (o post traz o preço com cupom MLMADRUGADA / "adicione 3"): não confere preço aqui
+      return { platform: null, plat: "natura", ref: m[2].toUpperCase(), url: aff, affiliate_url: aff, image: og("image"), officialTitle: og("title") ? decodeHtml(og("title")) : null, lojaPreco: null };
+    }
     if (p2 === "magalu") {
       // 20/Nov: Magalu (vitrine da Day). O painel troca pelo link da vitrine e o Chrome do operador lê foto/preço
       // (site dá 403 pro servidor). Aqui só acha o produto: <slug>/p/<sku>/<cat>/<sub>.
@@ -327,7 +338,7 @@ async function productLink(ctx, links) {
 async function couponLink(ctx, p) {
   const t = norm(p.text);
   const plats = p.links.map(platformOf).filter(Boolean);
-  let loja = /shopee/.test(t) ? "shopee" : /mercado ?livre|\bml\b/.test(t) ? "ml" : /amazon/.test(t) ? "amazon" : /magalu|magazine ?luiza/.test(t) ? "magalu" : null;
+  let loja = /shopee/.test(t) ? "shopee" : /mercado ?livre|\bml\b/.test(t) ? "ml" : /amazon/.test(t) ? "amazon" : /magalu|magazine ?luiza/.test(t) ? "magalu" : /natura|mlmadrugada/.test(t) ? "natura" : /\bavon\b/.test(t) ? "avon" : null;
   if (!loja) {
     for (const l of p.links) { const r = await resolve(ctx, l); const pl = platformOf(r.url); if (pl && pl !== "short") { loja = pl; break; } }
   }
@@ -337,10 +348,12 @@ async function couponLink(ctx, p) {
   // 25/Nov (Bruno: "buscar cupons da magazine Luiza... já que agora vamos voltar a postar"): cupom Magalu vai com a
   // vitrine da Day (o cupom vale no carrinho da Magalu inteira, a compra pela vitrine conta pra nós)
   if (loja === "magalu") return { loja, affiliate_url: MAGALU_VITRINE };
+  // 26/11: cupom Natura/Avon da Minha Loja (ex. MLMADRUGADA) vai com a loja da Day
+  if (loja === "natura" || loja === "avon") return { loja, affiliate_url: `https://www.minhaloja.natura.com/?consultoria=manualdorecemnascido&marca=${loja}` };
   return { loja, affiliate_url: null }; // Amazon/outras: sem link de cupom nosso
 }
 
-const LOJA_NOME = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon", magalu: "Magalu" };
+const LOJA_NOME = { shopee: "Shopee", ml: "Mercado Livre", amazon: "Amazon", magalu: "Magalu", natura: "Natura", avon: "Avon" };
 
 // ── 5. Rodada ──────────────────────────────────────────────────────────────
 async function runLeitor(ctx) {
@@ -432,7 +445,7 @@ async function processarPosts(ctx, res, fresh, origem) {
         const tituloLista = p.item && link.officialTitle ? tituloCurto(link.officialTitle) : null;
         res.enviados.push({
           source: origem.source, source_channel: origem.canal, kind: "produto", perfil,
-          source_ref: `tg_${link.platform}_${link.ref}_${brtStamp(p.time)}`,
+          source_ref: `tg_${link.platform || link.plat}_${link.ref}_${brtStamp(p.time)}`,
           platform: link.platform, url: link.url, affiliate_url: link.affiliate_url,
           title: tituloLista || titleOf(textoNome) || link.officialTitle || null, price_current: cur, price_original: orig,
           image_url: link.image || null, coupon_code: codes[0] || null, // nunca a foto do post (tem a marca do canal) — 10/Out
@@ -458,7 +471,7 @@ async function processarPosts(ctx, res, fresh, origem) {
         for (const perfilCupom of perfisCupom) res.enviados.push({
           source: origem.source, source_channel: origem.canal, kind: "cupom", perfil: perfilCupom,
           source_ref: `tgcupom_${loja}_${[...codes].sort().join("-")}_${brtStamp(p.time)}${perfilCupom === "ofertas-maternas" ? "" : "_" + perfilCupom.slice(8)}`,
-          platform: loja === "amazon" ? "amazon" : loja, url: affiliate_url, affiliate_url,
+          platform: ["amazon", "shopee", "ml", "magalu"].includes(loja) ? loja : null, url: affiliate_url, affiliate_url,
           title: `Cupom ${LOJA_NOME[loja]}${regra1 ? ": " + regra1 : ""}`.slice(0, 200),
           image_url: null, coupon_code: codes[0], // cupom: sem a foto do canal (marca deles) — 10/Out
           extra_text: regra || null,
