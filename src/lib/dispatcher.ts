@@ -159,6 +159,39 @@ async function generateFromCampaignPrompt(offer: Offer, aiPrompt: string): Promi
   return callHaiku(prompt);
 }
 
+// 26/11 (Bruno: "dividir o nome do produto mais curto e abaixo um pequeno descritivo"; o título longo aparece na
+// miniatura e confunde). A IA separa 1x por oferta e fica guardado em promo_meta.nome_curto/detalhe.
+// Ex.: "Carrinho Bebê Galzerano de Passeio" / "modelo Romano G22"; "Fralda Pampers" / "Confort Sec Tamanho P 50 Unidades".
+export async function dividirTitulo(title: string): Promise<{ nome: string; detalhe: string | null } | null> {
+  const prompt = `Separe o nome deste produto em duas partes para um post de ofertas no WhatsApp.
+"nome": o que é + marca (+ linha principal, se for curta). Curto, até 6 palavras, como uma pessoa falaria. Primeira letra de cada palavra importante maiúscula.
+"detalhe": o técnico que sobra e importa pra compra (modelo, tamanho, quantidade, cor, volume, voltagem). Até 60 caracteres, sem repetir o nome, sem inventar nada, sem preço. Se não sobrar nada útil, use "".
+Use só palavras que estão no título. Exemplos:
+"Carrinho de Bebê de Passeio Galzerano Romano G22 Preto" > {"nome":"Carrinho Bebê Galzerano de Passeio","detalhe":"modelo Romano G22, preto"}
+"Lenço Umedecido Pampers Limpeza e Cuidado Kit com 12 pacotes" > {"nome":"Kit Lenço Umedecido Pampers","detalhe":"Limpeza e Cuidado do Bebê - 12 Pacotes"}
+"Fralda Pampers Confort Sec P 50 unidades" > {"nome":"Fralda Pampers","detalhe":"Confort Sec Tamanho P 50 Unidades"}
+Responda APENAS o JSON.
+TÍTULO: ${title}`;
+  const txt = await callHaiku(prompt);
+  if (!txt) return null;
+  try {
+    const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || [""])[0]);
+    const nome = String(j.nome || "").replace(/[*_~]/g, "").trim();
+    const detalhe = String(j.detalhe || "").replace(/[*_~]/g, "").trim();
+    if (!nome || nome.length > 50 || nome.length >= title.trim().length) return null;
+    return { nome, detalhe: detalhe && detalhe.length <= 80 && detalhe.toLowerCase() !== nome.toLowerCase() ? detalhe : null };
+  } catch { return null; }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function garantirNomeCurto(db: DB, o: any): Promise<void> {
+  const pm = (o.promo_meta || {}) as PromoMeta;
+  if (pm.nome_curto || !o.title || o.title.trim().length <= 40) return; // título já curto: fica como está
+  const r = await dividirTitulo(o.title.trim());
+  if (!r) return;
+  o.promo_meta = { ...pm, nome_curto: r.nome, detalhe: r.detalhe };
+  await db.from("offers").update({ promo_meta: o.promo_meta }).eq("id", o.id);
+}
+
 // Copy geek (fallback quando não há ai_prompt).
 async function generateCreativeLines(offer: Offer): Promise<string | null> {
   const nome = offer.title || "Produto";
@@ -216,7 +249,7 @@ async function sendCardWaha(perfil: PerfilWaha, chatId: string, text: string, of
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const preview: any = {
     url,
-    title: (offer.title || "Oferta").slice(0, 120),
+    title: ((offer.promo_meta as PromoMeta | null)?.nome_curto || offer.title || "Oferta").slice(0, 120), // 26/11: miniatura com o nome curto
     description: (offer.promo_meta as { aviso?: { descricao?: string } } | null)?.aviso
       ? ((offer.promo_meta as { aviso: { descricao?: string } }).aviso.descricao || "")
       : offer.kind === "cupom"
@@ -561,6 +594,7 @@ export async function publishQueueItemForCampaign(
     linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
   }
+  if (viaWaha && !aviso && o.kind !== "cupom") await garantirNomeCurto(db, o);
   const caption = aviso ? (o.extra_text || "").trim() : await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
   if (aviso && !caption) throw new Error("aviso sem texto (extra_text)");
   let successes = 0;

@@ -37,6 +37,9 @@ export interface PromoMeta {
   full?: boolean;
   // Fralda Barata: preço de hoje é o menor dos últimos 30 dias
   menor_30d?: boolean;
+  // 26/11 (Bruno): nome curto em destaque + descritivo em itálico embaixo (gerado 1x pela IA e guardado na oferta)
+  nome_curto?: string | null;
+  detalhe?: string | null;
 }
 
 export interface CaptionOffer {
@@ -160,7 +163,20 @@ const isLegacyCouponExtra = (s: string) => /^🏷️\s*Use o cupom/i.test(s.trim
 const CHAMADAS = [
   "‼️TÁ BARATOOOO‼️", "🔥BAIXOUUUU🔥", "💥OFERTA RELÂMPAGO💥", "📣 PRECINHOOOO📣", "🚨 CORREEEE!! 🚨",
   "ESSE PREÇO ESTÁ IMPERDÍVEEEL 🚨", "🌟OFERTA DO DIA🌟", "🔥MUUUUITO BARATOOOOOO🔥", "💥SUPER DICA💥",
-  "‼️CHO-CA-DA com esse preço😱🔥‼️", "🔥 Valor pra Fazer ESTOQUEEEEE 😱🏃🏻‼️",
+  "‼️CHO-CA-DA com esse preço😱🔥‼️",
+];
+// 26/11 (Bruno: "fazer estoque" só pra produto de uso diário e reposição, tipo fralda, lenço, shampoo; nunca almofada
+// de amamentação). Chamada de estoque entra só quando o produto é de reposição.
+const CHAMADAS_ESTOQUE = ["🔥 Valor pra Fazer ESTOQUEEEEE 😱🏃🏻‼️", "🛒 HORA DE ESTOCAR 🛒"];
+export const REPOSICAO = /(?<![a-zà-ú])(fraldas?|len[cç]os?|toalhas? umedecidas?|shampoo|xampu|condicionador|sabonete|sab[aã]o|amaciante|detergente|lava[- ]lou[cç]as|desinfetante|alvejante|limpador|multiuso|papel (higi[eê]nico|toalha)|guardanapo|algod[aã]o|cotonetes?|hastes? flex[ií]veis|pomada|creme (de|para) assaduras?|bepantol|hipogl[oó]s|desodorante|creme dental|pasta de dente|enxaguante|fio dental|absorventes?|protetor(es)? de seios?|f[oó]rmula infantil|leite (em p[oó]|infantil)|composto l[aá]cteo|papinha|hidratante|[oó]leo corporal|talco|repelente|protetor solar|sacos? de lixo|filme pvc|papel alum[ií]nio|caf[eé]|c[aá]psulas?|soro fisiol[oó]gico|vitaminas?|suplementos?)(?![a-zà-ú])/i;
+const ehReposicao = (t: string | null | undefined) => REPOSICAO.test(t || "");
+// 26/11 (Bruno): aviso de urgência no fim do post, abaixo do link (frases variando)
+const AVISOS_FIM = [
+  "⚠️ _Essa promo pode acabar a qualquer momento!_",
+  "‼️ _Garanta agora antes que o preço mude!_",
+  "⏳ _Essa oportunidade pode não estar disponível daqui a pouco!_",
+  "🏃‍♀️ _Corre, que preço bom assim some rápido!_",
+  "⚠️ _Promoção por tempo limitado, aproveita enquanto dá!_",
 ];
 const hash = (t: string) => [...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
@@ -170,7 +186,8 @@ function chamada(offer: CaptionOffer): string | null {
   const pct = a && o && o > a ? (1 - a / o) * 100 : 0;
   const boa = (pct >= 25 && pct <= 80) || !!offer.promo_meta?.menor_30d || !!offer.coupon_code || !!offer.coupon_meta?.codes?.length || !!offer.cupom_dia;
   if (!boa) return null;
-  return CHAMADAS[hash((offer.title || "") + (offer.price_current ?? "")) % CHAMADAS.length];
+  const lista = ehReposicao(offer.title) ? [...CHAMADAS, ...CHAMADAS_ESTOQUE] : CHAMADAS;
+  return lista[hash((offer.title || "") + (offer.price_current ?? "")) % lista.length];
 }
 
 // 09/Nov (Bruno: "postadas rápidas e com uma chamada mais agressiva: OFERTA ANTECIPADA, OFERTA EXCLUSIVA,
@@ -211,10 +228,15 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   if (chEx) parts.push(chEx);
   else if (fralda) parts.push("OFERTAS DE FRALDAS 🚼");
   else if (ch) parts.push(ch);
-  if (offer.title) parts.push(`*✅ ${offer.title.trim()}*`);
+  // 26/11 (Bruno): nome curto em negrito e o técnico (modelo, tamanho, quantidade) em itálico embaixo
+  const nomeCurto = offer.promo_meta?.nome_curto?.trim();
+  const detalhe = offer.promo_meta?.detalhe?.trim();
+  if (nomeCurto) parts.push(`*✅ ${nomeCurto}*${detalhe ? `\n_${detalhe}_` : ""}`);
+  else if (offer.title) parts.push(`*✅ ${offer.title.trim()}*`);
   const linhasIa = (creative || "").split("\n").map((l) => l.trim()).filter(Boolean);
   const frase = linhasIa.length >= 2 ? linhasIa.slice(1).join(" ") : "";
-  if (!fralda && !ch && frase && frase.length <= 90) parts.push(frase);
+  const fraseOk = frase && frase.length <= 90 && (ehReposicao(offer.title) || !/estoc|estoqu/i.test(frase));
+  if (!fralda && !ch && fraseOk) parts.push(frase);
   const pb = priceBlock(offer);
   if (pb) parts.push(offer.promo_meta?.menor_30d ? `${pb}\n📉 _Menor preço dos últimos 30 dias_` : pb);
   const prazo = linhaPrazo(offer);
@@ -231,6 +253,7 @@ export function buildMaternityCaption(offer: CaptionOffer, creative: string | nu
   // aviso "cupons podem encerrar" fica só no post de CUPOM (a equipe não usava em produto; saía em 56% dos posts)
   if (offer.extra_text?.trim() && !isLegacyCouponExtra(offer.extra_text)) parts.push(offer.extra_text.trim());
   parts.push(`Link 🔗 ${offer.affiliate_url || offer.url}`);
+  parts.push(AVISOS_FIM[hash((offer.title || "") + "fim") % AVISOS_FIM.length]);
   return semLinkDeCanal(parts.join("\n\n"));
 }
 
