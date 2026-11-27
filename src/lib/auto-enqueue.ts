@@ -384,7 +384,7 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     const { data: lidas } = await db.from("magalu_produtos").select("sku, disponivel")
       .in("sku", skus.slice(0, 300)).eq("status", "ok").gte("lido_em", new Date(Date.now() - 10 * 3600_000).toISOString());
     for (const l of (lidas ?? []) as { sku: string; disponivel: boolean | null }[]) if (l.disponivel !== false) magaluFresca.add(l.sku);
-    for (const o of candMagalu.filter((x) => !magaluFresca.has(skuMagalu(x) ?? "")).slice(0, 15)) {
+    for (const o of candMagalu.filter((x) => !magaluFresca.has(skuMagalu(x) ?? "")).slice(0, 40)) { // 26/11 (Bruno: "da magazine não dá pra puxar mais?"): 15 > 40 leituras por rodada
       const cm = caminhoDaUrl(o.url ?? "");
       if (cm) await pedirLeituraMagalu(db, cm.sku, cm.caminho);
     }

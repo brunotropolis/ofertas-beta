@@ -4,6 +4,7 @@
 //   Lomadee = API de produtos por palavra-chave do perfil, link lmdee.link/deep/manualdorecemnascido
 //   Magalu = busca da vitrine manualdorn (o ingest troca pro link da vitrine)
 // Roda no PC (Magalu bloqueia servidor). Agendado junto do coletor ML (run_lojas.bat, a cada 2 h).
+// 26/11 (Bruno: "da magazine não dá para puxar mais ofertas?"): Magalu 8 palavras x 15 produtos por rodada (era 3 x 8).
 // Uso: node coletor_lojas.mjs [lar|mae] [--dry]
 import fs from "node:fs";
 import zlib from "node:zlib";
@@ -80,19 +81,19 @@ async function lomadee(g, palavras) {
 
 async function magalu(g, palavras) {
   const out = [];
-  for (const p of sorteia(palavras, 3)) {
+  for (const p of sorteia(palavras, 8)) {
     try {
       const r = await fetch(`https://www.magazinevoce.com.br/magazinemanualdorn/busca/${encodeURIComponent(p).replace(/%20/g, "+")}/`, { headers: { "user-agent": UA, "accept-language": "pt-BR,pt;q=0.9", accept: "text/html" }, signal: AbortSignal.timeout(25000) });
       if (!r.ok) { console.log(g, "magalu", p, r.status); continue; }
       const nd = (await r.text()).match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-      for (const it of (nd ? JSON.parse(nd[1])?.props?.pageProps?.data?.search?.products ?? [] : []).slice(0, 8)) {
+      for (const it of (nd ? JSON.parse(nd[1])?.props?.pageProps?.data?.search?.products ?? [] : []).slice(0, 15)) {
         const preco = num(it.price?.bestPrice), de = num(it.price?.price), caminho = String(it.path || "").replace(/^\/magazine[^/]+/, "");
         if (!preco || it.available === false || !caminho.includes("/p/") || !it.image) continue;
         const url = "https://www.magazineluiza.com.br" + caminho;
         out.push({ loja: "magalu", plataforma: "magalu", ref: `magalu_${it.id}`, link: url, url, titulo: String(it.title || ""), imagem: String(it.image).replace("{w}x{h}", "800x800"), preco, de: de > preco ? de : null });
       }
     } catch (e) { console.log(g, "magalu erro", p, e.message); }
-    await dorme(4000);
+    await dorme(2500);
   }
   return out;
 }
