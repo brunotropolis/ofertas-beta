@@ -25,7 +25,7 @@ const NAME = WA ? "OFERTAS MATERNAS | WhatsApp Leitor" : "OFERTAS MATERNAS | Tel
 const WHATSAPP_FONTES = [
   { id: "120363429739898910@newsletter", nome: "WA: Crescendo com o Meli" },
   // 09/Nov: o grupo de avisos da comunidade quase só tem imagem; as ofertas ficam no "Ofertas e Oportunidades Amazon"
-  { id: "120363412235144324@g.us", nome: "WA: Amazon Ofertas e Oportunidades" },
+  { id: "120363412235144324@g.us", nome: "WA: Amazon Ofertas e Oportunidades", relampago: true },
 ];
 // 26/11: os dois leitores a cada 2 min, das 6h às 23h59 e na virada (0h-1h59), pra cupom que esgota rápido. 27/Out: leitor a cada 2 min desde 7h (era a cada 5, 8h-19h) pra cupom sair com antecipação.
 // 27/Out: + PromosdaMih (melhor fonte de cupom Shopee: 12 em 48h), promotop e sddescontos (medido na pesquisa de canais)

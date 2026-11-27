@@ -501,9 +501,12 @@ async function runLeitorWhatsApp(ctx) {
     const fresh = posts.filter((p) => (last ? p.id > last : now - p.time < cfg.firstRunHours * 3600_000));
     if (posts.length) state.wa[f.id] = Math.max(last || 0, ...posts.map((p) => p.id));
     res.novos += fresh.length;
+    // 26/11: cupom relâmpago da comunidade Amazon ("às 19h15 entra um cupom ... Código: X"; esgota ~7 min depois de abrir)
+    if (f.relampago) cuponsRelampago(ctx, res, posts, f, now);
     // 09/Nov: mensagem com vários produtos (lista por categoria) vira um post por produto
     const itens = [];
     for (const p of fresh) {
+      if (f.relampago && RELAMPAGO.test(p.text)) continue; // sai pelo cuponsRelampago, na hora em que abre
       const l = quebrarLista(p.text);
       if (!l) { itens.push(p); continue; }
       l.forEach((t, i) => itens.push({ ...p, id: p.id * 100 + i, text: t, links: [...t.matchAll(URL_RE)].map((x) => x[0]), item: true }));
@@ -512,6 +515,48 @@ async function runLeitorWhatsApp(ctx) {
     await processarPosts(ctx, res, itens, { source: "whatsapp", canal: f.nome, postUrl: () => null, perfilDe: perfilWhatsApp, exclusiva: prazoExclusiva });
   }
   return res;
+}
+
+// Cupom relâmpago (26/11, Bruno: "cupons que estão esgotando muito rápido... queria que a gente priorizasse").
+// A Amazon avisa ~20 min antes ("Novo cupom às 17h45 ... Código: ELETROBLACK") e manda "*CUPOM ESGOTADO!!!*" uns 7 min
+// depois que abre. O leitor guarda o aviso e manda pro painel só quando abre (de 2 min antes até 15 min depois): chega
+// fresco e fura a fila (geral e grupo de Cupons). Se vier ESGOTADO depois do aviso, não manda e tira do painel.
+const RELAMPAGO = /(novo cupom|entra (um )?cupom)/i;
+function cuponsRelampago(ctx, res, posts, f, now) {
+  ctx.state.relampago = ctx.state.relampago || {};
+  const feitos = ctx.state.relampago;
+  for (const k of Object.keys(feitos)) if (now - feitos[k] > 2 * 86400_000) delete feitos[k];
+  for (const p of posts) {
+    if (!RELAMPAGO.test(p.text) || now - p.time > 6 * 3600_000) continue;
+    const cod = (p.text.match(/c[oó]digo:?\s*\*?([A-Z0-9]{4,20})\b/i) || [])[1];
+    const hm = p.text.match(/[àa]s\s*\*?(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i);
+    if (!cod || !hm) continue;
+    const d = new Date(p.time - 3 * 3600_000);
+    let inicio = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +hm[1] + 3, +(hm[2] || 0));
+    if (inicio < p.time - 3600_000) inicio += 86400_000; // "às 0h" avisado à noite = amanhã
+    const chave = `${cod.toUpperCase()}_${brtStamp(inicio)}`;
+    const postKey = `https://wa.me/relampago/${chave}`;
+    const esgotou = posts.some((q) => q.time > p.time && ESGOTADO.test(q.text) && q.time >= inicio - 5 * 60_000);
+    if (esgotou) { res.esgotados.push(postKey); feitos[chave] = feitos[chave] || now; continue; }
+    if (feitos[chave] || now < inicio - 2 * 60_000 || now > inicio + 15 * 60_000) continue;
+    feitos[chave] = now;
+    const regra = p.text.split("\n").map((l) => l.trim()).filter((l) => /ganhe|off|desconto|acima|limitad/i.test(l) && !/https?:|prime/i.test(l)).slice(0, 2).join("\n");
+    const cat = (p.text.match(/cupom especial para\s+\*?([^!.\n*]+)/i) || [])[1]?.trim();
+    const perfis = ["ofertas-maternas"];
+    if (/casa|decora|cozinha|limpeza|\blar\b/i.test(cat || "")) perfis.push("ofertas-lar");
+    if (/beleza|perfum|maquiag|cabelo/i.test(cat || "")) perfis.push("ofertas-mae");
+    const url = `https://www.amazon.com.br/blackfriday?tag=${ctx.cfg.amazonTag}`;
+    for (const perfil of perfis) res.enviados.push({
+      source: "whatsapp", source_channel: f.nome, kind: "cupom", perfil,
+      source_ref: `relampago_amazon_${chave}${perfil === "ofertas-maternas" ? "" : "_" + perfil.slice(8)}`,
+      platform: "amazon", url, affiliate_url: url,
+      title: `Cupom Amazon${cat ? " " + cat.toLowerCase() : ""}: ${(regra.split("\n")[0] || "").replace(/^ganhe\s*/i, "")}`.slice(0, 200),
+      image_url: null, coupon_code: cod.toUpperCase(),
+      extra_text: (regra ? regra + "\n" : "") + "⚡ Cupom relâmpago: esgota em minutos!",
+      coupon_meta: { codes: [cod.toUpperCase()], loja: "amazon", regra, post: postKey, relampago: true },
+    });
+    res.relampago = (res.relampago || 0) + 1;
+  }
 }
 
 // ── 6b. Ofertas exclusivas das fontes de afiliado (09/Nov) ────────────────

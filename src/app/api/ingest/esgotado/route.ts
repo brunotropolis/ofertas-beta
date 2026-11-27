@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const { data: offers, error } = await db
     .from("offers")
     .select("id")
-    .eq("source", "telegram")
+    .in("source", ["telegram", "whatsapp"]) // 26/11: cupom relâmpago da comunidade Amazon (wa.me/relampago/...)
     .in("status", ["draft", "queued"])
     .in("coupon_meta->>post", parsed.data.posts);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
