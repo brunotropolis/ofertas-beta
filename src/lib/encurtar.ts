@@ -315,6 +315,16 @@ export async function linkDaLoja(link: string, shortDomain: string | null, plata
   // ML: meli.la direto. Vitrine (posts de cupom) → meli.la fixo da vitrine, o mesmo que a equipe postava (04/Nov,
   // Bruno: "link de cupom do ML indo com URL gigante"). O gerador do ML (createLink) só aceita produto, então não dá pra
   // gerar um por campanha; este leva pra social/manualdorecemnascido com a etiqueta padrão da conta.
+  // 27/11 (Bruno: "pq as urls não estão encurtadas? magalu, amazon, natura"): Magalu e Natura não têm encurtador
+  // oficial; o link fica com o domínio da loja (decisão 04/Nov: não esconder a loja), só sem o nome do produto.
+  // Testados no Chrome/curl: abrem o produto e mantêm a loja da Day (magazinemanualdorn / consultoria).
+  const mg = destino.match(/^https:\/\/www\.magazinevoce\.com\.br\/([^/?#]+)\/[^?#]*?\/p\/([a-z0-9]{6,})\//i);
+  if (mg) return `https://www.magazinevoce.com.br/${mg[1]}/p/${mg[2]}/`;
+  const nt = destino.match(/^https:\/\/www\.minhaloja\.natura\.com\/p\/[^/?#]+\/((?:NAT|AVN)BRA-\d+)/i);
+  if (nt) {
+    const cons = (destino.match(/[?&]consultoria=([^&#]+)/) || [])[1] || "manualdorecemnascido";
+    return `https://www.minhaloja.natura.com/p/x/${nt[1].toUpperCase()}?consultoria=${cons}${/^AVN/i.test(nt[1]) ? "&marca=avon" : ""}`;
+  }
   if (/mercadolivre\.com\.br\/social\/manualdorecemnascido/.test(destino)) return ML_VITRINE_CURTO;
   if (plataforma === "ml" || /meli\.la\/|mercadolivre\.com\.br/.test(destino)) {
     const comTag = await mlComEtiqueta(destino, campanha);
