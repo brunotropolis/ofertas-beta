@@ -629,7 +629,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       if (ids.length) {
         let fq = db.from("offers").select("id, created_at").in("id", ids)
           .gte("created_at", new Date(Date.now() - 20 * 60_000).toISOString());
-        if (!cupomTodos) fq = fq.eq("platform", "amazon");
+        if (!cupomTodos) fq = fq.or("platform.eq.amazon,coupon_meta->>prioridade.eq.true"); // relâmpago Amazon e cupom Natura/Avon também
         const { data: frescos } = await fq;
         const { data: primeiro } = await db.from("publication_queue").select("position")
           .in("status", ["pending", "publishing"]).order("position", { ascending: true }).limit(1).maybeSingle();

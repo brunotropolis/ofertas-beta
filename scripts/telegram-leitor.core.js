@@ -493,6 +493,7 @@ async function runLeitorWhatsApp(ctx) {
       const j = JSON.parse(r.body || "[]");
       msgs = (Array.isArray(j) ? j : []).map((x) => x.message || x);
     } catch (e) { res.erros.push(`${f.nome}: ${e.message}`); continue; }
+    if (f.natura) { cuponsNatura(ctx, res, msgs, f, now); continue; } // conversa da Natura: só cupom, mensagem em template
     const posts = msgs
       .filter((m) => !m.fromMe && (m.body || "").trim())
       .map((m) => ({ channel: f.nome, id: Number(m.timestamp) || 0, time: (Number(m.timestamp) || 0) * 1000, text: String(m.body).trim(), links: [...String(m.body).matchAll(URL_RE)].map((x) => x[0]), photo: null }));
@@ -553,9 +554,67 @@ function cuponsRelampago(ctx, res, posts, f, now) {
       title: `Cupom Amazon${cat ? " " + cat.toLowerCase() : ""}: ${(regra.split("\n")[0] || "").replace(/^ganhe\s*/i, "")}`.slice(0, 200),
       image_url: null, coupon_code: cod.toUpperCase(),
       extra_text: (regra ? regra + "\n" : "") + "⚡ Cupom relâmpago: esgota em minutos!",
-      coupon_meta: { codes: [cod.toUpperCase()], loja: "amazon", regra, post: postKey, relampago: true },
+      coupon_meta: { codes: [cod.toUpperCase()], loja: "amazon", regra, post: postKey, relampago: true, prioridade: true },
     });
     res.relampago = (res.relampago || 0) + 1;
+  }
+}
+
+// Cupom da Natura/Avon "Minha Loja" (26/11, Bruno: "Consultoria de Beleza Natura e Avon... há cupons que eles vão lançar").
+// Conversa direta da Natura com a Day (consultora), mensagens em template (body vazio, texto dentro do template).
+// Toda quarta "Oferta da Madrugada" (MLMADRUGADA, 17h/20h até 10h do dia seguinte); em data especial, cupom Natura e Avon.
+// Sai no grupo da Mãe quando a validade abre, com o link da loja da Day (consultoria=manualdorecemnascido).
+const NATURA_LOJA = (marca) => `https://www.minhaloja.natura.com/?consultoria=manualdorecemnascido&marca=${marca}`;
+function textoTemplate(m) {
+  const t = m?._data?.message?.templateMessage || m?.message?.templateMessage || null;
+  if (!t) return String(m?.body || "");
+  return t.interactiveMessageTemplate?.body?.text || t.hydratedTemplate?.hydratedContentText || t.hydratedFourRowTemplate?.hydratedContentText || "";
+}
+function cuponsNatura(ctx, res, msgs, f, now) {
+  ctx.state.natura = ctx.state.natura || {};
+  const feitos = ctx.state.natura;
+  for (const k of Object.keys(feitos)) if (now - feitos[k] > 10 * 86400_000) delete feitos[k];
+  for (const m of msgs) {
+    const time = (Number(m.timestamp) || 0) * 1000;
+    if (m.fromMe || now - time > 2 * 86400_000) continue;
+    const text = textoTemplate(m);
+    if (!/cupom/i.test(text)) continue;
+    const ano = new Date(time - 3 * 3600_000).getUTCFullYear();
+    const quando = (h, dd, mm) => Date.UTC(ano, +mm - 1, +dd, +h + 3, 0);
+    const j = text.match(/das\s+(\d{1,2})h\s+do\s+dia\s+(\d{1,2})\/(\d{1,2})\s+at[eé]\s+(?:[àa]s\s+)?(\d{1,2})h\s+de\s+(\d{1,2})\/(\d{1,2})/i)
+      || text.match(/dia\s+(\d{1,2})\/(\d{1,2}),?\s+[àa]s\s+(\d{1,2})h,?\s+at[eé]\s+(\d{1,2})\/(\d{1,2}),?\s+[àa]s\s+(\d{1,2})h/i);
+    let ini = time, fim = time + 18 * 3600_000;
+    if (j && /das\s/i.test(j[0])) { ini = quando(j[1], j[2], j[3]); fim = quando(j[4], j[5], j[6]); }
+    else if (j) { ini = quando(j[3], j[1], j[2]); fim = quando(j[6], j[4], j[5]); }
+    if (fim < ini) fim = ini + 18 * 3600_000; // data errada na mensagem (ex.: "19/10 até 20/11")
+    if (now < ini - 2 * 60_000 || now > fim - 30 * 60_000) continue;
+    // cada cupom com a marca da seção em que aparece (🧡 Ofertas Natura / 🩷 Ofertas Avon)
+    let marca = /avon/i.test(text) && !/natura/i.test(text) ? "avon" : "natura";
+    for (const linha of text.split("\n")) {
+      if (/ofertas?\s+natura/i.test(linha)) marca = "natura";
+      if (/ofertas?\s+avon/i.test(linha)) marca = "avon";
+      const c = linha.match(/cupom:?\s*\*?([A-Z0-9]{5,20})\*?/i);
+      if (!c || !/[0-9]|[A-Z]{5,}/.test(c[1]) || c[1] !== c[1].toUpperCase()) continue;
+      const cod = c[1];
+      const chave = `${marca}_${cod}_${brtStamp(ini)}`;
+      if (feitos[chave]) continue;
+      feitos[chave] = now;
+      const vant = (linha.match(/\(([^)]*off[^)]*)\)/i) || [])[1] || (text.match(/garante\s+(at[eé]\s+\*?\d+%\s*OFF\*?[^.\n]*)/i) || [])[1] || (text.match(/(R\$\s*\d+\s*OFF[^.\n]*)/i) || [])[1] || "";
+      const regra = vant.replace(/\*/g, "").trim();
+      const nome = marca === "avon" ? "Avon" : "Natura";
+      const ate = new Date(fim - 3 * 3600_000);
+      const validade = `⏰ Vale até ${ate.getUTCHours()}h de ${String(ate.getUTCDate()).padStart(2, "0")}/${String(ate.getUTCMonth() + 1).padStart(2, "0")}`;
+      const madrugada = /madrugada/i.test(text) ? " (Oferta da Madrugada)" : "";
+      res.enviados.push({
+        source: "whatsapp", source_channel: f.nome, kind: "cupom", perfil: "ofertas-mae",
+        source_ref: `natura_${chave}`, platform: null, url: NATURA_LOJA(marca), affiliate_url: NATURA_LOJA(marca),
+        title: `Cupom ${nome}${regra ? ": " + regra : ""}${madrugada}`.slice(0, 200),
+        image_url: null, coupon_code: cod,
+        extra_text: [regra && `🎟️ ${regra}`, validade].filter(Boolean).join("\n"),
+        coupon_meta: { codes: [cod], loja: marca, regra, prioridade: true, validade_fim: new Date(fim).toISOString() },
+      });
+      res.natura = (res.natura || 0) + 1;
+    }
   }
 }
 

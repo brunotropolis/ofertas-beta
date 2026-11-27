@@ -167,7 +167,7 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
   const desde = new Date(Date.now() - 3 * 3600_000).toISOString();
   const { data } = await db.from("offers")
     .select("id, title, extra_text, coupon_code, coupon_meta, created_at, platform, affiliate_url")
-    .eq("perfil_id", c.perfil_id!).eq("kind", "cupom").in("source", ["telegram", "auto"]) // auto = lista da página de Cupons do ML (26/Out)
+    .eq("perfil_id", c.perfil_id!).eq("kind", "cupom").in("source", ["telegram", "auto", "whatsapp"]) // auto = lista da página de Cupons do ML (26/Out); whatsapp = relâmpago Amazon e Natura (26/11)
     .not("affiliate_url", "is", null).gte("created_at", desde)
     .order("created_at", { ascending: false }).limit(200);
   const feitos = await jaDaCampanha(db, c.id, dayStart);

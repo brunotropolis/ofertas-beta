@@ -28,6 +28,8 @@ const WHATSAPP_FONTES = [
   { id: "120363412235144324@g.us", nome: "WA: Amazon Ofertas e Oportunidades", relampago: true },
   // 26/11 (Bruno: "era para monitorar esse grupo... ofertas e cupons exclusivos"): avisos da comunidade voltaram a ter texto
   { id: "120363404397839295@g.us", nome: "WA: Amazon Avisos", relampago: true },
+  // 26/11 (Bruno): conversa direta da Natura "Minha Loja" com a Day (cupom da Oferta da Madrugada e datas especiais, Natura e Avon)
+  { id: "5511999841847@c.us", nome: "WA: Natura Minha Loja", natura: true },
 ];
 // 26/11: os dois leitores a cada 2 min, das 6h às 23h59 e na virada (0h-1h59), pra cupom que esgota rápido. 27/Out: leitor a cada 2 min desde 7h (era a cada 5, 8h-19h) pra cupom sair com antecipação.
 // 27/Out: + PromosdaMih (melhor fonte de cupom Shopee: 12 em 48h), promotop e sddescontos (medido na pesquisa de canais)
