@@ -12,7 +12,7 @@ type Plantao = { ini?: number; fim: number; mult: number; pausa?: [number, numbe
 const DIAS: Record<string, Plantao> = {
   "2026-11-26": { fim: 24, mult: 1.16 },
   "2026-11-27": { ini: 0, fim: 24, mult: 1.46, pausa: [2, 6], fritar: true,
-    tetos: { "OFERTAS MATERNAS": 140, "OFERTAS CUPONS": 120, "OFERTAS LAR": 80, "OFERTAS MÃE": 80 } },
+    tetos: { "OFERTAS MATERNAS": 170, "OFERTAS CUPONS": 120, "OFERTAS LAR": 80, "OFERTAS MÃE": 80 } },
 };
 
 /** madrugada sem post no dia de plantão (entre a virada e as 6h) */

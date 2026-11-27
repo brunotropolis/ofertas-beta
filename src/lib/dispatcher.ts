@@ -484,7 +484,8 @@ async function campaignIsDue(db: DB, campaign: Campaign): Promise<boolean> {
   // 04/Nov: só campanha de ritmo rápido (Maternas, 5 min) acelera de manhã; a do geek (30 min) segue o próprio intervalo
   // 11/11: ritmo constante de 7 min na geral das 6h à meia-noite (teto 140 = o dobro; sem o acelerado da manhã,
   // que gastaria a cota antes do almoço)
-  if (ehDiaFritar() && (campaign.categoria ?? "geral") === "geral" && campaign.timer_minutes <= 5) return elapsedMin >= 3; // só a das Maternas; conta do fim do envio (~5 min) → 1 post a cada ~8 min (Bruno 11/11: "dia de fritar")
+  // 27/11 (Bruno: "pode ligar 170"): plantão espera 2 min depois de cada envio (~1 post a cada 7 min); 11/11 eram 3
+  if (ehDiaFritar() && (campaign.categoria ?? "geral") === "geral" && campaign.timer_minutes <= 5) return elapsedMin >= (ehDia1111() ? 3 : 2); // só a das Maternas; conta do fim do envio (~5 min) → 1 post a cada ~8 min (Bruno 11/11: "dia de fritar")
   const manha = (campaign.categoria ?? "geral") === "geral" && campaign.timer_minutes <= 5 && hBrt >= 8 && hBrt < 11;
   return elapsedMin >= (manha ? Math.min(campaign.timer_minutes, 2) : campaign.timer_minutes);
 }

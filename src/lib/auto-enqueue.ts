@@ -258,6 +258,11 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
   const tiposGadget = new Set(feitos.filter((o) => ehGadget(o.title)).map((o) => tipoGadget(o.title)));
   // 11/11: Shopee paga comissão extra de 6% até 12/11 (API shopeeOfferV2, Mãe e Bebê incluso) → 1/3 dos produtos
   const metaShopee1111 = ehDia1111() && c.perfil_id === PERFIL_MATERNAS ? 0.33 : 0;
+  // 27/11 (Bruno: "aumentamos um pouco a proporção de magalu, natura e shopee", "pode ligar 170"): na geral das Maternas
+  // no plantão: Amazon 30%, ML 30%, Shopee 20%, Magalu 12%, Natura 8% (dia normal: ML 45%, Amazon 33%, Magalu 10%)
+  const mixBlack = !ehDia1111() && ehDiaFritar() && c.perfil_id === PERFIL_MATERNAS && (c.categoria ?? "geral") === "geral";
+  const metaShopee = mixBlack ? 0.20 : metaShopee1111;
+  const metaMl = mixBlack ? 0.30 : META_ML, metaAmazon = mixBlack ? 0.30 : META_AMAZON;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let nGeek = feitos.filter((o: any) => o.perfil_id === PERFIL_GEEK).length;
   const usados = new Set(feitos.map((o) => chaveProduto(o.title)));
@@ -435,11 +440,12 @@ async function escolherOfertas(db: DB, c: AutoCampaign, n: number, dayStart: str
     if (!o && fraldas / t < META_FRALDA) o = pega((x) => isFralda(x.title));
     if (!o && nSaude / t < META_SAUDE) o = pega((x) => SAUDE.test(x.title || ""));
     if (!o && nLenco / t < META_LENCO) o = pega((x) => LENCO.test(x.title || ""));
-    if (!o && shopees / t < metaShopee1111) o = pega((x) => x.platform === "shopee");
-    if (!o && magalus / t < metaMagalu(c.perfil_id)) o = pega((x) => x.platform === "magalu");
-    if (!o && mls / t < META_ML && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
-    if (!o && mls / t < META_ML) o = pega((x) => x.platform === "ml");
-    if (!o && amazons / t < META_AMAZON) o = pega((x) => x.platform === "amazon");
+    if (!o && mixBlack && nNatura / t < 0.08) o = pega((x) => ehNatura(x));
+    if (!o && shopees / t < metaShopee) o = pega((x) => x.platform === "shopee");
+    if (!o && magalus / t < (mixBlack ? 0.12 : metaMagalu(c.perfil_id))) o = pega((x) => x.platform === "magalu");
+    if (!o && mls / t < metaMl && nMlCaro / t < META_ML_CARO) o = pega(ehMlCaro);
+    if (!o && mls / t < metaMl) o = pega((x) => x.platform === "ml");
+    if (!o && amazons / t < metaAmazon) o = pega((x) => x.platform === "amazon");
     if (!o) {
       if (dupla) o = pega(() => true); // canal (maior desconto) antes dos coletores
       else o = pega((x) => x.platform !== "amazon" && x.platform !== "ml") ?? pega(() => true); // o resto: Shopee
