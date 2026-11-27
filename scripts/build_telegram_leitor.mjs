@@ -27,7 +27,7 @@ const WHATSAPP_FONTES = [
   // 09/Nov: o grupo de avisos da comunidade quase só tem imagem; as ofertas ficam no "Ofertas e Oportunidades Amazon"
   { id: "120363412235144324@g.us", nome: "WA: Amazon Ofertas e Oportunidades" },
 ];
-// 27/Out: leitor a cada 2 min desde 7h (era a cada 5, 8h-19h) pra cupom sair com antecipação.
+// 26/11: os dois leitores a cada 2 min, das 6h às 23h59 e na virada (0h-1h59), pra cupom que esgota rápido. 27/Out: leitor a cada 2 min desde 7h (era a cada 5, 8h-19h) pra cupom sair com antecipação.
 // 27/Out: + PromosdaMih (melhor fonte de cupom Shopee: 12 em 48h), promotop e sddescontos (medido na pesquisa de canais)
 const CHANNELS = ["grupo_promocoes", "amigacompra", "promocaozinha", "cuponsm", "afiliadosshopeebroficial", "cuponsdasho", "fadadoscupons", "PromosdaMih", "promotop", "sddescontos"];
 
@@ -111,7 +111,7 @@ if (process.env.PRINT_CODE) { fs.writeFileSync(process.env.PRINT_CODE, jsCode); 
 
 const nodes = [
   // só 8h–20h BRT (decisão Bruno 02/Out: nada de madrugada)
-  { parameters: { rule: { interval: [{ field: "cronExpression", expression: WA ? "*/10 8-19 * * *" : "*/2 7-19 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
+  { parameters: { rule: { interval: [{ field: "cronExpression", expression: WA ? "*/2 0-1,6-23 * * *" : "*/2 0-1,6-23 * * *" }] } }, name: "A cada 5 min", type: "n8n-nodes-base.scheduleTrigger", typeVersion: 1.2, position: [0, 0] },
   { parameters: { jsCode }, name: "LER CANAIS + INGEST", type: "n8n-nodes-base.code", typeVersion: 2, position: [240, 0] },
 ];
 const connections = { "A cada 5 min": { main: [[{ node: "LER CANAIS + INGEST", type: "main", index: 0 }]] } };

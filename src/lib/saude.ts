@@ -11,7 +11,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { intervaloFimDeSemana, tetoDoDia } from "@/lib/fim-de-semana";
-import { comPlantao } from "@/lib/plantao";
+import { comPlantao, emPausaPlantao, plantaoHoje } from "@/lib/plantao";
+const PERFIL_GEEK_SAUDE = "f3887ae2-7b2c-462b-8984-e1e6618a0ba6";
 import { amazonCurtoStatus } from "@/lib/encurtar";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,7 +131,7 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
   const inicioDiaUtc = Date.parse(`${hojeBrt}T00:00:00Z`) + BRT_MS;
   const campanhas = await Promise.all(((campsAtivas ?? []) as Any[]).map((c0) => comPlantao({ ...c0, perfil_id: id, auto_daily_cap: c0.auto_daily_cap != null ? tetoDoDia(c0) : null })).map(async (c) => {
     const ini = (c.auto_window_start ?? 8) * 60, fim = (c.auto_window_end ?? 20) * 60;
-    const naJanela = minBrt >= ini && minBrt < fim;
+    const naJanela = minBrt >= ini && minBrt < fim && !emPausaPlantao(Math.floor(minBrt / 60), id);
     const [{ data: ult }, { data: fila }, { count: hoje }] = await Promise.all([
       db.from("publication_log").select("sent_at").eq("campaign_id", c.id).eq("status", "success").order("sent_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("publication_queue").select("id, status, created_at").contains("campaign_ids", [c.id]).in("status", ["pending", "publishing"]).order("created_at", { ascending: true }).limit(20),
@@ -139,7 +140,10 @@ export async function saudePerfil(db: SupabaseClient<any> | Any, id: string) {
     const timer = Math.max(c.timer_minutes ?? 15, intervaloFimDeSemana(c) ?? 0);
     const ultMs = ult?.sent_at ? Date.parse(ult.sent_at) : 0;
     const aberturaMs = inicioDiaUtc + ini * 60_000;
-    const refMs = Math.max(ultMs, aberturaMs);
+    // plantão: depois da pausa da madrugada conta a partir da reabertura (6h), não do último post da virada
+    const pausa = plantaoHoje()?.pausa;
+    const reaberturaMs = pausa && id !== PERFIL_GEEK_SAUDE && minBrt >= pausa[1] * 60 ? inicioDiaUtc + pausa[1] * 3600_000 : 0;
+    const refMs = Math.max(ultMs, aberturaMs, reaberturaMs);
     const semPostMin = (agora - refMs) / 60000;
     const itens = (fila ?? []) as Any[];
     // "enviando" travado = o ÚLTIMO envio desse post foi há mais de 25 min (20/Out: antes media desde que

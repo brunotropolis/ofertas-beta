@@ -20,7 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherPorCategoria, type Categoria } from "@/lib/auto-categorias";
 import { tetoDoDia } from "@/lib/fim-de-semana";
-import { comPlantao } from "@/lib/plantao";
+import { comPlantao, emPausaPlantao } from "@/lib/plantao";
 import { caminhoDaUrl, pedirLeituraMagalu } from "@/lib/magalu";
 import { foraDoPerfil, MARCA_BOA, EQUIP, ALIMENTA, CASA, BELEZA, catDe } from "@/lib/regras-perfil";
 import { carregarBloqueios, motivoBloqueio } from "@/lib/bloqueados";
@@ -571,7 +571,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
       continue;
     }
     // Janela de horário (BRT)
-    if (hour < c.auto_window_start || hour >= c.auto_window_end) {
+    if (hour < c.auto_window_start || hour >= c.auto_window_end || emPausaPlantao(hour, c.perfil_id)) {
       result.skipped.push({ campaign: c.name, reason: `fora da janela (${hour}h BRT)` });
       continue;
     }
@@ -621,12 +621,16 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
     // Só Maternas (geral) e o grupo de Cupons; respeita o teto do dia; o mesmo código nunca sai 2x no dia.
     const cat0 = (c.categoria ?? "geral") as Categoria;
     // Maternas: só de manhã (31/Out); grupo de Cupons: o dia todo; data dupla segue com cupom o dia todo
-    const cupomAgora = cat0 === "cupons" || (cat0 === "geral" && (brtHour() < 11 || ehDataDupla()));
+    // 26/11 (Bruno: cupom da Amazon esgota muito rápido, priorizar): na geral, depois das 11h, cupom fresco da Amazon segue furando
+    const cupomTodos = cat0 === "cupons" || (cat0 === "geral" && (brtHour() < 11 || ehDataDupla()));
+    const cupomAgora = cupomTodos || cat0 === "geral";
     if (cupomAgora && today + pending < c.auto_daily_cap && !(maternasGeral1111 && cuponsNaFila >= 2)) {
       const ids = await escolherPorCategoria(db, "cupons", c, 2, dayStart);
       if (ids.length) {
-        const { data: frescos } = await db.from("offers").select("id, created_at").in("id", ids)
+        let fq = db.from("offers").select("id, created_at").in("id", ids)
           .gte("created_at", new Date(Date.now() - 20 * 60_000).toISOString());
+        if (!cupomTodos) fq = fq.eq("platform", "amazon");
+        const { data: frescos } = await fq;
         const { data: primeiro } = await db.from("publication_queue").select("position")
           .in("status", ["pending", "publishing"]).order("position", { ascending: true }).limit(1).maybeSingle();
         let frente = ((primeiro?.position ?? 1) as number) - 1;

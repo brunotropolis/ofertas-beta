@@ -1,0 +1,46 @@
+{
+ "ENXOVAL DESCOMPLICADO": {
+  "auto_daily_cap": 20,
+  "auto_window_end": 20
+ },
+ "BRUNOTROPOLIS OFERTAS": {
+  "auto_daily_cap": 40,
+  "auto_window_end": 20
+ },
+ "OFERTAS MATERNAS": {
+  "auto_daily_cap": 70,
+  "auto_window_end": 20
+ },
+ "BRUNOTROPOLIS CANAL": {
+  "auto_daily_cap": 8,
+  "auto_window_end": 19
+ },
+ "OFERTAS CUPONS": {
+  "auto_daily_cap": 70,
+  "auto_window_end": 20
+ },
+ "CANAL MANUAL DO RECÉM-NASCIDO": {
+  "auto_daily_cap": 8,
+  "auto_window_end": 20
+ },
+ "CANAL ACHADOS DA DAY": {
+  "auto_daily_cap": 8,
+  "auto_window_end": 20
+ },
+ "CANAL MANUAL DOS ADULTOS": {
+  "auto_daily_cap": 8,
+  "auto_window_end": 20
+ },
+ "OFERTAS LAR": {
+  "auto_daily_cap": 40,
+  "auto_window_end": 20
+ },
+ "OFERTAS FRALDAS": {
+  "auto_daily_cap": 12,
+  "auto_window_end": 20
+ },
+ "OFERTAS MÃE": {
+  "auto_daily_cap": 40,
+  "auto_window_end": 20
+ }
+}
