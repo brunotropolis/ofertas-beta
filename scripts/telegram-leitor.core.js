@@ -605,9 +605,10 @@ function cuponsNatura(ctx, res, msgs, f, now) {
       const ate = new Date(fim - 3 * 3600_000);
       const validade = `⏰ Vale até ${ate.getUTCHours()}h de ${String(ate.getUTCDate()).padStart(2, "0")}/${String(ate.getUTCMonth() + 1).padStart(2, "0")}`;
       const madrugada = /madrugada/i.test(text) ? " (Oferta da Madrugada)" : "";
-      res.enviados.push({
-        source: "whatsapp", source_channel: f.nome, kind: "cupom", perfil: "ofertas-mae",
-        source_ref: `natura_${chave}`, platform: null, url: NATURA_LOJA(marca), affiliate_url: NATURA_LOJA(marca),
+      // 26/11 (Bruno: "pode postar mais cupons da natura no grupo de cupons"): Mãe + grupo de Cupons (perfil Maternas; fora da geral)
+      for (const perfil of ["ofertas-mae", "ofertas-maternas"]) res.enviados.push({
+        source: "whatsapp", source_channel: f.nome, kind: "cupom", perfil,
+        source_ref: `natura_${chave}${perfil === "ofertas-mae" ? "" : "_maternas"}`, platform: null, url: NATURA_LOJA(marca), affiliate_url: NATURA_LOJA(marca),
         title: `Cupom ${nome}${regra ? ": " + regra : ""}${madrugada}`.slice(0, 200),
         image_url: null, coupon_code: cod,
         extra_text: [regra && `🎟️ ${regra}`, validade].filter(Boolean).join("\n"),

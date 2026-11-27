@@ -22,7 +22,7 @@ type Any = any;
 
 export type Categoria = "geral" | "fraldas" | "cupons" | "enxoval" | "canal";
 
-interface Camp { id: string; perfil_id: string | null; niche?: string | null; regras?: unknown }
+interface Camp { id: string; perfil_id: string | null; niche?: string | null; regras?: unknown; categoria?: string | null }
 
 const chave = (t: string | null) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 40);
 
@@ -187,6 +187,8 @@ async function escolherCupons(db: DB, c: Camp, n: number, dayStart: string): Pro
   for (const o of lista) {
     if (ids.length >= n) break;
     if (MORTO.test(`${o.title} ${o.extra_text} ${o.coupon_meta?.regra ?? ""}`)) continue;
+    // 26/11: cupom Natura/Avon no perfil Maternas é só pro grupo de Cupons (beleza não entra na geral)
+    if ((c.categoria ?? "geral") === "geral" && ["natura", "avon"].includes(String(o.coupon_meta?.loja ?? ""))) continue;
     if (Rc && foraDasRegras({ ...Rc, so_marcas: false }, { title: o.title, platform: o.coupon_meta?.loja ?? o.platform, url: o.affiliate_url })) continue; // 26/Nov: regras da campanha (lojas, palavras proibidas)
     // lista de cupons do ML (sem código pra conferir): entra 1x por campanha
     if (Array.isArray(o.coupon_meta?.lista) && o.coupon_meta.lista.length) {
