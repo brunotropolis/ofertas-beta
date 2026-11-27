@@ -593,6 +593,13 @@ export async function publishQueueItemForCampaign(
     const cod = pf?.slug && !["ofertas-maternas", "ofertas-lar", "ofertas-mae"].includes(pf.slug as string) ? "g" : codigoCampanha(pf?.slug as string | undefined, campaign.categoria);
     linkBase = await linkDaLoja(linkBase, (pf?.short_domain as string | null) ?? null, o.platform, cod);
     o.affiliate_url = linkBase;
+    // 26/11: a vitrine pública (promoções do dia, função vitrine_maternas) mostra o link igual saiu no grupo,
+    // com a etiqueta da campanha. Guarda por campanha; falhar aqui nunca segura o post.
+    try {
+      const { data: qrow } = await db.from("publication_queue").select("links_postados").eq("id", queueItem.id).maybeSingle();
+      const atuais = ((qrow as { links_postados?: Record<string, string> } | null)?.links_postados) ?? {};
+      await db.from("publication_queue").update({ links_postados: { ...atuais, [campaign.id]: linkBase } }).eq("id", queueItem.id);
+    } catch (e) { console.warn("[links_postados]", e instanceof Error ? e.message : e); }
   }
   if (viaWaha && !aviso && o.kind !== "cupom") await garantirNomeCurto(db, o);
   let caption = aviso ? (o.extra_text || "").trim() : await buildCaption(o, campaign, viaWaha ? "maternity" : "geek");
