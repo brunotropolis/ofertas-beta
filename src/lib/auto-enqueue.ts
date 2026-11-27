@@ -625,7 +625,7 @@ export async function autoEnqueueAll(db: DB): Promise<AutoEnqueueResult> {
     const cupomTodos = cat0 === "cupons" || (cat0 === "geral" && (brtHour() < 11 || ehDataDupla()));
     const cupomAgora = cupomTodos || cat0 === "geral";
     if (cupomAgora && today + pending < c.auto_daily_cap && !(maternasGeral1111 && cuponsNaFila >= 2)) {
-      const ids = await escolherPorCategoria(db, "cupons", c, 2, dayStart);
+      const ids = await escolherPorCategoria(db, "cupons", c, cupomTodos ? 2 : 10, dayStart);
       if (ids.length) {
         let fq = db.from("offers").select("id, created_at").in("id", ids)
           .gte("created_at", new Date(Date.now() - 20 * 60_000).toISOString());

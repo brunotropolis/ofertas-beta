@@ -1,0 +1,375 @@
+{
+ "updatedAt": "2026-11-10T23:45:47.762Z",
+ "createdAt": "2026-09-13T17:32:55.435Z",
+ "id": "spdOQNLpjiLYiL4n",
+ "name": "OFERTAS MATERNAS | Shopee Auto",
+ "description": null,
+ "active": true,
+ "isArchived": false,
+ "nodes": [
+  {
+   "id": "trg1789320780334",
+   "name": "A cada 10 min",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.2,
+   "position": [
+    260,
+    300
+   ],
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "cronExpression",
+       "expression": "*/10 8-19 * * *"
+      },
+      {
+       "field": "cronExpression",
+       "expression": "*/10 6-7,20-23 11 11 *"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "14e4cc76-1a8b-4d63-9d47-a8f75fc7ec87",
+   "name": "AGORA BR",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    460,
+    300
+   ],
+   "parameters": {
+    "jsCode": "const now = new Date();\nconst br = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));\nconst dia1111 = br.getMonth() === 10 && br.getDate() === 11 && br.getHours() >= 6; // 11/11: 6h à meia-noite\nreturn [{ json: { hora_num: dia1111 ? 12 : br.getHours(), agora_br: br.toLocaleString('pt-BR') } }];"
+   }
+  },
+  {
+   "id": "e2de0801-8aac-4eb1-b9a3-f5f93dbc8001",
+   "name": "HORARIO OK?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    660,
+    300
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "id": "14f50ef2-9873-4b70-aaa8-7a2beb4daae7",
+       "leftValue": "={{ $json.hora_num }}",
+       "rightValue": 8,
+       "operator": {
+        "type": "number",
+        "operation": "gte"
+       }
+      },
+      {
+       "id": "28e186e5-d4ec-4e57-b619-94cb02079f64",
+       "leftValue": "={{ $json.hora_num }}",
+       "rightValue": 20,
+       "operator": {
+        "type": "number",
+        "operation": "lt"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "kw1789320780334",
+   "name": "KEYWORDS MATERNAS",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    860,
+    300
+   ],
+   "parameters": {
+    "jsCode": "// Lê as palavras-chave do PERFIL no painel (fonte de verdade). Fallback = lista antiga.\nconst SECRET = \"d9eb7e94067def9f8eb7e64e2b2d28cc93e092c62344a259e76682f9c1327235\";\nlet KW = [];\ntry {\n  const res = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: \"https://app.buscadorgeek.com.br/api/keywords/collector?slug=ofertas-maternas\",\n    headers: { \"x-ingest-secret\": SECRET },\n    json: true,\n  });\n  if (res && Array.isArray(res.keywords)) KW = res.keywords;\n} catch (e) {}\nif (!KW.length) KW = [\"fralda descartável\",\"lenço umedecido\",\"creme assadura\",\"sabonete bebê\",\"bebê conforto\",\"brinquedo infantil\",\"enxoval bebê\",\"monitor bebê\",\"banheira bebê\",\"triciclo infantil\",\"grade cama bebê\",\"quarto bebê\",\"copo infantil\",\"touca bebê\",\"prendedor chupeta\",\"espelho carro bebê\",\"garrafa térmica infantil\",\"estante infantil\",\"protetor solar infantil\",\"chiqueirinho bebê\"];\n// fralda/lenço (melhor comissão) sorteados em ~35% das rodadas — decisão Bruno 08/Out (lista de keywords intacta)\nconst PRIOR = KW.filter(w => /fralda|len[cç]o/i.test(w));\nconst k = (PRIOR.length && Math.random() < 0.35) ? PRIOR[Math.floor(Math.random()*PRIOR.length)] : KW[Math.floor(Math.random()*KW.length)];\nreturn [{ json: { keyword: k, row_number: 1 } }];"
+   }
+  },
+  {
+   "id": "9ccb1eda-334d-4910-9ca4-5829c5b734d5",
+   "name": "PREPARAR API SHOPEE",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1060,
+    300
+   ],
+   "parameters": {
+    "jsCode": "const appId = '18177790005';\nconst appSecret = 'DXQKJKMC5YY4JVHJJP5F4WF2ZOKEF7ZR';\nconst timestamp = Math.floor(Date.now() / 1000).toString();\nconst keyword = $input.first().json.keyword;\nconst keywordRow = $input.first().json.row_number;\n// página 1–5 sorteada (19/Out): a página 1 dos mais vendidos já está toda no sistema → só deduplicava\nconst pagina = 1 + Math.floor(Math.random() * 5);\nconst graphqlQuery = '{ productOfferV2(listType: 0, sortType: 2, keyword: \"' + keyword + '\", page: ' + pagina + ', limit: 20) { nodes { itemId productName offerLink priceMin priceMax commissionRate sales ratingStar imageUrl shopName priceDiscountRate shopType } pageInfo { page limit hasNextPage } } }';\nconst body = JSON.stringify({ query: graphqlQuery });\nreturn [{ json: { keyword, keyword_row: keywordRow, appId, timestamp, body, signString: appId + timestamp + body + appSecret } }];"
+   }
+  },
+  {
+   "id": "a384b47d-884c-451a-b2fd-a37bb028eabd",
+   "name": "CRYPTO SHA256",
+   "type": "n8n-nodes-base.crypto",
+   "typeVersion": 2,
+   "position": [
+    1260,
+    300
+   ],
+   "parameters": {
+    "action": "hash",
+    "type": "SHA256",
+    "value": "={{ $json.signString }}",
+    "encoding": "hex"
+   }
+  },
+  {
+   "id": "5ded5274-8970-4879-80ae-72470516f494",
+   "name": "CHAMAR API SHOPEE",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1460,
+    300
+   ],
+   "parameters": {
+    "jsCode": "const prepData = $('PREPARAR API SHOPEE').first().json;\nconst signature = $input.first().json.data;\nconst authHeader = 'SHA256 Credential=' + prepData.appId + ',Timestamp=' + prepData.timestamp + ',Signature=' + signature;\nconst result = await this.helpers.httpRequest({\n  method: 'POST', url: 'https://open-api.affiliate.shopee.com.br/graphql',\n  headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },\n  body: prepData.body, returnFullResponse: false, json: false, encoding: 'utf-8'\n});\nlet parsed = typeof result === 'string' ? JSON.parse(result) : result;\nreturn [{ json: { ...parsed, _keyword: prepData.keyword, _keyword_row: prepData.keyword_row } }];"
+   }
+  },
+  {
+   "id": "688cc427-be68-40fb-afdf-73a933a9ce15",
+   "name": "FILTRAR PRODUTOS",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1660,
+    300
+   ],
+   "parameters": {
+    "jsCode": "const response = $input.first().json;\nconst keyword = response._keyword;\nconst keywordRow = response._keyword_row;\nif (response.errors || !response.data || !response.data.productOfferV2) {\n  return [{ json: { error: true, message: response.errors ? response.errors[0].message : 'No data', keyword, keyword_row: keywordRow, total_filtrado: 0, produtos: [] } }];\n}\nconst nodes = response.data.productOfferV2.nodes || [];\nconst filtered = nodes.filter(p => {\n  const commission = parseFloat(p.commissionRate) || 0;\n  const rating = parseFloat(p.ratingStar) || 0;\n  const sales = parseInt(p.sales) || 0;\n  return commission >= 0.03 && rating >= 4.0 && sales >= 30;\n});\nreturn [{ json: { error: false, keyword, keyword_row: keywordRow, total_api: nodes.length, total_filtrado: filtered.length,\n  produtos: filtered.map(p => ({\n    item_id: String(p.itemId), product_name: p.productName, offer_link: p.offerLink,\n    image_url: p.imageUrl, price_min: p.priceMin, price_max: p.priceMax,\n    commission_rate: p.commissionRate, sales: String(p.sales), rating: p.ratingStar,\n    shop_name: p.shopName, keyword, discount_rate: p.priceDiscountRate, shop_type: p.shopType\n  }))\n}}];"
+   }
+  },
+  {
+   "id": "map1789320780334",
+   "name": "MAPEAR INGEST MATERNAS",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1860,
+    300
+   ],
+   "parameters": {
+    "jsCode": "const items=$input.all(); const out=[];\nfunction num(v){ const n=parseFloat(v); return isNaN(n)?null:n; }\nfor(const it of items){\n  const produtos=it.json.produtos||[];\n  for(const p of produtos){\n    const url=p.offer_link;\n    if(!url || String(url).indexOf('https://')!==0) continue;\n    const pmin=num(p.price_min), pmax=num(p.price_max);\n    out.push({ json:{\n      source:'auto', source_ref:'shopee_'+p.item_id, platform:'shopee',\n      url, affiliate_url:url,\n      title:((p.product_name||'')+'').slice(0,500)||null,\n      image_url:(typeof p.image_url==='string'&&p.image_url.indexOf('http')===0)?p.image_url:null,\n      price_current:pmin, price_original:(pmax&&pmin&&pmax>pmin)?pmax:null, discount_pct:(p.discount_rate>0&&p.discount_rate<100)?p.discount_rate:null,\n      perfil:'ofertas-maternas',\n      promo_meta:(()=>{ const m={}; const r=parseFloat(p.rating); if(r>=4) m.rating=Math.round(r*10)/10;\n        const s=parseInt(p.sales); if(s>=50) m.vendidos = s>=1000 ? '+'+(Math.floor(s/100)/10).toString().replace('.',',').replace(/,0$/,'')+' mil' : '+'+s;\n        const st=[].concat(p.shop_type||[]); if(st.includes(1)) m.loja_oficial=true;\n        return Object.keys(m).length?m:null; })()\n    }});\n  }\n}\nreturn out;"
+   }
+  },
+  {
+   "id": "http1789320780334",
+   "name": "POST INGEST",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2060,
+    300
+   ],
+   "continueOnFail": true,
+   "parameters": {
+    "method": "POST",
+    "url": "https://app.buscadorgeek.com.br/api/ingest",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "x-ingest-secret",
+       "value": "d9eb7e94067def9f8eb7e64e2b2d28cc93e092c62344a259e76682f9c1327235"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json) }}",
+    "options": {
+     "timeout": 20000
+    }
+   }
+  }
+ ],
+ "connections": {
+  "A cada 10 min": {
+   "main": [
+    [
+     {
+      "node": "AGORA BR",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "AGORA BR": {
+   "main": [
+    [
+     {
+      "node": "HORARIO OK?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "HORARIO OK?": {
+   "main": [
+    [
+     {
+      "node": "KEYWORDS MATERNAS",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "KEYWORDS MATERNAS": {
+   "main": [
+    [
+     {
+      "node": "PREPARAR API SHOPEE",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "PREPARAR API SHOPEE": {
+   "main": [
+    [
+     {
+      "node": "CRYPTO SHA256",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "CRYPTO SHA256": {
+   "main": [
+    [
+     {
+      "node": "CHAMAR API SHOPEE",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "CHAMAR API SHOPEE": {
+   "main": [
+    [
+     {
+      "node": "FILTRAR PRODUTOS",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "FILTRAR PRODUTOS": {
+   "main": [
+    [
+     {
+      "node": "MAPEAR INGEST MATERNAS",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "MAPEAR INGEST MATERNAS": {
+   "main": [
+    [
+     {
+      "node": "POST INGEST",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "callerPolicy": "workflowsFromSameOwner",
+  "availableInMCP": false,
+  "timezone": "America/Sao_Paulo"
+ },
+ "staticData": {
+  "node:A cada 10 min": {
+   "recurrenceRules": []
+  }
+ },
+ "meta": null,
+ "pinData": null,
+ "versionId": "7ebb1682-d89b-437b-914b-7f5ec4559830",
+ "versionCounter": 53,
+ "triggerCount": 1,
+ "shared": [
+  {
+   "updatedAt": "2026-09-13T17:32:55.447Z",
+   "createdAt": "2026-09-13T17:32:55.447Z",
+   "role": "workflow:owner",
+   "workflowId": "spdOQNLpjiLYiL4n",
+   "projectId": "rLivFmsDqgHRLVjU",
+   "project": {
+    "updatedAt": "2026-03-28T13:41:36.741Z",
+    "createdAt": "2026-02-23T12:37:32.267Z",
+    "id": "rLivFmsDqgHRLVjU",
+    "name": "Bruno Sampaio <contato@brunotropolis.com.br>",
+    "type": "personal",
+    "icon": null,
+    "description": null,
+    "projectRelations": [
+     {
+      "updatedAt": "2026-02-23T12:37:32.268Z",
+      "createdAt": "2026-02-23T12:37:32.268Z",
+      "userId": "88553718-c917-4842-b058-dec50f7e3666",
+      "projectId": "rLivFmsDqgHRLVjU",
+      "user": {
+       "updatedAt": "2026-11-26T12:25:32.000Z",
+       "createdAt": "2026-02-23T12:37:31.891Z",
+       "id": "88553718-c917-4842-b058-dec50f7e3666",
+       "email": "contato@brunotropolis.com.br",
+       "firstName": "Bruno",
+       "lastName": "Sampaio",
+       "personalizationAnswers": {
+        "version": "v4",
+        "personalization_survey_submitted_at": "2026-02-23T12:40:02.181Z",
+        "personalization_survey_n8n_version": "1.103.2",
+        "companySize": "<20",
+        "companyType": "digital-agency",
+        "role": "business-owner",
+        "reportedSource": "google"
+       },
+       "settings": {
+        "userActivated": true,
+        "firstSuccessfulWorkflowId": "tdKkbRLnJ3Y51aFv",
+        "userActivatedAt": 1771943417036,
+        "easyAIWorkflowOnboarded": true,
+        "npsSurvey": {
+         "waitingForResponse": true,
+         "ignoredCount": 1,
+         "lastShownAt": 1775674286808
+        }
+       },
+       "disabled": false,
+       "mfaEnabled": true,
+       "lastActiveAt": "2026-11-26",
+       "isPending": false
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "tags": []
+}
